@@ -64,6 +64,12 @@ For quick one-offs you can still write an ad-hoc in-process script to the scratc
 - Dev-only env flags (`api/.env`, ignored when `NODE_ENV=production`): `DEV_MASTER_OTP`, `CAPTCHA_DEV_ECHO`.
 - Learning UI from screen recordings: extract frames with the bundled ffmpeg (see the `ffmpeg-for-recordings` note) and read the JPGs.
 
+## Git & sensitive data
+
+- **Never commit sensitive information**: passwords, API keys/tokens, `.pem`/`.key` files, `api/.env`, production IPs or credentials, DB dumps, or real personal/bank data (real mobile numbers, account numbers, Aadhaar/PAN). Seed and test data must use obviously dummy values.
+- Already git-ignored: `.env`, `raw_data/`, `api/uploads/`, `.vscode/settings.json`, `*.pem`, `.claude/`. A local `pre-commit` hook (`.git/hooks/pre-commit`) blocks secret-looking files and content; never bypass it with `--no-verify`.
+- Review `git diff --cached` before every commit. The repo is local only — do not push unless asked.
+
 ## Intellectual property
 
 This is an **independent, original implementation**; reference videos are used only as functional reference. Never introduce third-party branding ("Dactilar") name/logo/content, and author all user-facing copy (Terms, Privacy, About Us). See `NOTICE.md`.
