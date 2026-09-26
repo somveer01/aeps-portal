@@ -1,0 +1,88 @@
+// Shared design tokens for the AEPS app (web + native).
+// `colors` is a single mutable object. applyTheme() rewrites the themeable
+// entries BEFORE screen StyleSheets are created (see App.js), so a saved
+// primary/secondary flows through the whole app.
+
+export const DEFAULT_PRIMARY = '#2563eb';
+export const DEFAULT_SECONDARY = '#2563eb';
+
+export const colors = {
+  bg: '#eef1f6',
+  surface: '#ffffff',
+  surfaceAlt: '#f8fafc', // input / subtle fills
+  sidebar: '#0f172a',
+  sidebarFg: '#cbd5e1',
+  sidebarActive: DEFAULT_SECONDARY, // menu highlight = secondary
+  primary: DEFAULT_PRIMARY,
+  primaryDark: '#1d4ed8',
+  primarySoft: '#eef4ff', // tinted primary wash (hover / active bg)
+  secondary: DEFAULT_SECONDARY,
+  navy: '#2b2f77',
+  navyDark: '#20234f',
+  loginBg: '#eef3fb',
+
+  // Master layout (light sidebar + primary topbar + light-blue content)
+  contentBg: '#f1f5fb',
+  sidebarBg: '#ffffff',
+  sidebarText: '#475569',
+  sidebarBorder: '#eef2f7',
+  topbarBg: DEFAULT_PRIMARY,
+  topbarDark: '#1d4ed8',
+  text: '#0f172a',
+  muted: '#64748b',
+  border: '#e6ebf2',
+  ring: 'rgba(37,99,235,0.14)', // focus ring (default-theme blue)
+  danger: '#dc2626',
+  dangerBg: '#fef2f2',
+  info: '#2563eb',
+  infoBg: '#eff6ff',
+  success: '#16a34a',
+  successBg: '#ecfdf5',
+  warning: '#d97706',
+  warningBg: '#fffbeb',
+};
+
+// Cross-platform elevation presets (web boxShadow + native shadow props).
+export const shadows = {
+  sm: { boxShadow: '0 1px 2px rgba(15,23,42,0.06)', shadowColor: '#0f172a', shadowOpacity: 0.06, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  card: { boxShadow: '0 2px 10px rgba(15,23,42,0.06)', shadowColor: '#0f172a', shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
+  pop: { boxShadow: '0 12px 32px rgba(15,23,42,0.14)', shadowColor: '#0f172a', shadowOpacity: 0.14, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 6 },
+};
+
+/** Validate a #rrggbb / #rgb hex color. */
+export function isHex(c) {
+  return typeof c === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(c.trim());
+}
+
+/** Darken a hex color by amt (0..1). */
+export function darken(hex, amt = 0.12) {
+  if (!isHex(hex)) return hex;
+  let h = hex.trim().slice(1);
+  if (h.length === 3) h = h.split('').map((x) => x + x).join('');
+  const n = parseInt(h, 16);
+  const r = Math.max(0, Math.round(((n >> 16) & 255) * (1 - amt)));
+  const g = Math.max(0, Math.round(((n >> 8) & 255) * (1 - amt)));
+  const b = Math.max(0, Math.round((n & 255) * (1 - amt)));
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
+/**
+ * Apply a theme by mutating the shared colors object. Call this at startup
+ * (before screens render) and after the admin saves a new theme (followed by
+ * a reload so already-created StyleSheets pick up the change).
+ */
+export function applyTheme({ primary, secondary } = {}) {
+  const p = isHex(primary) ? primary : colors.primary;
+  const s = isHex(secondary) ? secondary : colors.secondary;
+  colors.primary = p;
+  colors.primaryDark = darken(p, 0.12);
+  colors.topbarBg = p;
+  colors.topbarDark = darken(p, 0.12);
+  colors.info = p;
+  colors.secondary = s;
+  colors.sidebarActive = s; // menu highlight
+  return { primary: p, secondary: s };
+}
+
+export const radius = { sm: 8, md: 12, lg: 16 };
+export const space = (n) => n * 4;

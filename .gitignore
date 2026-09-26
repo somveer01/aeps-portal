@@ -1,0 +1,14 @@
+node_modules/
+.env
+npm-debug.log*
+.DS_Store
+*.log
+coverage/
+dist/
+
+# local-only / large / secret
+raw_data/
+api/uploads/
+.vscode/settings.json
+*.pem
+.claude/

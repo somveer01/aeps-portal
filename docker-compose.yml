@@ -1,0 +1,65 @@
+# One-command deploy for the AEPS portal: PostgreSQL + API + web (nginx).
+# Only the `web` service is published (port 80); db + api stay on the internal
+# network. Copy .env.production.example -> .env and fill in secrets first.
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER} -d ${PGDATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      APP_MODE: ${APP_MODE:-mock}
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: ${PGUSER}
+      PGPASSWORD: ${PGPASSWORD}
+      PGDATABASE: ${PGDATABASE}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      SMS_PROVIDER: ${SMS_PROVIDER:-dev}
+      DEV_MASTER_OTP: ${DEV_MASTER_OTP:-}
+      CAPTCHA_DEV_ECHO: ${CAPTCHA_DEV_ECHO:-false}
+      RUN_SEED: ${RUN_SEED:-false}
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin@12345}
+    volumes:
+      - uploads:/usr/src/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: ./app
+      args:
+        # Empty = same origin; the web bundle calls a relative /api that nginx proxies.
+        EXPO_PUBLIC_API_URL: ""
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+
+volumes:
+  db_data:
+  uploads:
