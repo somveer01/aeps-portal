@@ -90,6 +90,21 @@ function mapFields(b) {
   return out;
 }
 
+// A parent (upline) must be an existing managed user and cannot be the user itself.
+async function checkParent(parentId, selfId) {
+  if (!parentId) return null;
+  if (selfId && parentId === selfId) return { error: 'A user cannot be their own parent', code: 'INVALID_PARENT' };
+  let cur = await repo.findFull(parentId);
+  if (!cur) return { error: 'Parent user not found', code: 'INVALID_PARENT' };
+  // Walk up the chain so a user can never become their own ancestor.
+  for (let i = 0; selfId && cur && cur.parent_id && i < 50; i += 1) {
+    if (cur.parent_id === selfId) return { error: 'This parent is already below the user in the chain', code: 'PARENT_CYCLE' };
+    // eslint-disable-next-line no-await-in-loop
+    cur = await repo.findFull(cur.parent_id);
+  }
+  return null;
+}
+
 async function create(req, res, next) {
   try {
     const b = req.body;
@@ -101,13 +116,18 @@ async function create(req, res, next) {
     if (b.planId && !(await planRepo.findById(intOrNull(b.planId)))) return res.status(400).json({ error: 'Invalid plan', code: 'INVALID_PLAN' });
     if (String(b.password || '').length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters', code: 'WEAK_PASSWORD' });
 
+    const parentErr = await checkParent(intOrNull(b.parentId), null);
+    if (parentErr) return res.status(400).json(parentErr);
+
     const passwordHash = await bcrypt.hash(String(b.password), 12);
     const fields = mapFields(b);
     const id = await createUserWithCode((code) => ({
       username: code, user_code: code, password_hash: passwordHash, role: 'user',
       wallet_balance: 0, kyc_status: 'pending', ekyc_status: 'pending',
       ...fields,
+      created_by: req.user.id, // who created this user; never taken from the request body
     }));
+    await audit.log({ userId: req.user.id, username: req.user.username, event: 'user_created', detail: { newUserId: id, parentId: fields.parent_id || null }, ip: req.ip, userAgent: req.get('user-agent') });
     return res.status(201).json({ row: await repo.findFull(id) });
   } catch (err) { return next(err); }
 }
@@ -119,6 +139,10 @@ async function update(req, res, next) {
     const b = req.body;
     if (b.mobile !== undefined && !/^\d{10}$/.test(clean(b.mobile))) return res.status(400).json({ error: 'Mobile must be 10 digits', code: 'INVALID_MOBILE' });
     if (b.userTypeId !== undefined && !(await userTypeRepo.findById(intOrNull(b.userTypeId)))) return res.status(400).json({ error: 'Invalid account type', code: 'INVALID_USER_TYPE' });
+    if (b.parentId !== undefined) {
+      const parentErr = await checkParent(intOrNull(b.parentId), id);
+      if (parentErr) return res.status(400).json(parentErr);
+    }
     await repo.update(id, mapFields(b));
     return res.json({ row: await repo.findFull(id) });
   } catch (err) { return next(err); }

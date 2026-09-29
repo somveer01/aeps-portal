@@ -127,5 +127,36 @@ test('audit log written for wallet adjust', async () => {
   assert.ok(row, 'admin_wallet_adjust audit row exists');
 });
 
+test('user creation records creator; parent validated (self, cycle)', async () => {
+  const ut = await db('user_types').orderBy('id').first('id');
+  const tok = signFor(await adminUser()); // earlier tests bump token_epoch, so mint a fresh token
+  const mk = (name, extra) => api(BASE, tok).post('/api/users', { name, mobile: '9000000099', userTypeId: ut.id, password: 'Test@1234', ...extra });
+  const created = [];
+  try {
+    // createdBy in the body must be ignored: the creator is always the caller.
+    const a = await mk('Chain Test A', { createdBy: 999999 });
+    assert.equal(a.s, 201);
+    created.push(a.b.row.id);
+    assert.equal(a.b.row.created_by, admin.id);
+    assert.ok(a.b.row.created_by_name, 'creator name joined');
+    assert.ok(await db('audit_log').where({ event: 'user_created', user_id: admin.id }).whereRaw("detail->>'newUserId' = ?", [String(a.b.row.id)]).first(), 'audit row written');
+
+    const b = await mk('Chain Test B', { parentId: a.b.row.id });
+    assert.equal(b.s, 201);
+    created.push(b.b.row.id);
+    assert.equal(b.b.row.parent_id, a.b.row.id);
+
+    assert.equal((await mk('Bad Parent', { parentId: 999999 })).s, 400);
+    const self = await api(BASE, tok).put(`/api/users/${a.b.row.id}`, { parentId: a.b.row.id });
+    assert.equal(self.s, 400);
+    const cycle = await api(BASE, tok).put(`/api/users/${a.b.row.id}`, { parentId: b.b.row.id }); // B is A's child
+    assert.equal(cycle.s, 400);
+    assert.equal(cycle.b.code, 'PARENT_CYCLE');
+  } finally {
+    await db('audit_log').where({ event: 'user_created' }).whereRaw("detail->>'newUserId' = ANY(?)", [created.map(String)]).del();
+    if (created.length) await db('users').whereIn('id', created).del();
+  }
+});
+
 // The seed password (kept out of the token so tests read it from env/default).
 function origAdminPassword() { return process.env.SEED_ADMIN_PASSWORD || 'Admin@12345'; }

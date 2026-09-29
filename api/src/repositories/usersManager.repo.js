@@ -8,6 +8,7 @@ function joined() {
     .leftJoin('user_types as ut', 'ut.id', 'u.user_type_id')
     .leftJoin('plans as p', 'p.id', 'u.plan_id')
     .leftJoin('users as par', 'par.id', 'u.parent_id')
+    .leftJoin('users as cr', 'cr.id', 'u.created_by')
     .leftJoin('states as st', 'st.id', 'u.state_id')
     .leftJoin('cities as ci', 'ci.id', 'u.city_id')
     .whereNotNull('u.user_type_id')
@@ -16,6 +17,7 @@ function joined() {
       'u.wallet_balance', 'u.is_active', 'u.kyc_status', 'u.ekyc_status', 'u.created_at as join_date',
       'u.user_type_id', 'ut.name as user_type_name', 'u.plan_id', 'p.name as plan_name',
       'u.parent_id', 'par.user_code as parent_code', 'par.full_name as parent_name',
+      'u.created_by', db.raw("coalesce(nullif(cr.user_code, ''), cr.username) as created_by_code"), 'cr.full_name as created_by_name',
       'u.father_husband_name', db.raw("to_char(u.dob,'YYYY-MM-DD') as dob"), 'u.pan_number', 'u.aadhar_number',
       'u.gender', 'u.gst_number', 'u.min_balance', 'u.address', 'u.state_id', 'st.name as state_name',
       'u.city_id', 'ci.name as city_name', 'u.pincode', 'u.merchant_id', 'u.assigned_employee_id',

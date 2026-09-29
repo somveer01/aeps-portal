@@ -276,7 +276,7 @@ export default function UserManagerScreen() {
             <TextInput value={q} onChangeText={setQ} placeholder="Name, shop, mobile, id…" placeholderTextColor={colors.muted} style={styles.search} /></View>
         </View>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 1560, flexGrow: 1 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 1690, flexGrow: 1 }}>
           <View style={{ flex: 1 }}>
             <View style={[styles.tr, styles.th]}>
               <Text style={[styles.cell, styles.cNo, styles.thText]}>#</Text>
@@ -289,7 +289,8 @@ export default function UserManagerScreen() {
               <Text style={[styles.cell, styles.cWallet, styles.thText]}>Wallet</Text>
               <Text style={[styles.cell, styles.cPlan, styles.thText]}>Plan</Text>
               <Text style={[styles.cell, styles.cDate, styles.thText]}>Join Date</Text>
-              <Text style={[styles.cell, styles.cParent, styles.thText]}>Parent Id</Text>
+              <Text numberOfLines={1} style={[styles.cell, styles.cParent, styles.thText]}>Parent Id</Text>
+              <Text numberOfLines={1} style={[styles.cell, styles.cCreated, styles.thText]}>Created By</Text>
               <Text style={[styles.cell, styles.cStatus, styles.thText]}>Status</Text>
               <Text style={[styles.cell, styles.cKyc, styles.thText]}>E-Kyc</Text>
               <Text style={[styles.cell, styles.cKyc, styles.thText]}>Kyc</Text>
@@ -310,6 +311,7 @@ export default function UserManagerScreen() {
                     <Text style={[styles.cell, styles.cPlan, styles.td]}>{row.plan_name || '—'}</Text>
                     <Text style={[styles.cell, styles.cDate, styles.td]}>{fmtDate(row.join_date)}</Text>
                     <Text style={[styles.cell, styles.cParent, styles.td]}>{row.parent_code || '—'}</Text>
+                    <View style={[styles.cell, styles.cCreated]}><Text style={styles.td} numberOfLines={1}>{row.created_by_code || '—'}</Text>{row.created_by_name ? <Text style={styles.sub} numberOfLines={1}>{row.created_by_name}</Text> : null}</View>
                     <View style={[styles.cell, styles.cStatus]}><Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
                     <View style={[styles.cell, styles.cKyc]}><KycBadge value={row.ekyc_status} /></View>
                     <View style={[styles.cell, styles.cKyc]}><KycBadge value={row.kyc_status} /></View>
@@ -363,6 +365,7 @@ export default function UserManagerScreen() {
                 ['User Id', viewUser.user_code], ['Name', viewUser.name], ['Shop Name', viewUser.shop_name || '—'],
                 ['User Type', viewUser.user_type_name], ['Mobile', viewUser.mobile], ['Email', viewUser.email || '—'],
                 ['Wallet', money(viewUser.wallet_balance)], ['Plan', viewUser.plan_name || '—'], ['Parent', viewUser.parent_code || '—'],
+                ['Created By', viewUser.created_by_code ? `${viewUser.created_by_code}${viewUser.created_by_name ? ` (${viewUser.created_by_name})` : ''}` : '—'],
                 ['PAN', viewUser.pan_number || '—'], ['Aadhaar', viewUser.aadhar_number || '—'], ['Gender', viewUser.gender || '—'],
                 ['DOB', viewUser.dob || '—'], ['State', viewUser.state_name || '—'], ['City', viewUser.city_name || '—'],
                 ['Pincode', viewUser.pincode || '—'], ['Merchant Id', viewUser.merchant_id || '—'],
@@ -436,7 +439,8 @@ const styles = StyleSheet.create({
   thText: { color: '#fff', fontWeight: '700', fontSize: 12 },
   cell: { paddingVertical: 12, paddingHorizontal: 8 },
   td: { color: colors.text, fontSize: 13 },
-  cNo: { width: 36 }, cWide: { width: 130 }, cMob: { width: 105 }, cId: { width: 90 }, cType: { width: 110 }, cEmail: { width: 180 }, cWallet: { width: 80 }, cPlan: { width: 120 }, cDate: { width: 110 }, cParent: { width: 100 }, cStatus: { width: 70 }, cKyc: { width: 85 }, cAction: { width: 130 },
+  sub: { color: colors.muted, fontSize: 11.5, marginTop: 1 },
+  cNo: { width: 36 }, cWide: { width: 130 }, cMob: { width: 105 }, cId: { width: 90 }, cType: { width: 110 }, cEmail: { width: 180 }, cWallet: { width: 80 }, cPlan: { width: 120 }, cDate: { width: 110 }, cParent: { width: 100 }, cCreated: { width: 130 }, cStatus: { width: 70 }, cKyc: { width: 85 }, cAction: { width: 130 },
   actions: { flexDirection: 'row', gap: 12 },
   detailRow: { flexDirection: 'row', paddingVertical: 5 },
   detailLabel: { width: 130, color: colors.muted, fontSize: 13 },
