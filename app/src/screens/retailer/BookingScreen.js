@@ -51,7 +51,7 @@ export default function BookingScreen({ type, onBack, onDone }) {
         </Card>
       ) : null}
 
-      <Receipt visible={!!receipt} onClose={() => setReceipt(null)} title={`${TITLES[type]} — E-Ticket`}
+      <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title={`${TITLES[type]} — E-Ticket`}
         rows={receipt ? [['Service', TITLES[type]], ['PNR', receipt.target], ['Amount', `₹${Number(receipt.amount).toFixed(2)}`], ['Reference', receipt.reference], ['Balance', `₹${Number(receipt.balance).toFixed(2)}`]] : []} />
     </View>
   );

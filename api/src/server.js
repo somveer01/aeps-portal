@@ -3,6 +3,7 @@
 const app = require('./app');
 const env = require('./config/env');
 const db = require('./config/db');
+const { startJobs } = require('./services/reconciliation.service');
 
 async function start() {
   try {
@@ -21,6 +22,7 @@ async function start() {
   app.listen(env.port, () => {
     // eslint-disable-next-line no-console
     console.log(`AEPS Portal running at http://localhost:${env.port} (${env.nodeEnv})`);
+    startJobs();
   });
 }
 

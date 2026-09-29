@@ -54,7 +54,7 @@ export default function PayServiceScreen({ kind, title, onBack, onDone }) {
           <Text style={{ color: colors.muted }}>Fill the form and submit. On success your wallet is debited and a receipt is generated. Verify details with the operator before paying.</Text>
         </Card>
       </View>
-      <Receipt visible={!!receipt} onClose={() => setReceipt(null)} title={`${title} Receipt`}
+      <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title={`${title} Receipt`}
         rows={receipt ? [['Service', title], ...(receipt.operator ? [['Operator', receipt.operator]] : []), ['Reference', receipt.reference], ['Amount', `₹${Number(receipt.amount).toFixed(2)}`], ['Balance', `₹${Number(receipt.balance).toFixed(2)}`]] : []} />
     </View>
   );

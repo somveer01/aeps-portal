@@ -27,6 +27,7 @@ const ticket = require('../controllers/ticket.controller');
 const network = require('../controllers/network.controller');
 const fundRequest = require('../controllers/fundRequest.controller');
 const kyc = require('../controllers/kyc.controller');
+const ops = require('../controllers/operations.controller');
 const { kycUpload } = require('../middleware/upload');
 // Multer errors (wrong type / too big) come back as a 400 with a clear message.
 const kycFile = (req, res, next) => kycUpload.single('image')(req, res, (e) => (e ? res.status(400).json({ error: e.code === 'LIMIT_FILE_SIZE' ? 'Photo must be 5 MB or smaller' : e.message, code: 'INVALID_FILE' }) : next()));
@@ -242,6 +243,17 @@ router.get('/my/kyc', requireManaged, kyc.mine);
 router.post('/my/kyc', requireManaged, kyc.submit);
 router.get('/kyc-requests', requireAdmin, kyc.adminList);
 router.put('/kyc-requests/:id', requireAdmin, kyc.adminAct);
+
+// Pending transactions, provider callback (HMAC-signed, no login) and reconciliation.
+router.post('/provider-callback', ops.providerCallback);
+router.get('/pending-transactions', requireAdmin, ops.listPending);
+router.post('/pending-transactions/check', requireAdmin, ops.checkAll);
+router.post('/pending-transactions/:id/check', requireAdmin, ops.checkOneTxn);
+router.put('/pending-transactions/:id', requireAdmin, ops.settleByAdmin);
+router.get('/reconciliation/runs', requireAdmin, ops.listRuns);
+router.post('/reconciliation/runs', requireAdmin, ops.runNow);
+router.get('/reconciliation/runs/:id/items', requireAdmin, ops.listItems);
+router.put('/reconciliation/items/:id', requireAdmin, ops.resolveItem);
 
 router.get('/retailer/tickets', requireManaged, ticket.retailerList);
 router.get('/retailer/tickets/:id', requireManaged, ticket.retailerGet);

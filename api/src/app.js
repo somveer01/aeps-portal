@@ -33,7 +33,8 @@ app.use(
     credentials: false,
   }),
 );
-app.use(express.json());
+// Keep the raw body so the provider callback's HMAC signature can be checked.
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 
 // Health check — reports run mode, active adapters, and version so it's clear
 // which implementations are live without reading the code.

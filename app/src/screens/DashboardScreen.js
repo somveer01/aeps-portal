@@ -29,6 +29,8 @@ import CommissionSlabScreen from './CommissionSlabScreen';
 import TaxReportScreen from './TaxReportScreen';
 import AdminMarginScreen from './AdminMarginScreen';
 import KycRequestScreen from './KycRequestScreen';
+import PendingTransactionsScreen from './PendingTransactionsScreen';
+import ReconciliationScreen from './ReconciliationScreen';
 import AdminWalletAddScreen from './AdminWalletAddScreen';
 import AdminWalletListScreen from './AdminWalletListScreen';
 import ChangePasswordScreen from './ChangePasswordScreen';
@@ -200,6 +202,10 @@ export default function DashboardScreen({ user, onLogout }) {
             <TaxReportScreen kind="gst" />
           ) : active.route === '/tds-report' ? (
             <TaxReportScreen kind="tds" />
+          ) : active.route === '/pending-transactions' ? (
+            <PendingTransactionsScreen />
+          ) : active.route === '/reconciliation' ? (
+            <ReconciliationScreen />
           ) : active.route === '/kyc-requests' ? (
             <KycRequestScreen />
           ) : active.route === '/admin-margin' ? (

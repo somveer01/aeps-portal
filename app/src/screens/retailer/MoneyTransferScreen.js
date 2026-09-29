@@ -124,7 +124,7 @@ export default function MoneyTransferScreen({ onBack, onDone }) {
         </Pressable>
       </Modal>
 
-      <Receipt visible={!!receipt} onClose={() => setReceipt(null)} title="Money Transfer Receipt"
+      <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title="Money Transfer Receipt"
         rows={receipt ? [['Beneficiary', receipt.operator], ['Account', receipt.target], ['Mode', receipt.mode], ['Amount', `₹${Number(receipt.amount).toFixed(2)}`], ['UTR/Ref', receipt.provider?.utr || receipt.reference], ['Balance', `₹${Number(receipt.balance).toFixed(2)}`]] : []} />
     </View>
   );

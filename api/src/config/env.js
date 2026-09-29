@@ -36,6 +36,21 @@ const env = {
     return this.appMode === 'live' || this.appMode === 'production';
   },
 
+  // Provider callbacks are signed with HMAC-SHA256 of the raw body (header x-signature).
+  // Local mock development has a built-in secret so it works with zero config; live mode
+  // and any NODE_ENV=production deployment must set one (else callbacks are refused).
+  get providerCallbackSecret() {
+    return process.env.PROVIDER_CALLBACK_SECRET || (this.isLive || this.isProd ? null : 'mock-callback-secret');
+  },
+  // Background jobs (started by server.js, never by tests): status check of pending
+  // transactions and the daily reconciliation of yesterday's transactions.
+  jobs: {
+    enabled: (process.env.JOBS_ENABLED || 'true').toLowerCase() !== 'false',
+    statusCheckEverySec: int(process.env.STATUS_CHECK_INTERVAL_SECONDS, 300),
+    pendingMinAgeSec: int(process.env.PENDING_MIN_AGE_SECONDS, 60),
+    reconHour: int(process.env.RECON_HOUR, 1), // run yesterday's reconciliation after this hour (server time)
+  },
+
   // JWT auth (replaces cookie sessions so the native app works too).
   jwt: {
     secret: process.env.JWT_SECRET || 'dev-insecure-jwt-secret',

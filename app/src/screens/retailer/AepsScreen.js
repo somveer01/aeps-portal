@@ -64,7 +64,7 @@ export default function AepsScreen({ kind = 'aeps', onBack, onDone }) {
         <View style={{ marginTop: 12, alignSelf: 'flex-start' }}><Button title="Capture Fingerprint" onPress={capture} loading={loading} /></View>
       </Card>
 
-      <Receipt visible={!!receipt} onClose={() => setReceipt(null)} title="Customer Copy" rows={rows} />
+      <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title="Customer Copy" rows={rows} />
     </View>
   );
 }

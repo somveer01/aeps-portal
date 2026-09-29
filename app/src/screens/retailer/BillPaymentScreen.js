@@ -58,7 +58,7 @@ export default function BillPaymentScreen({ onBack, onDone }) {
         </Card>
       </View>
 
-      <Receipt visible={!!receipt} onClose={() => setReceipt(null)} title="Bill Payment Receipt"
+      <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title="Bill Payment Receipt"
         rows={receipt ? [['Operator', receipt.operator], ['Bill No', receipt.target], ['Amount', `₹${Number(receipt.amount).toFixed(2)}`], ['Reference', receipt.reference], ['Balance', `₹${Number(receipt.balance).toFixed(2)}`]] : []} />
     </View>
   );

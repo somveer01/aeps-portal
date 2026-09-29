@@ -365,6 +365,20 @@ export const api = {
     review: (id, body) => request(`/api/kyc-requests/${id}`, { method: 'PUT', body, auth: true }),
   },
 
+  // Pending transactions (settled by callback / status check / admin) and reconciliation.
+  pending: {
+    list: (params = {}) => request(`/api/pending-transactions?${qs(params)}`, { auth: true }),
+    checkAll: () => request('/api/pending-transactions/check', { method: 'POST', auth: true }),
+    checkOne: (id) => request(`/api/pending-transactions/${id}/check`, { method: 'POST', auth: true }),
+    settle: (id, body) => request(`/api/pending-transactions/${id}`, { method: 'PUT', body, auth: true }),
+  },
+  reconciliation: {
+    runs: (params = {}) => request(`/api/reconciliation/runs?${qs(params)}`, { auth: true }),
+    run: (date) => request('/api/reconciliation/runs', { method: 'POST', body: { date }, auth: true }),
+    items: (runId, params = {}) => request(`/api/reconciliation/runs/${runId}/items?${qs(params)}`, { auth: true }),
+    resolve: (id, note) => request(`/api/reconciliation/items/${id}`, { method: 'PUT', body: { note }, auth: true }),
+  },
+
   // My own fund requests (any retailer / distributor / MD); approved by whoever created me.
   myFundRequests: {
     meta: () => request('/api/my/fund-request/meta', { auth: true }),
