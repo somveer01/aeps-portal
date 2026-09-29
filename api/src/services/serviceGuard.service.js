@@ -13,7 +13,7 @@ const db = require('../config/db');
 const err = (status, code, message) => Object.assign(new Error(message), { status, code });
 
 // Pipeline service names that are titled differently in Service Master.
-const ALIASES = { fastag: 'fastag recharge' };
+const ALIASES = { fastag: 'fastag recharge', 'nsdl pan card': 'pan card' };
 
 async function findService(name, trx = db) {
   const key = String(name || '').trim().toLowerCase();

@@ -43,6 +43,10 @@ exports.seed = async function seed(knex) {
     ['LIC Payment', b2b, 'internal'],
     ['Fastag Recharge', b2b, 'internal'],
     ['PAN Card', online, 'external'],
+    ['Gas Booking', b2b, 'internal'],
+    ['Flight Booking', online, 'internal'],
+    ['Hotel Booking', online, 'internal'],
+    ['Bus Booking', online, 'internal'],
   ].map(([title, service_category_id, service_type]) => ({ title, service_category_id, service_type }));
 
   await knex.batchInsert('services', services, 50);
