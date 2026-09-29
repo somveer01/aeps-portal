@@ -14,7 +14,8 @@ function fmtDateTime(s) {
   return `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export default function FundTransferListScreen() {
+// network: distributor / MD panel — only the caller's own downline.
+export default function FundTransferListScreen({ network = false }) {
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(null);
   const [userTypes, setUserTypes] = useState([]); const [users, setUsers] = useState([]);
@@ -24,14 +25,23 @@ export default function FundTransferListScreen() {
 
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
-    try { const res = await api.fundTransfer.list({ ...applied, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(p); }
+    try { const res = await (network ? api.network.fundTransfer : api.fundTransfer).list({ ...applied, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(p); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
   }, [page, applied]);
 
   useEffect(() => {
     load(1);
-    api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {});
-    api.managedUsers.list({ pageSize: 100 }).then((r) => setUsers(r.rows)).catch(() => {});
+    if (network) {
+      // Filter options come from the downline itself (types and users below me).
+      api.network.users.list({ pageSize: 100 }).then((r) => {
+        setUsers(r.rows);
+        const seen = new Map(); r.rows.forEach((u) => seen.set(u.user_type_id, u.user_type_name));
+        setUserTypes([...seen].map(([id, name]) => ({ id, name })));
+      }).catch(() => {});
+    } else {
+      api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {});
+      api.managedUsers.list({ pageSize: 100 }).then((r) => setUsers(r.rows)).catch(() => {});
+    }
     /* eslint-disable-next-line */
   }, []);
   useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied]);

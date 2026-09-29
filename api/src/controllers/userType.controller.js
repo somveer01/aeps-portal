@@ -4,6 +4,22 @@ const repo = require('../repositories/userType.repo');
 
 const clean = (v) => String(v || '').trim();
 
+// Parent type = the user type directly above this one (e.g. Retailer → Distributor).
+// It must exist, not be the type itself, and not create a loop.
+async function checkParentType(parentTypeId, selfId) {
+  if (!parentTypeId) return null;
+  if (selfId && parentTypeId === selfId) return 'A user type cannot be its own parent';
+  let cur = await repo.findById(parentTypeId);
+  if (!cur) return 'Parent type not found';
+  for (let i = 0; selfId && cur && cur.parent_type_id && i < 20; i += 1) {
+    if (cur.parent_type_id === selfId) return 'This parent type is already below this type';
+    // eslint-disable-next-line no-await-in-loop
+    cur = await repo.findById(cur.parent_type_id);
+  }
+  return null;
+}
+const parentIdOf = (v) => (v === '' || v === null || v === undefined ? null : parseInt(v, 10) || null);
+
 async function list(req, res, next) {
   try {
     const q = clean(req.query.q);
@@ -19,7 +35,10 @@ async function create(req, res, next) {
     const name = clean(req.body.name);
     if (name.length < 2 || name.length > 80) return res.status(400).json({ error: 'Name must be 2–80 characters', code: 'INVALID_NAME' });
     if (await repo.findByName(name)) return res.status(409).json({ error: 'This user type already exists', code: 'DUPLICATE' });
-    return res.status(201).json({ row: await repo.create({ name, isActive: req.body.isActive !== false }) });
+    const parentTypeId = parentIdOf(req.body.parentTypeId);
+    const perr = await checkParentType(parentTypeId, null);
+    if (perr) return res.status(400).json({ error: perr, code: 'INVALID_PARENT_TYPE' });
+    return res.status(201).json({ row: await repo.create({ name, isActive: req.body.isActive !== false, parentTypeId }) });
   } catch (err) { return next(err); }
 }
 
@@ -36,6 +55,12 @@ async function update(req, res, next) {
       patch.name = name;
     }
     if (req.body.isActive !== undefined) patch.isActive = !!req.body.isActive;
+    if (req.body.parentTypeId !== undefined) {
+      const parentTypeId = parentIdOf(req.body.parentTypeId);
+      const perr = await checkParentType(parentTypeId, id);
+      if (perr) return res.status(400).json({ error: perr, code: 'INVALID_PARENT_TYPE' });
+      patch.parentTypeId = parentTypeId;
+    }
     return res.json({ row: await repo.update(id, patch) });
   } catch (err) { return next(err); }
 }

@@ -24,6 +24,7 @@ const account = require('../controllers/account.controller');
 const retailer = require('../controllers/retailer.controller');
 const rsvc = require('../controllers/retailerServices.controller');
 const ticket = require('../controllers/ticket.controller');
+const network = require('../controllers/network.controller');
 const { requireAuth, requireAdmin, requireManaged, requirePending } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimit');
 const { uploadImage } = require('../middleware/upload');
@@ -58,8 +59,8 @@ router.put('/service-categories/:id', requireAdmin, serviceCategory.update);
 router.delete('/service-categories/:id', requireAdmin, serviceCategory.remove);
 
 // Modules → City Master (states + cities). States list is reusable for dropdowns.
-router.get('/states', requireAdmin, location.listStates);
-router.get('/cities', requireAdmin, location.listCities);
+router.get('/states', requireAuth, location.listStates); // read-only master data (also used by the distributor panel)
+router.get('/cities', requireAuth, location.listCities);
 router.post('/cities', requireAdmin, location.createCity);
 router.put('/cities/:id', requireAdmin, location.updateCity);
 router.delete('/cities/:id', requireAdmin, location.removeCity);
@@ -211,6 +212,16 @@ router.get('/tickets', requireAdmin, ticket.adminList);
 router.get('/tickets/:id', requireAdmin, ticket.adminGet);
 router.put('/tickets/:id', requireAdmin, ticket.adminUpdateStatus);
 router.post('/tickets/:id/reply', requireAdmin, ticket.adminReply);
+
+// Distributor / MD panel (own downline only).
+router.get('/network/meta', requireManaged, network.requireNetwork, network.getMeta);
+router.get('/network/users', requireManaged, network.requireNetwork, network.listUsers);
+router.post('/network/users', requireManaged, network.requireNetwork, network.createUser);
+router.put('/network/users/:id', requireManaged, network.requireNetwork, network.updateUser);
+router.get('/network/lookup', requireManaged, network.requireNetwork, network.lookup);
+router.post('/network/fund-transfer', requireManaged, network.requireNetwork, idempotency, network.fundTransfer);
+router.get('/network/fund-transfers', requireManaged, network.requireNetwork, network.listTransfers);
+router.get('/network/report', requireManaged, network.requireNetwork, network.report);
 
 router.get('/retailer/tickets', requireManaged, ticket.retailerList);
 router.get('/retailer/tickets/:id', requireManaged, ticket.retailerGet);

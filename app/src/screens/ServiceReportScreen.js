@@ -14,7 +14,8 @@ function fmtDateTime(s) {
   return `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export default function ServiceReportScreen() {
+// network: distributor / MD panel — only the caller's own downline.
+export default function ServiceReportScreen({ network = false }) {
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(null);
   const [userTypes, setUserTypes] = useState([]); const [users, setUsers] = useState([]); const [services, setServices] = useState([]);
@@ -24,15 +25,25 @@ export default function ServiceReportScreen() {
 
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
-    try { const res = await api.reports.serviceReport({ ...applied, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
+    try { const res = await (network ? api.network.serviceReport : api.reports.serviceReport)({ ...applied, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
   }, [page, applied]);
 
   useEffect(() => {
     load(1);
-    api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {});
-    api.managedUsers.list({ pageSize: 100 }).then((r) => setUsers(r.rows)).catch(() => {});
-    api.services.list({ pageSize: 100 }).then((r) => setServices(r.rows)).catch(() => {});
+    if (network) {
+      // Filter options come from the downline itself (types and users below me).
+      api.network.users.list({ pageSize: 100 }).then((r) => {
+        setUsers(r.rows);
+        const seen = new Map(); r.rows.forEach((u) => seen.set(u.user_type_id, u.user_type_name));
+        setUserTypes([...seen].map(([id, name]) => ({ id, name })));
+      }).catch(() => {});
+    } else {
+      api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {});
+      api.managedUsers.list({ pageSize: 100 }).then((r) => setUsers(r.rows)).catch(() => {});
+    }
+    if (network) api.retailer.catalogue().then((r) => setServices([...r.b2b, ...r.online].map((t) => ({ title: t.title })))).catch(() => {});
+    else api.services.list({ pageSize: 100 }).then((r) => setServices(r.rows)).catch(() => {});
     /* eslint-disable-next-line */
   }, []);
   useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied]);

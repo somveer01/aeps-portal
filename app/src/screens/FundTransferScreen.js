@@ -7,7 +7,9 @@ import { colors, radius } from '../theme';
 const TXN_OPTIONS = [{ label: 'Credit (add to user)', value: 'credit' }, { label: 'Debit (deduct from user)', value: 'debit' }];
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
 
-export default function FundTransferScreen() {
+// network: distributor / MD panel — transfer only to users directly under you.
+export default function FundTransferScreen({ network = false, onDone }) {
+  const ftApi = network ? api.network.fundTransfer : api.fundTransfer;
   const [code, setCode] = useState('');
   const [receiver, setReceiver] = useState(null);
   const [looking, setLooking] = useState(false);
@@ -16,14 +18,14 @@ export default function FundTransferScreen() {
   const [error, setError] = useState(null); const [info, setInfo] = useState(null);
   const [adminBalance, setAdminBalance] = useState(null);
 
-  const loadAdminBalance = () => api.adminWallet.balance().then((r) => setAdminBalance(r.balance)).catch(() => {});
+  const loadAdminBalance = () => (network ? api.network.meta().then((m) => setAdminBalance(m.walletBalance)) : api.adminWallet.balance().then((r) => setAdminBalance(r.balance))).catch(() => {});
   useEffect(() => { loadAdminBalance(); }, []);
 
   const lookup = async () => {
     setError(null); setInfo(null); setReceiver(null);
     if (!code.trim()) { setError('Enter a User Id.'); return; }
     setLooking(true);
-    try { const { user } = await api.fundTransfer.lookup(code.trim()); setReceiver(user); }
+    try { const { user } = await ftApi.lookup(code.trim()); setReceiver(user); }
     catch (e) { setError(e.message); } finally { setLooking(false); }
   };
 
@@ -35,11 +37,12 @@ export default function FundTransferScreen() {
     if (!txnPw) { setError('Enter your transaction password.'); return; }
     setSubmitting(true);
     try {
-      const { row } = await api.fundTransfer.create({ userId: receiver.id, amount: amt, remark, txnType, transactionPassword: txnPw });
+      const { row } = await ftApi.create({ userId: receiver.id, amount: amt, remark, txnType, transactionPassword: txnPw });
       setInfo(`${txnType === 'debit' ? 'Debited' : 'Credited'} ${money(amt)} — ${receiver.name}'s new balance ${money(row.updated_balance)}.`);
       setAmount(''); setRemark(''); setTxnPw('');
       setReceiver({ ...receiver, walletBalance: row.updated_balance });
       loadAdminBalance(); // your own wallet moved opposite to the receiver's
+      if (onDone) onDone();
     } catch (e) { setError(e.message); } finally { setSubmitting(false); }
   };
 
@@ -63,7 +66,7 @@ export default function FundTransferScreen() {
         {receiver ? (
           <View style={styles.receiver}>
             <Text style={styles.receiverTitle}>Receiver Details</Text>
-            <Detail k="Retailer Name" v={receiver.name} />
+            <Detail k={network ? 'Name' : 'Retailer Name'} v={receiver.name} />
             <Detail k="Shop Name" v={receiver.shopName || '—'} />
             <Detail k="User Id" v={receiver.userCode} />
             <Detail k="Mobile No" v={receiver.mobile} />
@@ -79,12 +82,14 @@ export default function FundTransferScreen() {
           <View style={styles.field}><Select label="Txn Type *" value={txnType} options={TXN_OPTIONS} onChange={setTxnType} searchable={false} /></View>
         </View>
         <View style={[styles.field, { maxWidth: 360 }]}><Text style={styles.label}>Transaction Password *</Text>
-          <TextInput value={txnPw} onChangeText={setTxnPw} secureTextEntry placeholder="Your login password" placeholderTextColor={colors.muted} style={styles.input} /></View>
+          <TextInput value={txnPw} onChangeText={setTxnPw} secureTextEntry placeholder={network ? 'Your PIN or login password' : 'Your login password'} placeholderTextColor={colors.muted} style={styles.input} /></View>
 
         <View style={{ flexDirection: 'row', marginTop: 16 }}>
           <Button title="SUBMIT" onPress={submit} loading={submitting} disabled={!receiver} style={{ minWidth: 180, paddingHorizontal: 24 }} />
         </View>
-        <Text style={styles.hint}>Crediting a user debits your own wallet by the same amount (and debiting credits you back) — top up via Admin Wallet → Add Fund if your balance runs low. Use “All Fund Transfers” in the sidebar to see recent transfers. The transaction password is your admin login password (or your Transaction PIN, if set).</Text>
+        {network ? (
+          <Text style={styles.hint}>You can send money only to users directly under you. Crediting a user debits your wallet by the same amount, and debiting takes it back into your wallet. See your past transfers in My Network → All Fund Transfers. The transaction password is your login password, or your Transaction PIN if you set one.</Text>
+        ) : <Text style={styles.hint}>Crediting a user debits your own wallet by the same amount (and debiting credits you back) — top up via Admin Wallet → Add Fund if your balance runs low. Use “All Fund Transfers” in the sidebar to see recent transfers. The transaction password is your admin login password (or your Transaction PIN, if set).</Text>}
       </Card>
     </View>
   );

@@ -24,7 +24,8 @@ function ownerFilters(req) {
 // GET /api/retailer/summary
 async function summary(req, res, next) {
   try {
-    const u = await db('users').where({ id: req.user.id }).first('wallet_balance', 'kyc_status', 'ekyc_status', 'full_name', 'shop_name', 'user_code');
+    const u = await db('users as u').leftJoin('user_types as ut', 'ut.id', 'u.user_type_id').where('u.id', req.user.id)
+      .first('u.wallet_balance', 'u.kyc_status', 'u.ekyc_status', 'u.full_name', 'u.shop_name', 'u.user_code', 'ut.name as user_type_name');
     const today = await db('account_transactions').where({ user_id: req.user.id })
       .whereRaw('created_at::date = CURRENT_DATE').count('id as c').sum('amount as amt').first();
     const commToday = await db('commission_ledger').where({ user_id: req.user.id })
@@ -33,7 +34,7 @@ async function summary(req, res, next) {
       balance: Number(u ? u.wallet_balance : 0),
       kycStatus: u ? u.kyc_status : 'pending',
       ekycStatus: u ? u.ekyc_status : 'pending',
-      name: u ? u.full_name : '', shopName: u ? u.shop_name : '', userCode: u ? u.user_code : '',
+      name: u ? u.full_name : '', shopName: u ? u.shop_name : '', userCode: u ? u.user_code : '', userTypeName: (u && u.user_type_name) || 'Retailer',
       today: { count: Number(today.c || 0), amount: Number(today.amt || 0) },
       commissionToday: Number(commToday.amt || 0),
     });

@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../config/db');
+const { downlineIds } = require('./network.repo');
 
 // Managed users = those with a user_type (retailers/distributors/etc.), not the admin.
 function joined() {
@@ -26,8 +27,10 @@ function joined() {
 }
 
 module.exports = {
-  async list({ q = '', userTypeId = null, kycStatus = '', accountStatus = '', parentUser = '', page = 1, pageSize = 10 } = {}) {
+  // downlineOf: limit to users below that user in the parent chain (distributor / MD panel).
+  async list({ q = '', userTypeId = null, kycStatus = '', accountStatus = '', parentUser = '', downlineOf = null, page = 1, pageSize = 10 } = {}) {
     const filter = (qb) => {
+      if (downlineOf) qb.whereIn('u.id', downlineIds(downlineOf));
       if (userTypeId) qb.where('u.user_type_id', userTypeId);
       if (kycStatus) qb.where('u.kyc_status', kycStatus);
       if (accountStatus === 'active') qb.where('u.is_active', true);

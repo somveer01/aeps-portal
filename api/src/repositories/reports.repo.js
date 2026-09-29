@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../config/db');
+const { downlineIds } = require('./network.repo');
 
 // Common date + user filters (query aliased `x`, joined to users `u`).
 function applyCommon(qb, { startDate, endDate, userTypeId, userId }) {
@@ -28,9 +29,10 @@ module.exports = {
       (qb) => { applyCommon(qb, f); if (f.service) qb.where('x.service_name', f.service); if (f.type) qb.where('x.type', f.type); }, f);
   },
 
+  // f.downlineOf: only transactions by users below that user (distributor / MD panel).
   serviceTransactions(f) {
     return paginate(withUser('service_transactions'), ['x.*', ...USER_COLS],
-      (qb) => { applyCommon(qb, f); if (f.service) qb.where('x.service', f.service); if (f.status) qb.where('x.status', f.status); }, f);
+      (qb) => { applyCommon(qb, f); if (f.downlineOf) qb.whereIn('x.user_id', downlineIds(f.downlineOf)); if (f.service) qb.where('x.service', f.service); if (f.status) qb.where('x.status', f.status); }, f);
   },
 
   fundRequests(f) {

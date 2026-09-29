@@ -35,7 +35,11 @@ const EMPTY = {
   serviceAccess: [], moduleAccess: [], kycStatus: 'pending', ekycStatus: 'pending', active: true,
 };
 
-export default function UserManagerScreen() {
+// network: the distributor / MD panel — same screen, limited to the caller's downline,
+// without the admin-only fields (KYC, service access, parent, employee, merchant, min balance).
+export default function UserManagerScreen({ network = false, onDone }) {
+  const usersApi = network ? api.network.users : api.managedUsers;
+  const [meId, setMeId] = useState(null); const [filterTypes, setFilterTypes] = useState([]); const [fundPin, setFundPin] = useState('');
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
   const [q, setQ] = useState(''); const [loading, setLoading] = useState(true); const [error, setError] = useState(null);
   const [fUserType, setFUserType] = useState(''); const [fParent, setFParent] = useState(''); const [fAccount, setFAccount] = useState(''); const [fKyc, setFKyc] = useState('');
@@ -55,17 +59,27 @@ export default function UserManagerScreen() {
   const load = useCallback(async (opts = {}) => {
     setLoading(true); setError(null);
     try {
-      const res = await api.managedUsers.list({ q: opts.q ?? q, ...applied, page: opts.page ?? page, pageSize: PAGE_SIZE });
+      const res = await usersApi.list({ q: opts.q ?? q, ...applied, page: opts.page ?? page, pageSize: PAGE_SIZE });
       setRows(res.rows); setTotal(res.total); setPage(res.page);
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   }, [page, q, applied]);
 
   useEffect(() => {
     load({ page: 1 });
+    api.states().then((r) => setStates(r.states)).catch(() => {});
+    if (network) {
+      // Only the user types (and their plans) this user may create.
+      api.network.meta().then((m) => {
+        setMeId(m.userId);
+        setUserTypes(m.childTypes.map(({ id, name }) => ({ id, name })));
+        setPlans(m.childTypes.flatMap((t) => t.plans));
+      }).catch((e) => setError(e.message));
+      loadFilterTypes();
+      return;
+    }
     api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {});
     api.plans.list({ pageSize: 100 }).then((r) => setPlans(r.rows)).catch(() => {});
     api.managedUsers.list({ pageSize: 100 }).then((r) => setParents(r.rows)).catch(() => {});
-    api.states().then((r) => setStates(r.states)).catch(() => {});
     api.services.list({ pageSize: 100 }).then((r) => setServices(r.rows)).catch(() => {});
     api.moduleOptions().then((r) => setModules(r.modules)).catch(() => {});
     /* eslint-disable-next-line */
@@ -79,15 +93,22 @@ export default function UserManagerScreen() {
   }, [f.stateId]);
 
   const applyFilters = () => setApplied({ userTypeId: fUserType, parentUser: fParent.trim(), accountStatus: fAccount, kycStatus: fKyc });
+  // Network filter: every user type present in the downline (an MD also has retailers below).
+  function loadFilterTypes() {
+    api.network.users.list({ pageSize: 100 }).then((r) => {
+      const seen = new Map(); r.rows.forEach((u) => seen.set(u.user_type_id, u.user_type_name));
+      setFilterTypes([...seen].map(([id, name]) => ({ id, name })));
+    }).catch(() => {});
+  }
 
   const utOptions = userTypes.map((u) => ({ label: u.name, value: u.id }));
-  const utFilterOptions = [{ label: 'All', value: '' }, ...utOptions];
+  const utFilterOptions = [{ label: 'All', value: '' }, ...(network ? filterTypes : userTypes).map((u) => ({ label: u.name, value: u.id }))];
   const stateOptions = states.map((s) => ({ label: s.name, value: s.id }));
   const cityOptions = cities.map((c) => ({ label: c.name, value: c.id }));
   const planOptions = useMemo(() => {
     const filtered = plans.filter((p) => String(p.user_type_id) === String(f.userTypeId));
-    return [{ label: '— None —', value: '' }, ...(filtered.length ? filtered : plans).map((p) => ({ label: p.name, value: p.id }))];
-  }, [plans, f.userTypeId]);
+    return [{ label: '— None —', value: '' }, ...(filtered.length || network ? filtered : plans).map((p) => ({ label: p.name, value: p.id }))];
+  }, [plans, f.userTypeId, network]);
   const parentOptions = [{ label: '— Self / None —', value: '' }, ...parents.map((p) => ({ label: `${p.user_code} · ${p.name}`, value: p.id }))];
   const employeeOptions = [{ label: '— None —', value: '' }, ...parents.filter((p) => p.user_type_name === 'Employee').map((p) => ({ label: `${p.user_code} · ${p.name}`, value: p.id }))];
 
@@ -131,25 +152,30 @@ export default function UserManagerScreen() {
       serviceAccess: f.serviceAccess, moduleAccess: f.moduleAccess, isActive: f.active,
     };
     try {
-      if (editing) { body.kycStatus = f.kycStatus; body.ekycStatus = f.ekycStatus; await api.managedUsers.update(editing.id, body); }
-      else { body.password = f.password; await api.managedUsers.create(body); }
+      if (editing) { body.kycStatus = f.kycStatus; body.ekycStatus = f.ekycStatus; await usersApi.update(editing.id, body); }
+      else { body.password = f.password; await usersApi.create(body); }
       setView('list'); await load({ page: editing ? page : 1 });
-      api.managedUsers.list({ pageSize: 100 }).then((r) => setParents(r.rows)).catch(() => {});
+      if (network) loadFilterTypes();
+      else api.managedUsers.list({ pageSize: 100 }).then((r) => setParents(r.rows)).catch(() => {});
     } catch (e) { setFormError(e.message); } finally { setSaving(false); }
   };
   const toggleStatus = async (row) => {
     setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, is_active: !r.is_active } : r)));
-    try { await api.managedUsers.update(row.id, { isActive: !row.is_active }); }
+    try { await usersApi.update(row.id, { isActive: !row.is_active }); }
     catch (e) { setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, is_active: row.is_active } : r))); setError(e.message); }
   };
-  const openFund = (row) => { setFundUser(row); setFundAmount(''); setFundType('credit'); setFundError(null); };
+  const openFund = (row) => { setFundUser(row); setFundAmount(''); setFundType('credit'); setFundPin(''); setFundError(null); };
   const submitFund = async () => {
     const amt = Number(fundAmount);
     if (!Number.isFinite(amt) || amt <= 0) { setFundError('Enter a valid amount.'); return; }
+    if (network && !fundPin) { setFundError('Enter your transaction PIN or login password.'); return; }
     setFunding(true); setFundError(null);
     try {
-      await api.managedUsers.fund(fundUser.id, { amount: amt, type: fundType });
+      // Network: a zero-sum transfer from my wallet. Admin: a direct wallet adjustment.
+      if (network) await api.network.fundTransfer.create({ userId: fundUser.id, amount: amt, txnType: fundType, transactionPassword: fundPin });
+      else await api.managedUsers.fund(fundUser.id, { amount: amt, type: fundType });
       setFundUser(null); await load({ page });
+      if (onDone) onDone();
     } catch (e) { setFundError(e.message); } finally { setFunding(false); }
   };
   const confirmDelete = async () => {
@@ -174,7 +200,11 @@ export default function UserManagerScreen() {
 
           <Text style={styles.section}>Basic Details</Text>
           <View style={styles.grid}>
-            <View style={styles.field}><Select label="Select Account Type *" value={f.userTypeId} options={utOptions} onChange={(v) => set('userTypeId', v)} placeholder="-- Choose --" /></View>
+            {network && editing ? (
+              <View style={styles.field}><Text style={styles.label}>Account Type</Text><Text style={[styles.input, { color: colors.muted }]}>{editing.user_type_name}</Text></View>
+            ) : (
+              <View style={styles.field}><Select label="Select Account Type *" value={f.userTypeId} options={utOptions} onChange={(v) => { set('userTypeId', v); set('planId', ''); }} placeholder="-- Choose --" /></View>
+            )}
             <Field label="Name *" value={f.name} onChange={(v) => set('name', v)} placeholder="Full name" />
             <Field label="Father's / Husband Name" value={f.fatherHusbandName} onChange={(v) => set('fatherHusbandName', v)} placeholder="Name" />
             <View style={styles.field}><DateField label="DOB" value={f.dob} onChange={(v) => set('dob', v)} /></View>
@@ -186,7 +216,7 @@ export default function UserManagerScreen() {
             <View style={styles.field}><Select label="Gender" value={f.gender} options={GENDER_OPTIONS} onChange={(v) => set('gender', v)} placeholder="Select" searchable={false} /></View>
             <View style={styles.field}><Select label="Plan Name" value={f.planId} options={planOptions} onChange={(v) => set('planId', v)} placeholder="-- Select Plan --" /></View>
             <Field label="GST Number" value={f.gstNumber} onChange={(v) => set('gstNumber', v)} placeholder="GST (optional)" />
-            <Field label="Min Balance" value={f.minBalance} onChange={(v) => set('minBalance', v)} placeholder="0" keyboardType="numeric" />
+            {!network ? <Field label="Min Balance" value={f.minBalance} onChange={(v) => set('minBalance', v)} placeholder="0" keyboardType="numeric" /> : null}
             {!editing ? <Field label="Password *" value={f.password} onChange={(v) => set('password', v)} placeholder="Min 6 characters" secure /> : null}
           </View>
 
@@ -198,6 +228,10 @@ export default function UserManagerScreen() {
             <Field label="Pincode" value={f.pincode} onChange={(v) => set('pincode', v)} placeholder="Pincode" keyboardType="numeric" maxLength={6} />
           </View>
 
+          {network ? (
+            <Text style={styles.hint}>{editing ? `${editing.user_code} stays in your network.` : 'The new user is placed directly under you.'} Their KYC, service access and merchant ID are set by the admin.</Text>
+          ) : (
+          <>
           <Text style={styles.section}>AEPS / Parent Details</Text>
           <View style={styles.grid}>
             <Field label="Merchant ID" value={f.merchantId} onChange={(v) => set('merchantId', v)} placeholder="Submerchant ID" />
@@ -228,8 +262,10 @@ export default function UserManagerScreen() {
               </View>
             </>
           ) : null}
+          </>
+          )}
 
-          {editing ? (
+          {editing && !network ? (
             <>
               <Text style={styles.section}>KYC & Status</Text>
               <View style={styles.grid}>
@@ -316,10 +352,11 @@ export default function UserManagerScreen() {
                     <View style={[styles.cell, styles.cKyc]}><KycBadge value={row.ekyc_status} /></View>
                     <View style={[styles.cell, styles.cKyc]}><KycBadge value={row.kyc_status} /></View>
                     <View style={[styles.cell, styles.cAction, styles.actions]}>
-                      <Pressable onPress={() => openFund(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>💰</Text></Pressable>
+                      {/* In the network panel money moves only to users directly under you. */}
+                      {!network || row.parent_id === meId ? <Pressable onPress={() => openFund(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>💰</Text></Pressable> : null}
                       <Pressable onPress={() => setViewUser(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>👁️</Text></Pressable>
                       <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 15 }}>✏️</Text></Pressable>
-                      <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 15 }}>🗑️</Text></Pressable>
+                      {!network ? <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 15 }}>🗑️</Text></Pressable> : null}
                     </View>
                   </View>
                 ))}
@@ -347,6 +384,12 @@ export default function UserManagerScreen() {
               <Pressable onPress={() => setFundType('debit')} style={[styles.typeBtn, fundType === 'debit' && styles.typeBtnOnRed]}><Text style={fundType === 'debit' ? styles.typeOnText : styles.typeText}>Debit</Text></Pressable>
             </View>
             <TextInput value={fundAmount} onChangeText={setFundAmount} keyboardType="numeric" placeholder="Amount (₹)" placeholderTextColor={colors.muted} style={styles.input} autoFocus />
+            {network ? (
+              <>
+                <TextInput value={fundPin} onChangeText={setFundPin} secureTextEntry placeholder="Transaction PIN / login password" placeholderTextColor={colors.muted} style={styles.input} />
+                <Text style={styles.hint}>Credit moves money from your wallet to this user; debit takes it back into your wallet.</Text>
+              </>
+            ) : null}
             <View style={styles.modalActions}>
               <Button title="Cancel" variant="ghost" onPress={() => setFundUser(null)} style={{ flex: 1 }} />
               <Button title={fundType === 'debit' ? 'Debit' : 'Credit'} onPress={submitFund} loading={funding} style={{ flex: 1, backgroundColor: fundType === 'debit' ? colors.danger : colors.success }} />
@@ -445,6 +488,7 @@ const styles = StyleSheet.create({
   detailRow: { flexDirection: 'row', paddingVertical: 5 },
   detailLabel: { width: 130, color: colors.muted, fontSize: 13 },
   detailValue: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '600' },
+  hint: { color: colors.muted, fontSize: 12.5, lineHeight: 18, marginTop: 14 },
   empty: { padding: 30, alignItems: 'center' },
   pagination: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 14 },
   entries: { color: colors.muted, fontSize: 13 },

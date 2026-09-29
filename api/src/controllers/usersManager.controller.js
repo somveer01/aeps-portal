@@ -173,4 +173,4 @@ async function remove(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, create, update, fund, remove, moduleOptions };
+module.exports = { list, create, update, fund, remove, moduleOptions, createUserWithCode, mapFields };

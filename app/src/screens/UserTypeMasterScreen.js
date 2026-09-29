@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ActivityIndicator, ScrollView,
 } from 'react-native';
-import { Card, Button, Alert } from '../components/UI';
+import { Card, Button, Alert, Select } from '../components/UI';
 import { api } from '../api/client';
 import { colors, radius } from '../theme';
 
@@ -29,6 +29,8 @@ export default function UserTypeMasterScreen() {
   const [editing, setEditing] = useState(null);
   const [name, setName] = useState('');
   const [active, setActive] = useState(true);
+  const [parentTypeId, setParentTypeId] = useState('');
+  const [allTypes, setAllTypes] = useState([]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [toDelete, setToDelete] = useState(null);
@@ -42,20 +44,24 @@ export default function UserTypeMasterScreen() {
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   }, [page, q]);
 
-  useEffect(() => { load({ page: 1 }); /* eslint-disable-next-line */ }, []);
+  const loadAllTypes = () => api.userTypes.list({ pageSize: 100 }).then((r) => setAllTypes(r.rows)).catch(() => {});
+  useEffect(() => { load({ page: 1 }); loadAllTypes(); /* eslint-disable-next-line */ }, []);
   useEffect(() => { const t = setTimeout(() => load({ page: 1, q }), 350); return () => clearTimeout(t); /* eslint-disable-next-line */ }, [q]);
 
-  const openAdd = () => { setEditing(null); setName(''); setActive(true); setFormError(null); setView('form'); };
-  const openEdit = (row) => { setEditing(row); setName(row.name); setActive(row.is_active); setFormError(null); setView('form'); };
+  const openAdd = () => { setEditing(null); setName(''); setActive(true); setParentTypeId(''); setFormError(null); setView('form'); };
+  const openEdit = (row) => { setEditing(row); setName(row.name); setActive(row.is_active); setParentTypeId(row.parent_type_id || ''); setFormError(null); setView('form'); };
+  const parentOptions = [{ label: '— None (top level) —', value: '' }, ...allTypes.filter((t) => !editing || t.id !== editing.id).map((t) => ({ label: t.name, value: t.id }))];
 
   const save = async () => {
     const trimmed = name.trim();
     if (trimmed.length < 2) { setFormError('Name must be at least 2 characters.'); return; }
     setSaving(true); setFormError(null);
     try {
-      if (editing) await api.userTypes.update(editing.id, { name: trimmed, isActive: active });
-      else await api.userTypes.create({ name: trimmed, isActive: active });
+      const body = { name: trimmed, isActive: active, parentTypeId: parentTypeId || null };
+      if (editing) await api.userTypes.update(editing.id, body);
+      else await api.userTypes.create(body);
       setView('list');
+      loadAllTypes();
       await load({ page: editing ? page : 1 });
     } catch (e) { setFormError(e.message); } finally { setSaving(false); }
   };
@@ -90,8 +96,10 @@ export default function UserTypeMasterScreen() {
           <View style={styles.grid}>
             <View style={styles.field}><Text style={styles.label}>User Type Name *</Text>
               <TextInput value={name} onChangeText={setName} placeholder="e.g. Distributor" placeholderTextColor={colors.muted} style={styles.modalInput} autoFocus onSubmitEditing={save} /></View>
+            <View style={styles.field}><Select label="Parent Type" value={parentTypeId} options={parentOptions} onChange={setParentTypeId} searchable={false} /></View>
             <View style={[styles.field, styles.switchField]}><Text style={styles.label}>Active</Text><Switch value={active} onValueChange={setActive} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
           </View>
+          <Text style={styles.hint}>Parent Type is the user type directly above this one (e.g. Retailer → Distributor). Users of the parent type get a My Network panel where they can create users of this type, send them balance and see their reports.</Text>
           <View style={styles.formActions}>
             <Button title="Cancel" variant="ghost" onPress={() => setView('list')} style={{ minWidth: 120 }} />
             <Button title={editing ? 'Save' : 'Create'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
@@ -116,11 +124,12 @@ export default function UserTypeMasterScreen() {
 
         {error ? <Alert type="error">{error}</Alert> : null}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 640, flexGrow: 1 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 820, flexGrow: 1 }}>
           <View style={{ flex: 1 }}>
             <View style={[styles.tr, styles.th]}>
               <Text style={[styles.cell, styles.colNo, styles.thText]}>#</Text>
               <Text style={[styles.cell, styles.colName, styles.thText]}>User Type</Text>
+              <Text style={[styles.cell, styles.colParent, styles.thText]}>Parent Type</Text>
               <Text style={[styles.cell, styles.colDate, styles.thText]}>Created on</Text>
               <Text style={[styles.cell, styles.colStatus, styles.thText]}>Status</Text>
               <Text style={[styles.cell, styles.colAction, styles.thText]}>Action</Text>
@@ -132,6 +141,7 @@ export default function UserTypeMasterScreen() {
                   <View key={row.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
                     <Text style={[styles.cell, styles.colNo, styles.td]}>{from + i}</Text>
                     <Text style={[styles.cell, styles.colName, styles.td]}>{row.name}</Text>
+                    <Text style={[styles.cell, styles.colParent, styles.td]}>{row.parent_type_name || '—'}</Text>
                     <Text style={[styles.cell, styles.colDate, styles.td]}>{fmtDate(row.created_at)}</Text>
                     <View style={[styles.cell, styles.colStatus]}>
                       <Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" />
@@ -191,7 +201,8 @@ const styles = StyleSheet.create({
   cell: { paddingVertical: 12, paddingHorizontal: 10 },
   td: { color: colors.text, fontSize: 14 },
   colNo: { width: 50 },
-  colName: { flex: 1, minWidth: 160 },
+  colName: { flex: 1, minWidth: 160 }, colParent: { width: 180 },
+  hint: { color: colors.muted, fontSize: 12.5, lineHeight: 18, marginTop: 14 },
   colDate: { width: 190 },
   colStatus: { width: 90 },
   colAction: { width: 100 },

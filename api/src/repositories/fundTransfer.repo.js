@@ -15,8 +15,9 @@ const COLS = [
 ];
 
 module.exports = {
-  async list({ startDate, endDate, userTypeId, userId, transferType, page = 1, pageSize = 10 } = {}) {
+  async list({ startDate, endDate, userTypeId, userId, transferType, fromUserId = null, page = 1, pageSize = 10 } = {}) {
     const filter = (qb) => {
+      if (fromUserId) qb.where('x.from_user_id', fromUserId);
       if (startDate) qb.whereRaw('x.created_at::date >= ?', [startDate]);
       if (endDate) qb.whereRaw('x.created_at::date <= ?', [endDate]);
       if (userTypeId) qb.where('tu.user_type_id', userTypeId);
@@ -35,7 +36,7 @@ module.exports = {
   // the same amount (and vice-versa for a debit), each side guarded ≥0.
   // Writes an account_transactions ledger row on BOTH sides + one
   // fund_transfers record. Returns { ok, error, id }.
-  async transfer({ fromUserId, toUserId, amount, transferType, remark }) {
+  async transfer({ fromUserId, toUserId, amount, transferType, remark, senderLabel = 'admin' }) {
     return db.transaction(async (trx) => {
       const receiver = await trx('users').where({ id: toUserId }).forUpdate().first('wallet_balance', 'full_name');
       if (!receiver) return { ok: false, error: 'Receiver not found' };
@@ -56,13 +57,13 @@ module.exports = {
       if (sender) {
         senderBefore = Number(sender.wallet_balance);
         senderAfter = senderBefore - delta; // sender moves opposite to the receiver
-        if (senderAfter < 0) return { ok: false, error: 'Insufficient admin wallet balance for this transfer' };
+        if (senderAfter < 0) return { ok: false, error: `Insufficient ${senderLabel === 'admin' ? 'admin ' : ''}wallet balance for this transfer` };
       }
 
       await trx('users').where({ id: toUserId }).update({ wallet_balance: receiverAfter, updated_at: trx.fn.now() });
       await trx('account_transactions').insert({
         user_id: toUserId, service_name: 'Fund Transfer', type: transferType === 'debit' ? 'debit' : 'credit',
-        remark: remark || `Fund ${transferType} by admin`, amount, before_balance: receiverBefore, updated_balance: receiverAfter,
+        remark: remark || `Fund ${transferType} by ${senderLabel}`, amount, before_balance: receiverBefore, updated_balance: receiverAfter,
       });
 
       if (sender) {

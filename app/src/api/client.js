@@ -327,6 +327,24 @@ export const api = {
     reply: (id, message) => request(`/api/retailer/tickets/${id}/reply`, { method: 'POST', body: { message }, auth: true }),
   },
 
+  // Distributor / MD panel (own downline only). Same request/response shapes as the
+  // admin managedUsers / fundTransfer / reports.serviceReport calls, so the admin
+  // screens reuse them with a `network` prop.
+  network: {
+    meta: () => request('/api/network/meta', { auth: true }),
+    users: {
+      list: (params = {}) => request(`/api/network/users?${qs(params)}`, { auth: true }),
+      create: (body) => request('/api/network/users', { method: 'POST', body, auth: true }),
+      update: (id, body) => request(`/api/network/users/${id}`, { method: 'PUT', body, auth: true }),
+    },
+    fundTransfer: {
+      lookup: (code) => request(`/api/network/lookup?code=${encodeURIComponent(code)}`, { auth: true }),
+      list: (params = {}) => request(`/api/network/fund-transfers?${qs(params)}`, { auth: true }),
+      create: (body) => request('/api/network/fund-transfer', { method: 'POST', body, auth: true, idempotencyKey: idemKey() }),
+    },
+    serviceReport: (params = {}) => request(`/api/network/report?${qs(params)}`, { auth: true }),
+  },
+
   // Company Banks
   companyBanks: {
     list: ({ q = '', page = 1, pageSize = 10 } = {}) =>

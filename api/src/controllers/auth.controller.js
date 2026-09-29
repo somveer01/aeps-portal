@@ -8,6 +8,7 @@ const otpService = require('../services/otp.service');
 const captchaService = require('../services/captcha.service');
 const tokenService = require('../services/token.service');
 const menuService = require('../services/menu.service');
+const networkRepo = require('../repositories/network.repo');
 
 function maskMobile(mobile) {
   const s = String(mobile || '');
@@ -160,7 +161,12 @@ async function me(req, res, next) {
 async function menu(req, res, next) {
   try {
     // Managed users (retailers) get the retailer sidebar; admin gets the admin one.
-    const scopes = req.user && req.user.userTypeId ? ['retailer', 'both'] : ['admin', 'both'];
+    let scopes = ['admin', 'both'];
+    if (req.user && req.user.userTypeId) {
+      scopes = ['retailer', 'both'];
+      // Distributors / master distributors also get the "My Network" menu.
+      if (await networkRepo.canHaveDownline(req.user.userTypeId)) scopes.push('network');
+    }
     return res.json({ menu: await menuService.getMenuTree(scopes) });
   } catch (err) {
     return next(err);

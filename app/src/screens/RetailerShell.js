@@ -19,6 +19,11 @@ import RetailerReportScreen from './retailer/RetailerReportScreen';
 import MyCommissionSlabScreen from './retailer/MyCommissionSlabScreen';
 import SupportTicketScreen from './retailer/SupportTicketScreen';
 import SimplePage from './retailer/SimplePage';
+// Distributor / MD panel reuses the admin screens in their network mode.
+import UserManagerScreen from './UserManagerScreen';
+import FundTransferScreen from './FundTransferScreen';
+import FundTransferListScreen from './FundTransferListScreen';
+import ServiceReportScreen from './ServiceReportScreen';
 
 function initials(user) {
   const src = (user?.fullName || user?.username || '').trim();
@@ -60,7 +65,7 @@ export default function RetailerShell({ user, onLogout }) {
         <View style={styles.avatarLg}><Text style={styles.avatarLgText}>{initials(user)}</Text></View>
         <Text style={styles.profileName}>{summary?.name || user.fullName || user.username}</Text>
         <View style={styles.roleRow}>
-          <Text style={styles.profileRole}>Retailer</Text>
+          <Text style={styles.profileRole}>{summary?.userTypeName || 'Retailer'}</Text>
           {summary?.kycStatus === 'verified' ? <Text style={styles.kyc}>· KYC ✓</Text> : <Text style={styles.kycPend}>· KYC ⏳</Text>}
         </View>
         <View style={styles.balances}><Text style={styles.balanceLine}>Balance: <Text style={styles.balanceAmt}>{money(summary?.balance)}</Text></Text></View>
@@ -97,6 +102,10 @@ export default function RetailerShell({ user, onLogout }) {
     if (r === '/services/hotel') return <BookingScreen type="hotel" onBack={back} onDone={loadSummary} />;
     if (r === '/services/bus') return <BookingScreen type="bus" onBack={back} onDone={loadSummary} />;
     if (r.startsWith('/services/')) return <SimplePage title={active.title} note="This service will be enabled in a later phase (the API pipeline is ready)." onBack={back} />;
+    if (r === '/network/users') return <UserManagerScreen network onDone={loadSummary} />;
+    if (r === '/network/fund-transfer') return <FundTransferScreen network onDone={loadSummary} />;
+    if (r === '/network/fund-transfers') return <FundTransferListScreen network />;
+    if (r === '/network/report') return <ServiceReportScreen network />;
     if (r === '/account-history') return <RetailerReportScreen kind="accountHistory" />;
     if (r === '/service-report') return <RetailerReportScreen kind="serviceReport" />;
     if (r === '/gst-report') return <RetailerReportScreen kind="gst" />;
@@ -120,7 +129,7 @@ export default function RetailerShell({ user, onLogout }) {
       <View style={styles.main}>
         <View style={styles.topbar}>
           {!isWide && <Pressable onPress={() => setDrawerOpen(true)} style={styles.hamburger}><Text style={{ fontSize: 22, color: '#fff' }}>☰</Text></Pressable>}
-          <Text style={styles.topbarBrand} numberOfLines={1}>Welcome to AEPS Portal — Retailer</Text>
+          <Text style={styles.topbarBrand} numberOfLines={1}>Welcome to AEPS Portal — {summary?.userTypeName || 'Retailer'}</Text>
           {isWide && <MenuSearch menu={menu} onSelect={onSearchSelect} variant="topbar" style={styles.topSearch} />}
           <View style={{ flex: 1 }} />
           <Pressable style={styles.userChip} onPress={() => setUserMenu(true)}>
@@ -137,7 +146,7 @@ export default function RetailerShell({ user, onLogout }) {
       <Modal visible={userMenu} transparent animationType="fade" onRequestClose={() => setUserMenu(false)}>
         <Pressable style={styles.menuBackdrop} onPress={() => setUserMenu(false)}>
           <View style={styles.userDropdown}>
-            <View style={styles.dropHead}><Text style={styles.dropName}>{user.fullName || user.username}</Text><Text style={styles.dropRole}>Retailer</Text></View>
+            <View style={styles.dropHead}><Text style={styles.dropName}>{user.fullName || user.username}</Text><Text style={styles.dropRole}>{summary?.userTypeName || 'Retailer'}</Text></View>
             <Pressable style={styles.dropItem} onPress={() => { setUserMenu(false); doLogout(); }}><Text style={{ color: colors.danger, fontWeight: '600' }}>Logout</Text></Pressable>
           </View>
         </Pressable>
