@@ -23,7 +23,7 @@ async function mkUser(key, typeName, parentId, wallet) {
   const ut = await db('user_types').where({ name: typeName }).first('id');
   const [row] = await db('users').insert({
     username: `${TAG}${key}`, user_code: `${TAG}${key}`, password_hash: 'x', mobile: '9000000000',
-    full_name: `Chain ${key}`, role: 'user', user_type_id: ut.id, plan_id: planId, parent_id: parentId, wallet_balance: wallet,
+    full_name: `Chain ${key}`, role: 'user', user_type_id: ut.id, plan_id: planId, parent_id: parentId, wallet_balance: wallet, kyc_status: 'verified',
   }).returning('id');
   users[key] = { id: typeof row === 'object' ? row.id : row, userTypeId: ut.id };
 }

@@ -49,6 +49,7 @@ export default function ServiceMasterScreen() {
   const [active, setActive] = useState(true);
   const [pcType, setPcType] = useState('percentage');
   const [pcValue, setPcValue] = useState('0');
+  const [dailyLimit, setDailyLimit] = useState('0');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [toDelete, setToDelete] = useState(null);
@@ -71,8 +72,8 @@ export default function ServiceMasterScreen() {
 
   const catOptions = categories.map((c) => ({ label: c.name, value: c.id }));
 
-  const openAdd = () => { setEditing(null); setTitle(''); setCategoryId(categories[0]?.id ?? ''); setServiceType('internal'); setIcon(null); setActive(true); setPcType('percentage'); setPcValue('0'); setFormError(null); setView('form'); };
-  const openEdit = (row) => { setEditing(row); setTitle(row.title); setCategoryId(row.service_category_id); setServiceType(row.service_type); setIcon(row.icon || null); setActive(row.is_active); setPcType(row.provider_commission_type || 'percentage'); setPcValue(String(Number(row.provider_commission_value || 0))); setFormError(null); setView('form'); };
+  const openAdd = () => { setEditing(null); setTitle(''); setCategoryId(categories[0]?.id ?? ''); setServiceType('internal'); setIcon(null); setActive(true); setPcType('percentage'); setPcValue('0'); setDailyLimit('0'); setFormError(null); setView('form'); };
+  const openEdit = (row) => { setEditing(row); setTitle(row.title); setCategoryId(row.service_category_id); setServiceType(row.service_type); setIcon(row.icon || null); setActive(row.is_active); setPcType(row.provider_commission_type || 'percentage'); setPcValue(String(Number(row.provider_commission_value || 0))); setDailyLimit(String(Number(row.daily_limit || 0))); setFormError(null); setView('form'); };
 
   const chooseIcon = async () => {
     setFormError(null);
@@ -92,9 +93,11 @@ export default function ServiceMasterScreen() {
     const pc = Number(pcValue === '' ? 0 : pcValue);
     if (!Number.isFinite(pc) || pc < 0) { setFormError('Provider commission must be a number of 0 or more.'); return; }
     if (pcType === 'percentage' && pc > 100) { setFormError('Provider commission % cannot be above 100.'); return; }
+    const dl = Number(dailyLimit === '' ? 0 : dailyLimit);
+    if (!Number.isFinite(dl) || dl < 0) { setFormError('Daily limit must be 0 (no limit) or more.'); return; }
     setSaving(true); setFormError(null);
     try {
-      const body = { title: t, serviceCategoryId: categoryId, serviceType, icon: icon || '', isActive: active, providerCommissionType: pcType, providerCommissionValue: pc };
+      const body = { title: t, serviceCategoryId: categoryId, serviceType, icon: icon || '', isActive: active, providerCommissionType: pcType, providerCommissionValue: pc, dailyLimit: dl };
       if (editing) await api.services.update(editing.id, body);
       else await api.services.create(body);
       setView('list');
@@ -137,6 +140,9 @@ export default function ServiceMasterScreen() {
             <View style={styles.field}><Select label="Provider Commission Type" value={pcType} options={PC_OPTIONS} onChange={setPcType} searchable={false} /></View>
             <View style={styles.field}><Text style={styles.label}>{pcType === 'amount' ? 'Provider Commission (Rs per transaction)' : 'Provider Commission (%)'}</Text>
               <TextInput value={pcValue} onChangeText={setPcValue} keyboardType="numeric" placeholder="0.00" placeholderTextColor={colors.muted} style={styles.modalInput} /></View>
+            <View style={styles.field}><Text style={styles.label}>Daily Limit per User (Rs)</Text>
+              <TextInput value={dailyLimit} onChangeText={setDailyLimit} keyboardType="numeric" placeholder="0 = no limit" placeholderTextColor={colors.muted} style={styles.modalInput} /></View>
+            <View style={styles.fieldFull}><Text style={styles.hint}>Daily limit: the most one user can transact on this service in a day (successful transactions). 0 means no limit. Switching the service off (Active) blocks it for everyone.</Text></View>
             <View style={styles.fieldFull}><Text style={styles.hint}>What the API provider pays you for each successful transaction of this service. Admin Margin = this, plus service charges collected, minus the commission paid to users.</Text></View>
             <View style={[styles.field, styles.switchField]}><Text style={styles.label}>Active</Text><Switch value={active} onValueChange={setActive} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
             <View style={styles.fieldFull}>
@@ -176,7 +182,7 @@ export default function ServiceMasterScreen() {
 
         {error ? <Alert type="error">{error}</Alert> : null}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 960, flexGrow: 1 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 1090, flexGrow: 1 }}>
           <View style={{ flex: 1 }}>
             <View style={[styles.tr, styles.th]}>
               <Text style={[styles.cell, styles.colNo, styles.thText]}>#</Text>
@@ -184,6 +190,7 @@ export default function ServiceMasterScreen() {
               <Text style={[styles.cell, styles.colCat, styles.thText]}>Service Category</Text>
               <Text style={[styles.cell, styles.colType, styles.thText]}>Service Type</Text>
               <Text numberOfLines={1} style={[styles.cell, styles.colPc, styles.thText]}>Provider Comm.</Text>
+              <Text numberOfLines={1} style={[styles.cell, styles.colLimit, styles.thText]}>Daily Limit</Text>
               <Text style={[styles.cell, styles.colDate, styles.thText]}>Created on</Text>
               <Text style={[styles.cell, styles.colStatus, styles.thText]}>Status</Text>
               <Text style={[styles.cell, styles.colAction, styles.thText]}>Action</Text>
@@ -205,6 +212,7 @@ export default function ServiceMasterScreen() {
                     <Text style={[styles.cell, styles.colCat, styles.td]}>{row.category_name}</Text>
                     <Text style={[styles.cell, styles.colType, styles.td]}>{typeLabel(row.service_type)}</Text>
                     <Text style={[styles.cell, styles.colPc, styles.td]}>{pcLabel(row)}</Text>
+                    <Text style={[styles.cell, styles.colLimit, styles.td]}>{Number(row.daily_limit) > 0 ? `Rs ${Number(row.daily_limit).toFixed(2)}` : 'No limit'}</Text>
                     <Text style={[styles.cell, styles.colDate, styles.td]}>{fmtDate(row.created_at)}</Text>
                     <View style={[styles.cell, styles.colStatus]}>
                       <Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" />
@@ -268,7 +276,7 @@ const styles = StyleSheet.create({
   colNo: { width: 44 },
   colTitle: { flex: 1.2, minWidth: 150 },
   colCat: { flex: 1, minWidth: 140 },
-  colType: { width: 130 }, colPc: { width: 140 },
+  colType: { width: 130 }, colPc: { width: 140 }, colLimit: { width: 130 },
   colDate: { width: 175 },
   colStatus: { width: 80 },
   colAction: { width: 90 },

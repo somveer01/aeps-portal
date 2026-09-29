@@ -26,6 +26,12 @@ function providerCommission(body) {
     if (body.providerCommissionType === 'percentage' && v > 100) return { error: 'Provider commission % cannot be above 100' };
     out.providerCommissionValue = Math.round(v * 100) / 100;
   }
+  // Per-user daily amount limit for this service; 0 = no limit.
+  if (body.dailyLimit !== undefined) {
+    const d = Number(body.dailyLimit === '' ? 0 : body.dailyLimit);
+    if (!Number.isFinite(d) || d < 0 || d > 100000000) return { error: 'Daily limit must be 0 (no limit) or more' };
+    out.dailyLimit = Math.round(d * 100) / 100;
+  }
   return { out };
 }
 

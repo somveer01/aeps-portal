@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../config/db');
+const serviceGuard = require('../services/serviceGuard.service');
 const reportsRepo = require('../repositories/reports.repo');
 const commissionSlotRepo = require('../repositories/commissionSlot.repo');
 
@@ -55,7 +56,10 @@ async function serviceStats(req, res, next) {
 }
 
 // GET /api/services/catalogue  (B2B + Online tiles)
-async function catalogue(req, res) {
+// A tile whose service is in Service Master shows only when that service is on and the
+// user has access to it. Fund Request is always shown (it is also in the sidebar).
+async function catalogue(req, res, next) {
+  try {
   const b2b = [
     ['mobile-recharge', 'Mobile Recharge', 'phone'], ['dth-recharge', 'DTH Recharge', 'phone'],
     ['bill-payment', 'Bill Payment', 'receipt'], ['aeps', 'AEPS', 'verify'],
@@ -69,7 +73,18 @@ async function catalogue(req, res) {
   const online = [
     ['flight', 'Flight Booking', 'send'], ['hotel', 'Hotel Booking', 'grid'], ['bus', 'Bus Booking', 'transfer'],
   ].map(([key, title, icon]) => ({ key, title, icon, route: `/services/${key}` }));
-  return res.json({ b2b, online });
+  const u = await db('users').where({ id: req.user.id }).first('service_access');
+  const access = serviceGuard.accessList(u && u.service_access);
+  const visible = async (tiles) => {
+    const out = [];
+    for (const t of tiles) {
+      // eslint-disable-next-line no-await-in-loop
+      if (t.key === 'fund-request' || serviceGuard.allowedFor(await serviceGuard.findService(t.title), access)) out.push(t);
+    }
+    return out;
+  };
+  return res.json({ b2b: await visible(b2b), online: await visible(online) });
+  } catch (e) { return next(e); }
 }
 
 // GET /api/operators?service=mobile&category=Electricity

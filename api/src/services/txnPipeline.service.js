@@ -2,6 +2,7 @@
 
 const db = require('../config/db');
 const commission = require('./commission.service');
+const serviceGuard = require('./serviceGuard.service');
 
 const err = (status, code, message) => Object.assign(new Error(message), { status, code });
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -28,6 +29,9 @@ async function run({ user, service, operator = null, mode = null, target = null,
     const u = await trx('users').where({ id: user.id }).forUpdate()
       .first('wallet_balance', 'user_type_id', 'plan_id', 'user_code', 'username');
     const userCode = u.user_code || u.username;
+    // KYC, service on, service access, daily limit — checked under the wallet lock so
+    // two concurrent requests cannot both slip under the daily limit.
+    await serviceGuard.check({ trx, userId: user.id, serviceName: service, amount });
 
     // The user's own slab decides whether they earn (credit) or pay a service charge (debit).
     const slab = await commission.findSlab({

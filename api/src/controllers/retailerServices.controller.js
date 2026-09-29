@@ -5,6 +5,7 @@ const providers = require('../services/providers.service');
 const pipeline = require('../services/txnPipeline.service');
 const audit = require('../repositories/audit.repo');
 const txnAuth = require('../services/txnAuth.service');
+const serviceGuard = require('../services/serviceGuard.service');
 
 const clean = (v) => String(v || '').trim();
 const meta = (req) => ({ ip: req.ip, userAgent: req.get('user-agent') });
@@ -69,6 +70,7 @@ function makeAeps(serviceName) {
 
       // Balance/mini are informational (no wallet debit); withdrawal moves money.
       if (txnType !== 'withdrawal') {
+        await serviceGuard.check({ userId: req.user.id, serviceName });
         const provider = await providers.aeps.transact({ txnType, deviceType: clean(req.body.deviceType), mobile: clean(req.body.mobile), aadhaar, bank });
         await db('service_transactions').insert({ user_id: req.user.id, service: serviceName, operator: bank, target: maskedAadhaar, amount: 0, status: 'success', reference_id: provider.rrn, response: JSON.stringify(provider) });
         await logTxn(req, serviceName, { txnType, bank });

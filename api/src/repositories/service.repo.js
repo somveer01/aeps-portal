@@ -8,7 +8,7 @@ function withCategory() {
   return db(`${TABLE} as s`)
     .join('service_categories as c', 'c.id', 's.service_category_id')
     .select('s.id', 's.title', 's.icon', 's.service_type', 's.is_active', 's.created_at', 's.service_category_id', 'c.name as category_name',
-      's.provider_commission_type', 's.provider_commission_value');
+      's.provider_commission_type', 's.provider_commission_value', 's.daily_limit');
 }
 
 module.exports = {
@@ -24,14 +24,15 @@ module.exports = {
   },
   findById(id) { return withCategory().where('s.id', id).first(); },
   findByTitle(title) { return db(TABLE).whereRaw('LOWER(title)=LOWER(?)', [title]).first(); },
-  create({ title, serviceCategoryId, serviceType = 'internal', icon = null, isActive = true, providerCommissionType = 'percentage', providerCommissionValue = 0 }) {
+  create({ title, serviceCategoryId, serviceType = 'internal', icon = null, isActive = true, providerCommissionType = 'percentage', providerCommissionValue = 0, dailyLimit = 0 }) {
     return db(TABLE).insert({
       title, service_category_id: serviceCategoryId, service_type: serviceType, icon, is_active: isActive,
-      provider_commission_type: providerCommissionType, provider_commission_value: providerCommissionValue,
+      provider_commission_type: providerCommissionType, provider_commission_value: providerCommissionValue, daily_limit: dailyLimit,
     }).returning('id').then((r) => (typeof r[0] === 'object' ? r[0].id : r[0]));
   },
-  update(id, { title, serviceCategoryId, serviceType, icon, isActive, providerCommissionType, providerCommissionValue }) {
+  update(id, { title, serviceCategoryId, serviceType, icon, isActive, providerCommissionType, providerCommissionValue, dailyLimit }) {
     const patch = { updated_at: db.fn.now() };
+    if (dailyLimit !== undefined) patch.daily_limit = dailyLimit;
     if (providerCommissionType !== undefined) patch.provider_commission_type = providerCommissionType;
     if (providerCommissionValue !== undefined) patch.provider_commission_value = providerCommissionValue;
     if (title !== undefined) patch.title = title;

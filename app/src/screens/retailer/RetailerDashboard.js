@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
 import Icon from '../../components/Icon';
-import { Card } from '../../components/UI';
+import { Card, Alert } from '../../components/UI';
 import { api } from '../../api/client';
 import { colors, radius, shadows } from '../../theme';
 
@@ -22,6 +22,9 @@ export default function RetailerDashboard({ onOpen }) {
 
   return (
     <View style={{ gap: 16 }}>
+      {summary && summary.kycStatus !== 'verified' ? (
+        <Alert type="error">{`Your KYC is ${summary.kycStatus || 'pending'}. Services stay locked until your KYC is verified.`}</Alert>
+      ) : null}
       <View style={styles.cards}>
         <Stat label="Wallet Balance" value={money(summary?.balance)} accent={colors.primary} icon="wallet" />
         <Stat label="Today's Transactions" value={String(summary?.today?.count ?? 0)} accent={colors.success} icon="report" />
