@@ -25,6 +25,7 @@ import FundTransferScreen from './FundTransferScreen';
 import FundTransferListScreen from './FundTransferListScreen';
 import ServiceReportScreen from './ServiceReportScreen';
 import FundRequestScreen from './FundRequestScreen';
+import KycScreen from './retailer/KycScreen';
 
 function initials(user) {
   const src = (user?.fullName || user?.username || '').trim();
@@ -67,7 +68,7 @@ export default function RetailerShell({ user, onLogout }) {
         <Text style={styles.profileName}>{summary?.name || user.fullName || user.username}</Text>
         <View style={styles.roleRow}>
           <Text style={styles.profileRole}>{summary?.userTypeName || 'Retailer'}</Text>
-          {summary?.kycStatus === 'verified' ? <Text style={styles.kyc}>· KYC ✓</Text> : <Text style={styles.kycPend}>· KYC ⏳</Text>}
+          {summary?.kycStatus === 'verified' ? <Text style={styles.kyc}>· KYC ✓</Text> : summary?.kycStatus === 'rejected' ? <Text style={styles.kycRej}>· KYC ✗</Text> : <Text style={styles.kycPend}>· KYC ⏳</Text>}
         </View>
         <View style={styles.balances}><Text style={styles.balanceLine}>Balance: <Text style={styles.balanceAmt}>{money(summary?.balance)}</Text></Text></View>
       </View>
@@ -117,7 +118,7 @@ export default function RetailerShell({ user, onLogout }) {
     if (r === '/my-commission-slab') return <MyCommissionSlabScreen />;
     if (r === '/support-ticket') return <SupportTicketScreen />;
     if (r === '/profile') return <SimplePage title="Profile" note={`${summary?.shopName || ''}\nUser ID: ${summary?.userCode || user.username}\nName: ${summary?.name || user.fullName}`} />;
-    if (r === '/kyc') return <SimplePage title="KYC" note={`KYC status: ${summary?.kycStatus || 'pending'} · e-KYC: ${summary?.ekycStatus || 'pending'}`} />;
+    if (r === '/kyc') return <KycScreen onDone={loadSummary} />;
     if (r === '/account-settings') {
       const ChangePasswordScreen = require('./ChangePasswordScreen').default;
       return <ChangePasswordScreen onDone={onLogout} />;
@@ -192,6 +193,7 @@ const styles = StyleSheet.create({
   profileRole: { color: colors.muted, fontSize: 11.5, textTransform: 'uppercase', letterSpacing: 0.6 },
   kyc: { color: colors.success, fontSize: 11.5, fontWeight: '700' },
   kycPend: { color: colors.warning, fontSize: 11.5, fontWeight: '700' },
+  kycRej: { color: colors.danger, fontSize: 11.5, fontWeight: '700' },
   balances: { marginTop: 12, backgroundColor: colors.primarySoft, borderRadius: radius.md, paddingVertical: 8, paddingHorizontal: 16 },
   balanceLine: { color: colors.muted, fontSize: 12, fontWeight: '600' },
   balanceAmt: { color: colors.primary, fontWeight: '800', fontSize: 14 },

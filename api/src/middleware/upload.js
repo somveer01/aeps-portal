@@ -28,4 +28,18 @@ const uploadImage = multer({
   },
 });
 
-module.exports = { uploadImage, UPLOAD_DIR };
+// KYC documents: a private folder inside the uploads volume that app.js never serves
+// statically. The extension comes from the checked MIME type, not the client's name.
+const KYC_DIR = path.join(UPLOAD_DIR, '_private', 'kyc');
+fs.mkdirSync(KYC_DIR, { recursive: true });
+const KYC_EXT = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/webp': '.webp' };
+const kycUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, KYC_DIR),
+    filename: (req, file, cb) => cb(null, `${crypto.randomBytes(16).toString('hex')}${KYC_EXT[file.mimetype]}`),
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => (KYC_EXT[file.mimetype] ? cb(null, true) : cb(new Error('Upload a photo (png, jpg or webp).'))),
+});
+
+module.exports = { uploadImage, UPLOAD_DIR, kycUpload, KYC_DIR };

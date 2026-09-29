@@ -26,6 +26,10 @@ const rsvc = require('../controllers/retailerServices.controller');
 const ticket = require('../controllers/ticket.controller');
 const network = require('../controllers/network.controller');
 const fundRequest = require('../controllers/fundRequest.controller');
+const kyc = require('../controllers/kyc.controller');
+const { kycUpload } = require('../middleware/upload');
+// Multer errors (wrong type / too big) come back as a 400 with a clear message.
+const kycFile = (req, res, next) => kycUpload.single('image')(req, res, (e) => (e ? res.status(400).json({ error: e.code === 'LIMIT_FILE_SIZE' ? 'Photo must be 5 MB or smaller' : e.message, code: 'INVALID_FILE' }) : next()));
 const { requireAuth, requireAdmin, requireManaged, requirePending } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimit');
 const { uploadImage } = require('../middleware/upload');
@@ -230,6 +234,14 @@ router.put('/network/fund-requests/:id', requireManaged, network.requireNetwork,
 router.get('/my/fund-request/meta', requireManaged, fundRequest.myMeta);
 router.get('/my/fund-requests', requireManaged, fundRequest.myList);
 router.post('/my/fund-requests', requireManaged, idempotency, fundRequest.myCreate);
+
+// KYC: users upload documents (private files), the admin reviews them.
+router.post('/kyc/upload', requireManaged, kycFile, kyc.upload);
+router.get('/kyc/files/:name', kyc.file); // signed short-lived link, checked in the controller
+router.get('/my/kyc', requireManaged, kyc.mine);
+router.post('/my/kyc', requireManaged, kyc.submit);
+router.get('/kyc-requests', requireAdmin, kyc.adminList);
+router.put('/kyc-requests/:id', requireAdmin, kyc.adminAct);
 
 router.get('/retailer/tickets', requireManaged, ticket.retailerList);
 router.get('/retailer/tickets/:id', requireManaged, ticket.retailerGet);

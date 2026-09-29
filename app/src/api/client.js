@@ -122,6 +122,11 @@ async function uploadImage(picked) {
   return postForm('/api/uploads/image', await buildImageForm(picked, 'image'));
 }
 
+// KYC document upload -> { name } (a private file; shown later through signed links)
+async function uploadKycDocument(picked) {
+  return postForm('/api/kyc/upload', await buildImageForm(picked, 'image'));
+}
+
 export const api = {
   health: () => request('/api/health'),
   getCaptcha: () => request('/api/auth/captcha'),
@@ -348,6 +353,16 @@ export const api = {
       list: (params = {}) => request(`/api/network/fund-requests?${qs(params)}`, { auth: true }),
       act: (id, body) => request(`/api/network/fund-requests/${id}`, { method: 'PUT', body, auth: true, idempotencyKey: idemKey() }),
     },
+  },
+
+  // KYC: my documents, and the admin's review queue. File links in responses are
+  // signed and expire in 15 minutes; open them with assetUrl(link).
+  kyc: {
+    upload: uploadKycDocument,
+    mine: () => request('/api/my/kyc', { auth: true }),
+    submit: (body) => request('/api/my/kyc', { method: 'POST', body, auth: true }),
+    requests: (params = {}) => request(`/api/kyc-requests?${qs(params)}`, { auth: true }),
+    review: (id, body) => request(`/api/kyc-requests/${id}`, { method: 'PUT', body, auth: true }),
   },
 
   // My own fund requests (any retailer / distributor / MD); approved by whoever created me.

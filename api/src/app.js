@@ -15,8 +15,14 @@ if (env.isProd) app.set('trust proxy', 1);
 // Allow images to be embedded cross-origin (login page on :8081 loads /uploads).
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-// Serve uploaded images.
-app.use('/uploads', express.static(UPLOAD_DIR));
+// Serve uploaded images. KYC documents under _private are only reachable through the
+// authenticated /api/kyc/files route, never here.
+app.use('/uploads', (req, res, next) => {
+  let p;
+  try { p = decodeURIComponent(req.path).replace(/\\/g, '/'); } catch { return res.status(400).json({ error: 'Bad path' }); }
+  if (/^\/*_private(\/|$)/i.test(p)) return res.status(404).json({ error: 'Not found' }); // also blocks %5F / case tricks
+  return next();
+}, express.static(UPLOAD_DIR, { dotfiles: 'deny' }));
 app.use(
   cors({
     origin(origin, cb) {
