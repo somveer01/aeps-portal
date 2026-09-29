@@ -23,6 +23,12 @@ const withUser = (table) => () => db(`${table} as x`)
   .join('users as u', 'u.id', 'x.user_id')
   .leftJoin('user_types as ut', 'ut.id', 'u.user_type_id');
 
+const fundRequestJoins = () => withUser('fund_requests')()
+  .leftJoin('company_banks as cb', 'cb.id', 'x.company_bank_id')
+  .leftJoin('users as ap', 'ap.id', 'x.approver_id');
+const FR_COLS = ['x.*', ...USER_COLS, 'cb.bank_name', 'cb.account_no',
+  db.raw("coalesce(nullif(ap.user_code, ''), ap.username) as approver_code"), 'ap.full_name as approver_name', 'ap.role as approver_role'];
+
 module.exports = {
   accountTransactions(f) {
     return paginate(withUser('account_transactions'), ['x.*', ...USER_COLS],
@@ -35,10 +41,15 @@ module.exports = {
       (qb) => { applyCommon(qb, f); if (f.downlineOf) qb.whereIn('x.user_id', downlineIds(f.downlineOf)); if (f.service) qb.where('x.service', f.service); if (f.status) qb.where('x.status', f.status); }, f);
   },
 
+  // f.approverId: requests this user must approve. f.ownerId: one user's own requests.
   fundRequests(f) {
-    const joins = () => withUser('fund_requests')().leftJoin('company_banks as cb', 'cb.id', 'x.company_bank_id');
-    return paginate(joins, ['x.*', ...USER_COLS, 'cb.bank_name', 'cb.account_no'],
-      (qb) => { applyCommon(qb, f); if (f.status) qb.where('x.status', f.status); }, f);
+    return paginate(fundRequestJoins, FR_COLS,
+      (qb) => {
+        applyCommon(qb, f);
+        if (f.status) qb.where('x.status', f.status);
+        if (f.approverId) qb.where('x.approver_id', f.approverId);
+        if (f.ownerId) qb.where('x.user_id', f.ownerId);
+      }, f);
   },
 
   // Commission ledger with GST + TDS breakdown. Backs both the GST Report and
@@ -60,10 +71,6 @@ module.exports = {
     return { ...page, totals };
   },
 
-  fundRequestById(id) {
-    return withUser('fund_requests')()
-      .leftJoin('company_banks as cb', 'cb.id', 'x.company_bank_id')
-      .select('x.*', ...USER_COLS, 'cb.bank_name', 'cb.account_no').where('x.id', id).first();
-  },
+  fundRequestById(id) { return fundRequestJoins().select(FR_COLS).where('x.id', id).first(); },
   updateFundRequest(id, patch) { return db('fund_requests').where({ id }).update({ ...patch, updated_at: db.fn.now() }); },
 };

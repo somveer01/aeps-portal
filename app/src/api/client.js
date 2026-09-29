@@ -343,6 +343,18 @@ export const api = {
       create: (body) => request('/api/network/fund-transfer', { method: 'POST', body, auth: true, idempotencyKey: idemKey() }),
     },
     serviceReport: (params = {}) => request(`/api/network/report?${qs(params)}`, { auth: true }),
+    // Fund requests from users I created (I approve them; approving moves money from my wallet).
+    fundRequests: {
+      list: (params = {}) => request(`/api/network/fund-requests?${qs(params)}`, { auth: true }),
+      act: (id, body) => request(`/api/network/fund-requests/${id}`, { method: 'PUT', body, auth: true, idempotencyKey: idemKey() }),
+    },
+  },
+
+  // My own fund requests (any retailer / distributor / MD); approved by whoever created me.
+  myFundRequests: {
+    meta: () => request('/api/my/fund-request/meta', { auth: true }),
+    list: (params = {}) => request(`/api/my/fund-requests?${qs(params)}`, { auth: true }),
+    create: (body) => request('/api/my/fund-requests', { method: 'POST', body, auth: true, idempotencyKey: idemKey() }),
   },
 
   // Company Banks

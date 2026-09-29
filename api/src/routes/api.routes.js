@@ -25,6 +25,7 @@ const retailer = require('../controllers/retailer.controller');
 const rsvc = require('../controllers/retailerServices.controller');
 const ticket = require('../controllers/ticket.controller');
 const network = require('../controllers/network.controller');
+const fundRequest = require('../controllers/fundRequest.controller');
 const { requireAuth, requireAdmin, requireManaged, requirePending } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimit');
 const { uploadImage } = require('../middleware/upload');
@@ -72,7 +73,7 @@ router.put('/user-types/:id', requireAdmin, userType.update);
 router.delete('/user-types/:id', requireAdmin, userType.remove);
 
 // Generic image upload -> { path } (used for service icons, etc.)
-router.post('/uploads/image', requireAdmin, uploadImage.single('image'), upload.uploadImage);
+router.post('/uploads/image', requireAuth, uploadImage.single('image'), upload.uploadImage); // images only; also fund request payment proofs
 
 // Modules → Service Master (admin CRUD; joins service category).
 router.get('/services', requireAdmin, service.list);
@@ -132,7 +133,7 @@ router.delete('/users/:id', requireAdmin, usersManager.remove);
 router.get('/account-history', requireAdmin, reports.accountHistory);
 router.get('/service-report', requireAdmin, reports.serviceReport);
 router.get('/fund-requests', requireAdmin, reports.fundRequests);
-router.put('/fund-requests/:id', requireAdmin, idempotency, reports.actOnFundRequest);
+router.put('/fund-requests/:id', requireAdmin, idempotency, fundRequest.adminAct);
 router.get('/gst-report', requireAdmin, reports.gstReport);
 router.get('/tds-report', requireAdmin, reports.tdsReport);
 router.get('/admin-margin-report', requireAdmin, reports.adminMarginReport);
@@ -222,6 +223,13 @@ router.get('/network/lookup', requireManaged, network.requireNetwork, network.lo
 router.post('/network/fund-transfer', requireManaged, network.requireNetwork, idempotency, network.fundTransfer);
 router.get('/network/fund-transfers', requireManaged, network.requireNetwork, network.listTransfers);
 router.get('/network/report', requireManaged, network.requireNetwork, network.report);
+router.get('/network/fund-requests', requireManaged, network.requireNetwork, fundRequest.networkList);
+router.put('/network/fund-requests/:id', requireManaged, network.requireNetwork, idempotency, fundRequest.networkAct);
+
+// Fund requests raised by any managed user (retailer / distributor / MD); approved by their creator.
+router.get('/my/fund-request/meta', requireManaged, fundRequest.myMeta);
+router.get('/my/fund-requests', requireManaged, fundRequest.myList);
+router.post('/my/fund-requests', requireManaged, idempotency, fundRequest.myCreate);
 
 router.get('/retailer/tickets', requireManaged, ticket.retailerList);
 router.get('/retailer/tickets/:id', requireManaged, ticket.retailerGet);

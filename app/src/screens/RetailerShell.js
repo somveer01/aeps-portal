@@ -24,6 +24,7 @@ import UserManagerScreen from './UserManagerScreen';
 import FundTransferScreen from './FundTransferScreen';
 import FundTransferListScreen from './FundTransferListScreen';
 import ServiceReportScreen from './ServiceReportScreen';
+import FundRequestScreen from './FundRequestScreen';
 
 function initials(user) {
   const src = (user?.fullName || user?.username || '').trim();
@@ -101,11 +102,13 @@ export default function RetailerShell({ user, onLogout }) {
     if (r === '/services/flight') return <BookingScreen type="flight" onBack={back} onDone={loadSummary} />;
     if (r === '/services/hotel') return <BookingScreen type="hotel" onBack={back} onDone={loadSummary} />;
     if (r === '/services/bus') return <BookingScreen type="bus" onBack={back} onDone={loadSummary} />;
+    if (r === '/fund-request' || r === '/services/fund-request') return <FundRequestScreen mode="mine" onDone={loadSummary} />;
     if (r.startsWith('/services/')) return <SimplePage title={active.title} note="This service will be enabled in a later phase (the API pipeline is ready)." onBack={back} />;
     if (r === '/network/users') return <UserManagerScreen network onDone={loadSummary} />;
     if (r === '/network/fund-transfer') return <FundTransferScreen network onDone={loadSummary} />;
     if (r === '/network/fund-transfers') return <FundTransferListScreen network />;
     if (r === '/network/report') return <ServiceReportScreen network />;
+    if (r === '/network/fund-requests') return <FundRequestScreen mode="network" onDone={loadSummary} />;
     if (r === '/account-history') return <RetailerReportScreen kind="accountHistory" />;
     if (r === '/service-report') return <RetailerReportScreen kind="serviceReport" />;
     if (r === '/gst-report') return <RetailerReportScreen kind="gst" />;
