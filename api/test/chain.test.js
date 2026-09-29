@@ -28,17 +28,20 @@ async function mkUser(key, typeName, parentId, wallet) {
   users[key] = { id: typeof row === 'object' ? row.id : row, userTypeId: ut.id };
 }
 
-async function mkSlab(key, typeName, commissionType, value, chainType) {
+async function mkSlab(key, typeName, commissionType, value, chainType, { txnType = 'credit', operator = null, specificUser = null } = {}) {
   const ut = await db('user_types').where({ name: typeName }).first('id');
   const [row] = await db('commission_slots').insert({
     user_type_id: ut.id, service_id: svc.id, plan_id: planId, commission_type: commissionType, value,
-    min_amount: 1, max_amount: 10000, chain_type: chainType, txn_type: 'credit', is_active: true,
+    min_amount: 1, max_amount: 10000, chain_type: chainType, txn_type: txnType, is_active: true,
+    operator, specific_user: specificUser,
   }).returning('id');
   slabs[key] = typeof row === 'object' ? row.id : row;
 }
 
+let origProviderCommission;
 before(async () => {
   svc = await db('services').orderBy('id').first('id', 'title');
+  origProviderCommission = await db('services').where({ id: svc.id }).first('provider_commission_type', 'provider_commission_value');
   const ut = await db('user_types').where({ name: 'Retailer' }).first('id');
   const [p] = await db('plans').insert({ user_type_id: ut.id, name: `${TAG} plan` }).returning('id');
   planId = typeof p === 'object' ? p.id : p;
@@ -52,6 +55,7 @@ before(async () => {
 });
 
 after(async () => {
+  await db('services').where({ id: svc.id }).update(origProviderCommission);
   const ids = Object.values(users).map((u) => u.id);
   await db('commission_ledger').whereIn('user_id', ids).del();
   await db('account_transactions').whereIn('user_id', ids).del();
@@ -117,4 +121,66 @@ test('a user with a plan only matches that plan\'s slabs', async () => {
   await pipeline.run({ user: { id: users.R.id }, service: svc.title, amount: AMOUNT, providerCall: ok });
   assert.equal(await balance(users.D.id), dBefore, 'no slab on the distributor\'s own plan → nothing paid');
   await db('users').where({ id: users.D.id }).update({ plan_id: planId });
+});
+
+const txnLedger = (serviceTransactionId) => db('commission_ledger').where({ service_transaction_id: serviceTransactionId });
+const lastTxnId = async () => (await db('service_transactions').where({ user_id: users.R.id, status: 'success' }).orderBy('id', 'desc').first('id')).id;
+
+test('admin margin = provider commission + charges − commission paid', async () => {
+  await db('services').where({ id: svc.id }).update({ provider_commission_type: 'percentage', provider_commission_value: 3 });
+  await pipeline.run({ user: { id: users.R.id }, service: svc.title, amount: AMOUNT, providerCall: ok });
+  const txnId = await lastTxnId();
+  const paid = (await txnLedger(txnId)).filter((r) => r.wallet_txn_type === 'credit').reduce((s, r) => s + Number(r.net_amount), 0);
+  const m = await db('admin_margins').where({ service_transaction_id: txnId }).first();
+  assert.ok(m, 'margin row written');
+  assert.equal(Number(m.provider_commission), 15); // 3% of 500
+  assert.equal(Number(m.charges_collected), 0);
+  assert.equal(Number(m.commission_paid), Math.round(paid * 100) / 100);
+  assert.equal(Number(m.margin), Math.round((15 - paid) * 100) / 100);
+});
+
+test('debit slab takes a service charge from the wallet; failure refunds it too', async () => {
+  await mkSlab('Rdebit', 'Retailer', 'amount', 10, 'self', { txnType: 'debit', operator: 'TESTOP' });
+  const fee = computeAmounts({ commissionType: 'amount', value: 10, amount: AMOUNT }); // 10 + 1.8 GST
+  const rBefore = await balance(users.R.id);
+  const r = await pipeline.run({ user: { id: users.R.id }, service: svc.title, operator: 'TESTOP', amount: AMOUNT, providerCall: ok });
+  assert.equal(r.commission, 0);
+  assert.equal(r.charge, fee.net);
+  assert.equal(await balance(users.R.id), Math.round((rBefore - AMOUNT - fee.net) * 100) / 100);
+  const txnId = await lastTxnId();
+  const own = (await txnLedger(txnId)).find((row) => row.user_id === users.R.id);
+  assert.equal(own.wallet_txn_type, 'debit');
+  assert.equal(Number(own.updated_balance), Math.round((rBefore - AMOUNT - fee.net) * 100) / 100);
+  assert.equal(Number((await db('admin_margins').where({ service_transaction_id: txnId }).first()).charges_collected), fee.net);
+  assert.ok(await db('account_transactions').where({ user_id: users.R.id, service_name: `${svc.title} Charge` }).first(), 'charge ledger entry');
+
+  const mid = await balance(users.R.id);
+  await assert.rejects(pipeline.run({ user: { id: users.R.id }, service: svc.title, operator: 'TESTOP', amount: AMOUNT, providerCall: fail }));
+  assert.equal(await balance(users.R.id), mid, 'amount + charge refunded');
+});
+
+test('operator slab matches the operator or the transfer mode, and nothing else', async () => {
+  const fee = computeAmounts({ commissionType: 'amount', value: 10, amount: AMOUNT });
+  let before = await balance(users.R.id);
+  const byMode = await pipeline.run({ user: { id: users.R.id }, service: svc.title, operator: 'Some Bank (TESTOP)', mode: 'testop', amount: AMOUNT, providerCall: ok });
+  assert.equal(byMode.charge, fee.net, 'mode matched case-insensitively');
+  assert.equal(await balance(users.R.id), Math.round((before - AMOUNT - fee.net) * 100) / 100);
+
+  before = await balance(users.R.id);
+  const other = await pipeline.run({ user: { id: users.R.id }, service: svc.title, operator: 'OTHER', amount: AMOUNT, providerCall: ok });
+  const own = computeAmounts({ commissionType: 'percentage', value: 2, amount: AMOUNT });
+  assert.equal(other.charge, 0, 'operator slab skipped');
+  assert.equal(other.commission, own.net, 'generic slab used instead');
+  await db('commission_slots').where({ id: slabs.Rdebit }).del();
+});
+
+test('a slab for a specific user wins over the general slab', async () => {
+  const code = (await db('users').where({ id: users.R.id }).first('user_code')).user_code;
+  await mkSlab('Rspecial', 'Retailer', 'percentage', 4, 'self', { specificUser: code.toUpperCase() });
+  const r = await pipeline.run({ user: { id: users.R.id }, service: svc.title, amount: AMOUNT, providerCall: ok });
+  assert.equal(r.commission, computeAmounts({ commissionType: 'percentage', value: 4, amount: AMOUNT }).net);
+  // Another user of the same type does not get it.
+  const slab = await require('../src/services/commission.service').findSlab({ userTypeId: users.R.userTypeId, planId, serviceName: svc.title, amount: AMOUNT, userCode: 'someone-else' });
+  assert.equal(Number(slab.value), 2);
+  await db('commission_slots').where({ id: slabs.Rspecial }).del();
 });

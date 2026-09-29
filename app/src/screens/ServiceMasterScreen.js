@@ -22,6 +22,13 @@ function fmtDate(s) {
   return `${day} ${mon} ${d.getFullYear()} ${String(h).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${ampm}`;
 }
 const typeLabel = (t) => (t === 'external' ? 'External Service' : 'Internal Service');
+const PC_OPTIONS = [
+  { label: 'Percentage of amount (%)', value: 'percentage' },
+  { label: 'Flat amount per transaction (Rs)', value: 'amount' },
+];
+const pcLabel = (row) => (Number(row.provider_commission_value) > 0
+  ? (row.provider_commission_type === 'amount' ? `Rs ${Number(row.provider_commission_value).toFixed(2)}` : `${Number(row.provider_commission_value).toFixed(2)} %`)
+  : '—');
 
 export default function ServiceMasterScreen() {
   const [rows, setRows] = useState([]);
@@ -40,6 +47,8 @@ export default function ServiceMasterScreen() {
   const [icon, setIcon] = useState(null); // stored path like /uploads/x.png
   const [iconBusy, setIconBusy] = useState(false);
   const [active, setActive] = useState(true);
+  const [pcType, setPcType] = useState('percentage');
+  const [pcValue, setPcValue] = useState('0');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [toDelete, setToDelete] = useState(null);
@@ -62,8 +71,8 @@ export default function ServiceMasterScreen() {
 
   const catOptions = categories.map((c) => ({ label: c.name, value: c.id }));
 
-  const openAdd = () => { setEditing(null); setTitle(''); setCategoryId(categories[0]?.id ?? ''); setServiceType('internal'); setIcon(null); setActive(true); setFormError(null); setView('form'); };
-  const openEdit = (row) => { setEditing(row); setTitle(row.title); setCategoryId(row.service_category_id); setServiceType(row.service_type); setIcon(row.icon || null); setActive(row.is_active); setFormError(null); setView('form'); };
+  const openAdd = () => { setEditing(null); setTitle(''); setCategoryId(categories[0]?.id ?? ''); setServiceType('internal'); setIcon(null); setActive(true); setPcType('percentage'); setPcValue('0'); setFormError(null); setView('form'); };
+  const openEdit = (row) => { setEditing(row); setTitle(row.title); setCategoryId(row.service_category_id); setServiceType(row.service_type); setIcon(row.icon || null); setActive(row.is_active); setPcType(row.provider_commission_type || 'percentage'); setPcValue(String(Number(row.provider_commission_value || 0))); setFormError(null); setView('form'); };
 
   const chooseIcon = async () => {
     setFormError(null);
@@ -80,9 +89,12 @@ export default function ServiceMasterScreen() {
     const t = title.trim();
     if (t.length < 2) { setFormError('Service title must be at least 2 characters.'); return; }
     if (!categoryId) { setFormError('Please select a service category.'); return; }
+    const pc = Number(pcValue === '' ? 0 : pcValue);
+    if (!Number.isFinite(pc) || pc < 0) { setFormError('Provider commission must be a number of 0 or more.'); return; }
+    if (pcType === 'percentage' && pc > 100) { setFormError('Provider commission % cannot be above 100.'); return; }
     setSaving(true); setFormError(null);
     try {
-      const body = { title: t, serviceCategoryId: categoryId, serviceType, icon: icon || '', isActive: active };
+      const body = { title: t, serviceCategoryId: categoryId, serviceType, icon: icon || '', isActive: active, providerCommissionType: pcType, providerCommissionValue: pc };
       if (editing) await api.services.update(editing.id, body);
       else await api.services.create(body);
       setView('list');
@@ -122,6 +134,10 @@ export default function ServiceMasterScreen() {
               <TextInput value={title} onChangeText={setTitle} placeholder="e.g. Mobile Recharge" placeholderTextColor={colors.muted} style={styles.modalInput} autoFocus /></View>
             <View style={styles.field}><Select label="Service Category *" value={categoryId} options={catOptions} onChange={setCategoryId} placeholder="Select a category" /></View>
             <View style={styles.field}><Select label="Service Type *" value={serviceType} options={TYPE_OPTIONS} onChange={setServiceType} searchable={false} /></View>
+            <View style={styles.field}><Select label="Provider Commission Type" value={pcType} options={PC_OPTIONS} onChange={setPcType} searchable={false} /></View>
+            <View style={styles.field}><Text style={styles.label}>{pcType === 'amount' ? 'Provider Commission (Rs per transaction)' : 'Provider Commission (%)'}</Text>
+              <TextInput value={pcValue} onChangeText={setPcValue} keyboardType="numeric" placeholder="0.00" placeholderTextColor={colors.muted} style={styles.modalInput} /></View>
+            <View style={styles.fieldFull}><Text style={styles.hint}>What the API provider pays you for each successful transaction of this service. Admin Margin = this, plus service charges collected, minus the commission paid to users.</Text></View>
             <View style={[styles.field, styles.switchField]}><Text style={styles.label}>Active</Text><Switch value={active} onValueChange={setActive} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
             <View style={styles.fieldFull}>
               <Text style={styles.label}>Icon</Text>
@@ -160,13 +176,14 @@ export default function ServiceMasterScreen() {
 
         {error ? <Alert type="error">{error}</Alert> : null}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 820, flexGrow: 1 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 960, flexGrow: 1 }}>
           <View style={{ flex: 1 }}>
             <View style={[styles.tr, styles.th]}>
               <Text style={[styles.cell, styles.colNo, styles.thText]}>#</Text>
               <Text style={[styles.cell, styles.colTitle, styles.thText]}>Service Title</Text>
               <Text style={[styles.cell, styles.colCat, styles.thText]}>Service Category</Text>
               <Text style={[styles.cell, styles.colType, styles.thText]}>Service Type</Text>
+              <Text numberOfLines={1} style={[styles.cell, styles.colPc, styles.thText]}>Provider Comm.</Text>
               <Text style={[styles.cell, styles.colDate, styles.thText]}>Created on</Text>
               <Text style={[styles.cell, styles.colStatus, styles.thText]}>Status</Text>
               <Text style={[styles.cell, styles.colAction, styles.thText]}>Action</Text>
@@ -187,6 +204,7 @@ export default function ServiceMasterScreen() {
                     </View>
                     <Text style={[styles.cell, styles.colCat, styles.td]}>{row.category_name}</Text>
                     <Text style={[styles.cell, styles.colType, styles.td]}>{typeLabel(row.service_type)}</Text>
+                    <Text style={[styles.cell, styles.colPc, styles.td]}>{pcLabel(row)}</Text>
                     <Text style={[styles.cell, styles.colDate, styles.td]}>{fmtDate(row.created_at)}</Text>
                     <View style={[styles.cell, styles.colStatus]}>
                       <Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" />
@@ -250,7 +268,7 @@ const styles = StyleSheet.create({
   colNo: { width: 44 },
   colTitle: { flex: 1.2, minWidth: 150 },
   colCat: { flex: 1, minWidth: 140 },
-  colType: { width: 130 },
+  colType: { width: 130 }, colPc: { width: 140 },
   colDate: { width: 175 },
   colStatus: { width: 80 },
   colAction: { width: 90 },
@@ -275,6 +293,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, rowGap: 14, paddingBottom: 4 },
   field: { flexGrow: 1, flexBasis: '46%', minWidth: 200, gap: 6 },
   fieldFull: { width: '100%', gap: 6 },
+  hint: { fontSize: 12.5, color: colors.muted },
   switchField: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modalTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
   modalInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: colors.text, outlineStyle: 'none' },

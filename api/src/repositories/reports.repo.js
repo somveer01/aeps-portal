@@ -47,6 +47,17 @@ module.exports = {
       (qb) => { applyCommon(qb, f); if (f.service) qb.where('x.service_name', f.service); }, f);
   },
 
+  // Admin margin per successful transaction, plus totals over the whole filter.
+  async adminMargins(f) {
+    const filter = (qb) => { applyCommon(qb, f); if (f.service) qb.where('x.service_name', f.service); };
+    const page = await paginate(withUser('admin_margins'), ['x.*', ...USER_COLS], filter, f);
+    const t = await withUser('admin_margins')().where(filter)
+      .sum({ amount: 'x.amount', provider_commission: 'x.provider_commission', charges_collected: 'x.charges_collected', commission_paid: 'x.commission_paid', margin: 'x.margin' })
+      .first();
+    const totals = Object.fromEntries(Object.entries(t || {}).map(([k, v]) => [k, Number(v || 0)]));
+    return { ...page, totals };
+  },
+
   fundRequestById(id) {
     return withUser('fund_requests')()
       .leftJoin('company_banks as cb', 'cb.id', 'x.company_bank_id')

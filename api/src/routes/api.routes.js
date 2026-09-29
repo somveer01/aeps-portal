@@ -134,6 +134,7 @@ router.get('/fund-requests', requireAdmin, reports.fundRequests);
 router.put('/fund-requests/:id', requireAdmin, idempotency, reports.actOnFundRequest);
 router.get('/gst-report', requireAdmin, reports.gstReport);
 router.get('/tds-report', requireAdmin, reports.tdsReport);
+router.get('/admin-margin-report', requireAdmin, reports.adminMarginReport);
 
 // Commission Slab (read-only view of commission slots).
 router.get('/commission-slab', requireAdmin, commissionSlot.slab);

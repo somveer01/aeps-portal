@@ -27,6 +27,7 @@ import PanVerifyScreen from './PanVerifyScreen';
 import AadhaarVerifyScreen from './AadhaarVerifyScreen';
 import CommissionSlabScreen from './CommissionSlabScreen';
 import TaxReportScreen from './TaxReportScreen';
+import AdminMarginScreen from './AdminMarginScreen';
 import AdminWalletAddScreen from './AdminWalletAddScreen';
 import AdminWalletListScreen from './AdminWalletListScreen';
 import ChangePasswordScreen from './ChangePasswordScreen';
@@ -198,6 +199,8 @@ export default function DashboardScreen({ user, onLogout }) {
             <TaxReportScreen kind="gst" />
           ) : active.route === '/tds-report' ? (
             <TaxReportScreen kind="tds" />
+          ) : active.route === '/admin-margin' ? (
+            <AdminMarginScreen />
           ) : active.route === '/admin-wallet/add' ? (
             <AdminWalletAddScreen />
           ) : active.route === '/admin-wallet/all' ? (

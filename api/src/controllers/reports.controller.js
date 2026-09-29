@@ -76,4 +76,10 @@ async function actOnFundRequest(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { accountHistory, serviceReport, fundRequests, actOnFundRequest, gstReport, tdsReport };
+// GET /api/admin-margin-report — what the company keeps per transaction, with totals.
+async function adminMarginReport(req, res, next) {
+  try { const f = filters(req); const r = await repo.adminMargins(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); }
+  catch (err) { return next(err); }
+}
+
+module.exports = { accountHistory, serviceReport, fundRequests, actOnFundRequest, gstReport, tdsReport, adminMarginReport };

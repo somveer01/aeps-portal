@@ -40,12 +40,13 @@ async function rechargeDth(req, res, next) {
 async function bbpsFetch(req, res, next) {
   try { return res.json({ bill: await providers.bbps.fetchBill({ category: clean(req.body.category), operator: clean(req.body.operator), params: req.body.params || {} }) }); } catch (e) { return next(e); }
 }
-function makePay(serviceName) {
+function makePay(serviceName, { defaultMode = null } = {}) {
   return async function pay(req, res, next) {
     try {
       const operator = clean(req.body.operator); const target = clean(req.body.target || req.body.number || req.body.consumerNo || req.body.policyNo);
       const amount = Number(req.body.amount);
-      const r = await pipeline.run({ user: req.user, service: serviceName, operator, target, amount, providerCall: () => providers.bbps.pay({ amount, operator }) });
+      const mode = defaultMode ? (['IMPS', 'NEFT'].includes(req.body.mode) ? req.body.mode : defaultMode) : null;
+      const r = await pipeline.run({ user: req.user, service: serviceName, operator, mode, target, amount, providerCall: () => providers.bbps.pay({ amount, operator }) });
       await logTxn(req, serviceName, { amount, operator });
       return res.status(201).json({ receipt: { title: serviceName, operator, target, ...r } });
     } catch (e) { return next(e); }
@@ -135,7 +136,7 @@ async function dmtTransfer(req, res, next) {
     const okPin = await txnAuth.verify(req.user.id, req.body.txnPin);
     if (!okPin) return res.status(401).json({ error: 'Invalid transaction PIN/password', code: 'BAD_TXN_PASSWORD' });
 
-    const r = await pipeline.run({ user: req.user, service: 'Money Transfer', operator: `${b.bank_name} (${mode})`, target: b.account_no, amount, providerCall: () => providers.dmt.transfer({ amount, mode, beneficiary: b }) });
+    const r = await pipeline.run({ user: req.user, service: 'Money Transfer', operator: `${b.bank_name} (${mode})`, mode, target: b.account_no, amount, providerCall: () => providers.dmt.transfer({ amount, mode, beneficiary: b }) });
     await db('dmt_senders').where({ id: b.sender_id }).increment('used_limit', amount);
     await logTxn(req, 'Money Transfer', { amount, mode, beneficiaryId: id });
     return res.status(201).json({ receipt: { title: 'Money Transfer', operator: b.bank_name, target: b.account_no, mode, ...r } });
@@ -164,7 +165,7 @@ async function bookingBook(req, res, next) {
 
 module.exports = {
   rechargePlans, dthInfo, rechargeMobile, rechargeDth,
-  bbpsFetch, payBill: makePay('Bill Payment'), payLic: makePay('LIC Payment'), payGas: makePay('Gas Booking'), rechargeFastag: makePay('FASTag'), moveToBank: makePay('Move To Bank'),
+  bbpsFetch, payBill: makePay('Bill Payment'), payLic: makePay('LIC Payment'), payGas: makePay('Gas Booking'), rechargeFastag: makePay('FASTag'), moveToBank: makePay('Move To Bank', { defaultMode: 'IMPS' }),
   aepsDevices, aepsTransact: makeAeps('AEPS'), aadharPay: makeAeps('Aadhar Pay'), microAtm: makeAeps('Micro ATM'),
   dmtSender, dmtBeneficiaries, dmtBeneficiaryAdd, dmtBeneficiaryVerify, dmtTransfer,
   bookingSearch, bookingBook,

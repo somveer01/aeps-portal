@@ -247,6 +247,7 @@ export const api = {
     actFundRequest: (id, body) => request(`/api/fund-requests/${id}`, { method: 'PUT', body, auth: true, idempotencyKey: idemKey() }),
     gstReport: (params = {}) => request(`/api/gst-report?${qs(params)}`, { auth: true }),
     tdsReport: (params = {}) => request(`/api/tds-report?${qs(params)}`, { auth: true }),
+    adminMargin: (params = {}) => request(`/api/admin-margin-report?${qs(params)}`, { auth: true }),
   },
 
   // Commission Slab (read-only view of commission slots)

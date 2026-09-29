@@ -7,7 +7,8 @@ const TABLE = 'services';
 function withCategory() {
   return db(`${TABLE} as s`)
     .join('service_categories as c', 'c.id', 's.service_category_id')
-    .select('s.id', 's.title', 's.icon', 's.service_type', 's.is_active', 's.created_at', 's.service_category_id', 'c.name as category_name');
+    .select('s.id', 's.title', 's.icon', 's.service_type', 's.is_active', 's.created_at', 's.service_category_id', 'c.name as category_name',
+      's.provider_commission_type', 's.provider_commission_value');
 }
 
 module.exports = {
@@ -23,12 +24,16 @@ module.exports = {
   },
   findById(id) { return withCategory().where('s.id', id).first(); },
   findByTitle(title) { return db(TABLE).whereRaw('LOWER(title)=LOWER(?)', [title]).first(); },
-  create({ title, serviceCategoryId, serviceType = 'internal', icon = null, isActive = true }) {
-    return db(TABLE).insert({ title, service_category_id: serviceCategoryId, service_type: serviceType, icon, is_active: isActive })
-      .returning('id').then((r) => (typeof r[0] === 'object' ? r[0].id : r[0]));
+  create({ title, serviceCategoryId, serviceType = 'internal', icon = null, isActive = true, providerCommissionType = 'percentage', providerCommissionValue = 0 }) {
+    return db(TABLE).insert({
+      title, service_category_id: serviceCategoryId, service_type: serviceType, icon, is_active: isActive,
+      provider_commission_type: providerCommissionType, provider_commission_value: providerCommissionValue,
+    }).returning('id').then((r) => (typeof r[0] === 'object' ? r[0].id : r[0]));
   },
-  update(id, { title, serviceCategoryId, serviceType, icon, isActive }) {
+  update(id, { title, serviceCategoryId, serviceType, icon, isActive, providerCommissionType, providerCommissionValue }) {
     const patch = { updated_at: db.fn.now() };
+    if (providerCommissionType !== undefined) patch.provider_commission_type = providerCommissionType;
+    if (providerCommissionValue !== undefined) patch.provider_commission_value = providerCommissionValue;
     if (title !== undefined) patch.title = title;
     if (serviceCategoryId !== undefined) patch.service_category_id = serviceCategoryId;
     if (serviceType !== undefined) patch.service_type = serviceType;
