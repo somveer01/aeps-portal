@@ -42,7 +42,8 @@ module.exports = {
   // Commission ledger with GST + TDS breakdown. Backs both the GST Report and
   // TDS Report (same rows; each screen surfaces its own tax columns).
   commissionLedger(f) {
-    return paginate(withUser('commission_ledger'), ['x.*', ...USER_COLS],
+    const joins = () => withUser('commission_ledger')().leftJoin('users as su', 'su.id', 'x.source_user_id');
+    return paginate(joins, ['x.*', ...USER_COLS, db.raw("coalesce(nullif(su.user_code, ''), su.username) as source_user_code"), 'su.full_name as source_user_name'],
       (qb) => { applyCommon(qb, f); if (f.service) qb.where('x.service_name', f.service); }, f);
   },
 

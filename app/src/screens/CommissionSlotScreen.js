@@ -12,8 +12,8 @@ const COMMISSION_OPTIONS = [
   { label: 'By Amount', value: 'amount' },
 ];
 const CHAIN_OPTIONS = [
-  { label: 'Self', value: 'self' },
-  { label: 'Chain', value: 'chain' },
+  { label: 'Self (only own transactions)', value: 'self' },
+  { label: 'Chain (own + downline transactions)', value: 'chain' },
 ];
 const money = (v) => `Rs ${Number(v).toFixed(2)}`;
 const valueLabel = (row) => (row.commission_type === 'percentage' ? `${Number(row.value).toFixed(2)} %` : money(row.value));
@@ -136,6 +136,7 @@ export default function CommissionSlotScreen() {
             ) : (
               <View style={styles.field}><Text style={styles.hint}>Choose a Commission Type to enter its percentage / amount value.</Text></View>
             )}
+            <View style={styles.field}><Text style={styles.hint}>A Chain slab also pays this user type when anyone below them in the parent chain completes this service, on top of that user's own commission.</Text></View>
             <View style={[styles.field, styles.switchField]}><Text style={styles.label}>Active</Text><Switch value={form.active} onValueChange={(v) => set('active', v)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
           </View>
 

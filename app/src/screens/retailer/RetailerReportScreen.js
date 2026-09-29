@@ -37,7 +37,7 @@ const CONFIG = {
   },
   commission: {
     title: 'Commission Report', fetch: (p) => api.retailer.commissionReport(p),
-    cols: [['#', (r, i) => i, 40], ['Service', (r) => r.service_name, 160], ['Commission', (r) => money(r.type_value_amount), 120], ['GST', (r) => money(r.gst_amount), 100], ['TDS', (r) => money(r.tds_amount), 100], ['Net Credited', (r) => money(r.net_amount), 120], ['Date', (r) => dt(r.created_at), 130]],
+    cols: [['#', (r, i) => i, 40], ['Service', (r) => r.service_name, 160], ['Earned From', (r) => (Number(r.level) > 0 ? `${r.source_user_code || '—'} (level ${r.level})` : 'Own transaction'), 170], ['Commission', (r) => money(r.type_value_amount), 120], ['GST', (r) => money(r.gst_amount), 100], ['TDS', (r) => money(r.tds_amount), 100], ['Net Credited', (r) => money(r.net_amount), 120], ['Date', (r) => dt(r.created_at), 130]],
   },
 };
 

@@ -67,7 +67,7 @@ export default function TaxReportScreen({ kind = 'gst' }) {
 
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: 1720, flexGrow: 1 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: 1870, flexGrow: 1 }}>
           <View style={{ flex: 1 }}>
             <View style={[styles.tr, styles.th]}>
               <Text style={[styles.cell, styles.cNo, styles.thText]}>#</Text>
@@ -83,7 +83,8 @@ export default function TaxReportScreen({ kind = 'gst' }) {
               <Text style={[styles.cell, styles.cRemark, styles.thText]}>Remark</Text>
               <Text style={[styles.cell, styles.cAmt, styles.thText]}>Before Bal</Text>
               <Text style={[styles.cell, styles.cAmt, styles.thText]}>Updated Bal</Text>
-              <Text style={[styles.cell, styles.cUser, styles.thText]}>Retailer</Text>
+              <Text style={[styles.cell, styles.cUser, styles.thText]}>Earned By</Text>
+              <Text style={[styles.cell, styles.cFrom, styles.thText]}>Earned From</Text>
               <Text style={[styles.cell, styles.cDate, styles.thText]}>Date</Text>
             </View>
             {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
@@ -107,6 +108,10 @@ export default function TaxReportScreen({ kind = 'gst' }) {
                       <Text style={styles.td}>{r.user_name}</Text>
                       <Text style={styles.sub}>{r.user_code} · {r.user_mobile}</Text>
                     </View>
+                    <View style={[styles.cell, styles.cFrom]}>
+                      <Text style={styles.td}>{Number(r.level) > 0 ? (r.source_user_code || '—') : 'Own transaction'}</Text>
+                      {Number(r.level) > 0 ? <Text style={styles.sub}>Chain level {r.level}</Text> : null}
+                    </View>
                     <Text style={[styles.cell, styles.cDate, styles.td]}>{fmtDateTime(r.created_at)}</Text>
                   </View>
                 ))}
@@ -121,5 +126,5 @@ export default function TaxReportScreen({ kind = 'gst' }) {
 const styles = StyleSheet.create({
   ...reportStyles,
   cNo: { width: 40 }, cSvc: { width: 120 }, cType: { width: 110 }, cVal: { width: 130 }, cPct: { width: 70 }, cAmt: { width: 100 },
-  cWtt: { width: 110 }, cRemark: { width: 220 }, cUser: { width: 160 }, cDate: { width: 150 },
+  cWtt: { width: 110 }, cRemark: { width: 220 }, cUser: { width: 160 }, cFrom: { width: 150 }, cDate: { width: 150 },
 });
