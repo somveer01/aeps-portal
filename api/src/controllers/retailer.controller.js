@@ -2,6 +2,7 @@
 
 const db = require('../config/db');
 const serviceGuard = require('../services/serviceGuard.service');
+const permission = require('../services/servicePermission.service');
 const reportsRepo = require('../repositories/reports.repo');
 const commissionSlotRepo = require('../repositories/commissionSlot.repo');
 
@@ -56,8 +57,8 @@ async function serviceStats(req, res, next) {
 }
 
 // GET /api/services/catalogue  (B2B + Online tiles)
-// A tile whose service is in Service Master shows only when that service is on and the
-// user has access to it. Fund Request is always shown (it is also in the sidebar).
+// A tile whose service is in Service Master shows only when the user may use it
+// (service on + Service Permissions). Fund Request is always shown (it is also in the sidebar).
 async function catalogue(req, res, next) {
   try {
   const b2b = [
@@ -73,13 +74,12 @@ async function catalogue(req, res, next) {
   const online = [
     ['flight', 'Flight Booking', 'send'], ['hotel', 'Hotel Booking', 'grid'], ['bus', 'Bus Booking', 'transfer'],
   ].map(([key, title, icon]) => ({ key, title, icon, route: `/services/${key}` }));
-  const u = await db('users').where({ id: req.user.id }).first('service_access');
-  const access = serviceGuard.accessList(u && u.service_access);
+  const allowed = await permission.allowedServiceIds(req.user.id);
   const visible = async (tiles) => {
     const out = [];
     for (const t of tiles) {
       // eslint-disable-next-line no-await-in-loop
-      if (t.key === 'fund-request' || serviceGuard.allowedFor(await serviceGuard.findService(t.title), access)) out.push(t);
+      if (t.key === 'fund-request' || serviceGuard.allowedFor(await serviceGuard.findService(t.title), allowed)) out.push(t);
     }
     return out;
   };
@@ -116,12 +116,13 @@ async function commissionReport(req, res, next) {
   try { const f = ownerFilters(req); const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
 
-// GET /api/retailer/my-commission-slab  (read-only, this retailer's user type)
+// GET /api/retailer/my-commission-slab  (read-only, this retailer's user type, services they may use)
 async function myCommissionSlab(req, res, next) {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
-    const { rows, total } = await commissionSlotRepo.slab({ userTypeId: req.user.userTypeId, serviceId: null, activeServicesOnly: true, page, pageSize });
+    const serviceIds = [...await permission.allowedServiceIds(req.user.id)]; // only services this user may use
+    const { rows, total } = await commissionSlotRepo.slab({ userTypeId: req.user.userTypeId, serviceId: null, activeServicesOnly: true, serviceIds, page, pageSize });
     return res.json({ rows, total, page, pageSize });
   } catch (err) { return next(err); }
 }

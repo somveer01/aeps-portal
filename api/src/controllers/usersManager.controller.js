@@ -7,6 +7,7 @@ const planRepo = require('../repositories/plan.repo');
 const settingsRepo = require('../repositories/settings.repo');
 const audit = require('../repositories/audit.repo');
 const db = require('../config/db');
+const permission = require('../services/servicePermission.service');
 
 const clean = (v) => String(v || '').trim();
 const KYC = ['pending', 'verified', 'rejected'];
@@ -82,7 +83,6 @@ function mapFields(b) {
   if (b.pincode !== undefined) out.pincode = clean(b.pincode) || null;
   if (b.merchantId !== undefined) out.merchant_id = clean(b.merchantId) || null;
   if (b.assignedEmployeeId !== undefined) out.assigned_employee_id = intOrNull(b.assignedEmployeeId);
-  if (b.serviceAccess !== undefined) out.service_access = arr(b.serviceAccess);
   if (b.moduleAccess !== undefined) out.module_access = arr(b.moduleAccess);
   if (b.kycStatus !== undefined && KYC.includes(b.kycStatus)) out.kyc_status = b.kycStatus;
   if (b.ekycStatus !== undefined && KYC.includes(b.ekycStatus)) out.ekyc_status = b.ekycStatus;
@@ -141,6 +141,7 @@ async function create(req, res, next) {
       ...fields,
       created_by: req.user.id, // who created this user; never taken from the request body
     }));
+    if (b.serviceAccess !== undefined) await permission.setUserServices(id, arr(b.serviceAccess), req.user.id);
     await audit.log({ userId: req.user.id, username: req.user.username, event: 'user_created', detail: { newUserId: id, parentId: fields.parent_id || null }, ip: req.ip, userAgent: req.get('user-agent') });
     return res.status(201).json({ row: await repo.findFull(id) });
   } catch (err) { return next(err); }
@@ -161,7 +162,8 @@ async function update(req, res, next) {
     }
     const fields = mapFields(b);
     if (forcedParent !== undefined) fields.parent_id = forcedParent;
-    await repo.update(id, fields);
+    await repo.update(id, fields); // a user type change applies before the ticks are compared with its default
+    if (b.serviceAccess !== undefined) await permission.setUserServices(id, arr(b.serviceAccess), req.user.id);
     return res.json({ row: await repo.findFull(id) });
   } catch (err) { return next(err); }
 }

@@ -45,6 +45,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
   const [fUserType, setFUserType] = useState(''); const [fParent, setFParent] = useState(''); const [fAccount, setFAccount] = useState(''); const [fKyc, setFKyc] = useState('');
   const [applied, setApplied] = useState({ userTypeId: '', parentUser: '', accountStatus: '', kycStatus: '' });
 
+  const [typeDefaults, setTypeDefaults] = useState([]); // [{ userTypeId, serviceId }] from Service Permissions
   const [userTypes, setUserTypes] = useState([]); const [plans, setPlans] = useState([]); const [parents, setParents] = useState([]);
   const [states, setStates] = useState([]); const [cities, setCities] = useState([]); const [services, setServices] = useState([]); const [modules, setModules] = useState([]);
   const [view, setView] = useState('list'); const [editing, setEditing] = useState(null);
@@ -81,6 +82,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
     api.plans.list({ pageSize: 100 }).then((r) => setPlans(r.rows)).catch(() => {});
     api.managedUsers.list({ pageSize: 100 }).then((r) => setParents(r.rows)).catch(() => {});
     api.services.list({ pageSize: 100, active: true }).then((r) => setServices(r.rows)).catch(() => {});
+    api.servicePermissions.matrix().then((m) => setTypeDefaults(m.allowed)).catch(() => {});
     api.moduleOptions().then((r) => setModules(r.modules)).catch(() => {});
     /* eslint-disable-next-line */
   }, []);
@@ -112,7 +114,9 @@ export default function UserManagerScreen({ network = false, onDone }) {
   const parentOptions = [{ label: '— Self / None —', value: '' }, ...parents.map((p) => ({ label: `${p.user_code} · ${p.name}`, value: p.id }))];
   const employeeOptions = [{ label: '— None —', value: '' }, ...parents.filter((p) => p.user_type_name === 'Employee').map((p) => ({ label: `${p.user_code} · ${p.name}`, value: p.id }))];
 
-  const openAdd = () => { setEditing(null); setF({ ...EMPTY, userTypeId: userTypes[0]?.id ?? '' }); setFormError(null); setView('form'); };
+  // Service Access starts from the user type's default (Modules → Service Permissions).
+  const defaultServices = (typeId) => typeDefaults.filter((a) => String(a.userTypeId) === String(typeId)).map((a) => a.serviceId);
+  const openAdd = () => { const t = userTypes[0]?.id ?? ''; setEditing(null); setF({ ...EMPTY, userTypeId: t, serviceAccess: defaultServices(t) }); setFormError(null); setView('form'); };
   const openEdit = (r) => {
     setEditing(r);
     setF({
@@ -206,7 +210,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
             {network && editing ? (
               <View style={styles.field}><Text style={styles.label}>Account Type</Text><Text style={[styles.input, { color: colors.muted }]}>{editing.user_type_name}</Text></View>
             ) : (
-              <View style={styles.field}><Select label="Select Account Type *" value={f.userTypeId} options={utOptions} onChange={(v) => { set('userTypeId', v); set('planId', ''); }} placeholder="-- Choose --" /></View>
+              <View style={styles.field}><Select label="Select Account Type *" value={f.userTypeId} options={utOptions} onChange={(v) => { set('userTypeId', v); set('planId', ''); if (!network) set('serviceAccess', defaultServices(v)); }} placeholder="-- Choose --" /></View>
             )}
             <Field label="Name *" value={f.name} onChange={(v) => set('name', v)} placeholder="Full name" />
             <Field label="Father's / Husband Name" value={f.fatherHusbandName} onChange={(v) => set('fatherHusbandName', v)} placeholder="Name" />
@@ -253,6 +257,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
             <Text style={styles.section}>Service Access</Text>
             <Pressable onPress={() => toggleAll('serviceAccess', allServiceIds)}><Text style={styles.checkAll}>{(f.serviceAccess || []).length === allServiceIds.length && allServiceIds.length ? 'Uncheck All' : 'Check All'}</Text></Pressable>
           </View>
+          <Text style={styles.hint}>Ticked = this user may use the service. Ticks start from the account type's default in Modules → Service Permissions; only differences are saved for this user.</Text>
           <View style={styles.cbGrid}>
             {services.map((s) => (
               <Checkbox key={s.id} label={s.title} checked={(f.serviceAccess || []).some((x) => String(x) === String(s.id))} onToggle={() => toggleInArray('serviceAccess', s.id)} />

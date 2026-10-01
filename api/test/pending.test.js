@@ -38,6 +38,7 @@ before(async () => {
   slabId = typeof s === 'object' ? s.id : s;
   const [u] = await db('users').insert({ username: TAG, user_code: TAG, password_hash: 'x', mobile: '9000000000', full_name: 'Pending Test', role: 'user', user_type_id: ut.id, plan_id: planId, wallet_balance: 1000, kyc_status: 'verified' }).returning('id');
   userId = typeof u === 'object' ? u.id : u;
+  await db('user_service_overrides').insert({ user_id: userId, service_id: svc.id, allowed: true }); // Service Permissions
 });
 
 after(async () => {

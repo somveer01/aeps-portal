@@ -20,6 +20,7 @@ exports.seed = async function seed(knex) {
   if (Number(svcCount.c) > 0) {
     // eslint-disable-next-line no-console
     console.log('Services already seeded — skipping.');
+    await retailerDefaults(knex);
     return;
   }
 
@@ -47,9 +48,22 @@ exports.seed = async function seed(knex) {
     ['Flight Booking', online, 'internal'],
     ['Hotel Booking', online, 'internal'],
     ['Bus Booking', online, 'internal'],
+    ['UPI Collection', b2b, 'internal'],
+    ['Fino CMS', b2b, 'internal'],
   ].map(([title, service_category_id, service_type]) => ({ title, service_category_id, service_type }));
 
   await knex.batchInsert('services', services, 50);
   // eslint-disable-next-line no-console
   console.log(`Seeded ${services.length} services.`);
+  await retailerDefaults(knex);
 };
+
+// Service Permissions default: the Retailer type may use every service (only when nothing is set yet).
+async function retailerDefaults(knex) {
+  const retailer = await knex('user_types').whereRaw("lower(name) = 'retailer'").first('id');
+  if (!retailer || await knex('user_type_services').first('service_id')) return;
+  const rows = (await knex('services').select('id')).map((r) => ({ user_type_id: retailer.id, service_id: r.id }));
+  if (rows.length) await knex('user_type_services').insert(rows);
+  // eslint-disable-next-line no-console
+  console.log(`Allowed ${rows.length} services for the Retailer type.`);
+}

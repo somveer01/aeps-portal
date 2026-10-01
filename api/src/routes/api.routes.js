@@ -28,6 +28,7 @@ const network = require('../controllers/network.controller');
 const fundRequest = require('../controllers/fundRequest.controller');
 const kyc = require('../controllers/kyc.controller');
 const ops = require('../controllers/operations.controller');
+const servicePermission = require('../controllers/servicePermission.controller');
 const { kycUpload } = require('../middleware/upload');
 // Multer errors (wrong type / too big) come back as a 400 with a clear message.
 const kycFile = (req, res, next) => kycUpload.single('image')(req, res, (e) => (e ? res.status(400).json({ error: e.code === 'LIMIT_FILE_SIZE' ? 'Photo must be 5 MB or smaller' : e.message, code: 'INVALID_FILE' }) : next()));
@@ -85,6 +86,12 @@ router.get('/services', requireAdmin, service.list);
 router.post('/services', requireAdmin, service.create);
 router.put('/services/:id', requireAdmin, service.update);
 router.delete('/services/:id', requireAdmin, service.remove);
+
+// Modules → Service Permissions (admin): user-type defaults + per-user allow / block, service-wise.
+router.get('/service-permissions/matrix', requireAdmin, servicePermission.matrix);
+router.put('/service-permissions/matrix', requireAdmin, servicePermission.setMatrix);
+router.get('/service-permissions/services/:serviceId/users', requireAdmin, servicePermission.serviceUsers);
+router.put('/service-permissions/services/:serviceId/users', requireAdmin, servicePermission.setServiceUsers);
 
 // Modules → Plan Master (admin CRUD; joins user type).
 router.get('/plans', requireAdmin, plan.list);

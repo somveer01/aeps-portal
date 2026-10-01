@@ -37,6 +37,7 @@ import ChangePasswordScreen from './ChangePasswordScreen';
 import TxnPinScreen from './TxnPinScreen';
 import RetailerPanelScreen from './RetailerPanelScreen';
 import SupportTicketScreen from './SupportTicketScreen';
+import ServicePermissionScreen from './ServicePermissionScreen';
 import { api } from '../api/client';
 import { colors, radius, shadows } from '../theme';
 
@@ -166,6 +167,8 @@ export default function DashboardScreen({ user, onLogout }) {
             <UserTypeMasterScreen />
           ) : active.route === '/modules/service-master' ? (
             <ServiceMasterScreen />
+          ) : active.route === '/modules/service-permissions' ? (
+            <ServicePermissionScreen />
           ) : active.route === '/modules/plan-master' ? (
             <PlanMasterScreen />
           ) : active.route === '/modules/commission-slots' ? (

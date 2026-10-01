@@ -47,7 +47,8 @@ exports.seed = async function seed(knex) {
   // ── Demo retailer login ───────────────────────────────────────────
   const existing = await knex('users').where({ username: 'retailer' }).first();
   if (!existing) {
-    const userType = await knex('user_types').orderBy('id', 'asc').first('id');
+    // The Retailer type (Service Permissions allow it every service by default); else the first type.
+    const userType = await knex('user_types').whereRaw("lower(name) = 'retailer'").first('id') || await knex('user_types').orderBy('id', 'asc').first('id');
     if (userType) {
       const passwordHash = await bcrypt.hash('Retailer@123', 12);
       await knex('users').insert({

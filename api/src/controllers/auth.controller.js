@@ -9,6 +9,7 @@ const captchaService = require('../services/captcha.service');
 const tokenService = require('../services/token.service');
 const menuService = require('../services/menu.service');
 const networkRepo = require('../repositories/network.repo');
+const permission = require('../services/servicePermission.service');
 
 function maskMobile(mobile) {
   const s = String(mobile || '');
@@ -167,7 +168,13 @@ async function menu(req, res, next) {
       // Distributors / master distributors also get the "My Network" menu.
       if (await networkRepo.canHaveDownline(req.user.userTypeId)) scopes.push('network');
     }
-    return res.json({ menu: await menuService.getMenuTree(scopes) });
+    let tree = await menuService.getMenuTree(scopes);
+    // No service allowed (Service Permissions) -> no Services menu; e.g. distributors only manage their network.
+    if (req.user && req.user.userTypeId && !(await permission.allowedServiceIds(req.user.id)).size) {
+      const drop = (nodes) => nodes.filter((n) => n.route !== '/services').map((n) => ({ ...n, children: drop(n.children || []) }));
+      tree = drop(tree);
+    }
+    return res.json({ menu: tree });
   } catch (err) {
     return next(err);
   }

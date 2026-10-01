@@ -22,7 +22,12 @@ function joined() {
       'u.father_husband_name', db.raw("to_char(u.dob,'YYYY-MM-DD') as dob"), 'u.pan_number', 'u.aadhar_number',
       'u.gender', 'u.gst_number', 'u.min_balance', 'u.address', 'u.state_id', 'st.name as state_name',
       'u.city_id', 'ci.name as city_name', 'u.pincode', 'u.merchant_id', 'u.assigned_employee_id',
-      'u.service_access', 'u.module_access',
+      // Service ids ticked for this user (Service Permissions: override, else type default).
+      db.raw(`(select coalesce(json_agg(s.id order by s.id), '[]'::json) from services s
+        left join user_type_services t on t.service_id = s.id and t.user_type_id = u.user_type_id
+        left join user_service_overrides o on o.service_id = s.id and o.user_id = u.id
+        where coalesce(o.allowed, t.service_id is not null)) as service_access`),
+      'u.module_access',
     );
 }
 

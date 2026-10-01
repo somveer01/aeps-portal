@@ -59,6 +59,7 @@ test("retailer's commission slab list hides switched-off services", async () => 
     assert.equal(off.s, 200);
     assert.equal(off.b.rows.length, 0);
     await db('services').where({ id: svc.id }).update({ is_active: true });
+    await db('user_service_overrides').insert({ user_id: other.id, service_id: svc.id, allowed: true }); // the user may use it
     const on = await R.get('/api/retailer/my-commission-slab?pageSize=100');
     assert.equal(on.b.rows.length, 1);
   } finally {

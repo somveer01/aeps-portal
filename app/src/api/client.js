@@ -207,6 +207,14 @@ export const api = {
     remove: (id) => request(`/api/services/${id}`, { method: 'DELETE', auth: true }),
   },
 
+  // Modules → Service Permissions (user-type defaults + per-user allow/block, service-wise)
+  servicePermissions: {
+    matrix: () => request('/api/service-permissions/matrix', { auth: true }),
+    setMatrix: (body) => request('/api/service-permissions/matrix', { method: 'PUT', body, auth: true }),
+    users: (serviceId, params = {}) => request(`/api/service-permissions/services/${serviceId}/users?${qs(params)}`, { auth: true }),
+    setUsers: (serviceId, body) => request(`/api/service-permissions/services/${serviceId}/users`, { method: 'PUT', body, auth: true }),
+  },
+
   // Modules → Plan Master
   plans: {
     list: ({ q = '', userTypeId = '', page = 1, pageSize = 10 } = {}) =>
