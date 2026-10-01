@@ -19,6 +19,8 @@ const money = (v) => `Rs ${Number(v).toFixed(2)}`;
 const valueLabel = (row) => (row.commission_type === 'percentage' ? `${Number(row.value).toFixed(2)} %` : money(row.value));
 const commissionLabel = (t) => (t === 'amount' ? 'By Amount' : 'By Percentage');
 const chainLabel = (t) => (t === 'chain' ? 'Chain' : 'Self');
+// Short text for a slot inside the matrix: "Chain 4%", "Self Rs 5.00", "Debit Rs 5.00".
+const chipLabel = (r) => `${r.txn_type === 'debit' ? 'Debit' : chainLabel(r.chain_type)} ${r.commission_type === 'percentage' ? `${Number(r.value)}%` : money(r.value)}`;
 
 export default function CommissionSlotScreen() {
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
@@ -29,6 +31,21 @@ export default function CommissionSlotScreen() {
   const [form, setForm] = useState({ userTypeId: '', planId: '', serviceId: '', commissionType: '', minAmount: '', maxAmount: '', transactionType: '', specificUser: '', value: '', active: true });
   const [saving, setSaving] = useState(false); const [formError, setFormError] = useState(null);
   const [toDelete, setToDelete] = useState(null); const [deleting, setDeleting] = useState(false);
+  // Matrix tab (default): every slot laid out as service x user type, like Service Permissions.
+  const [tab, setTab] = useState('matrix');
+  const [allSlots, setAllSlots] = useState(null); const [allServices, setAllServices] = useState([]);
+  const loadMatrix = useCallback(async () => {
+    try {
+      const out = [];
+      for (let p = 1; ; p += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        const r = await api.commissionSlots.list({ page: p, pageSize: 100 });
+        out.push(...r.rows);
+        if (out.length >= r.total || !r.rows.length) break;
+      }
+      setAllSlots(out);
+    } catch (e) { setError(e.message); }
+  }, []);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -40,6 +57,8 @@ export default function CommissionSlotScreen() {
 
   useEffect(() => {
     load({ page: 1 });
+    loadMatrix();
+    api.services.list({ pageSize: 100 }).then((r) => setAllServices(r.rows)).catch(() => {});
     api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {});
     api.services.list({ pageSize: 100, active: true }).then((r) => setServices(r.rows)).catch(() => {});
     api.plans.list({ pageSize: 100 }).then((r) => setPlans(r.rows)).catch(() => {});
@@ -57,9 +76,9 @@ export default function CommissionSlotScreen() {
     return (filtered.length ? filtered : plans).map((p) => ({ label: p.name, value: p.id }));
   }, [plans, form.userTypeId]);
 
-  const openAdd = () => {
+  const openAdd = (prefill = {}) => {
     setEditing(null);
-    setForm({ userTypeId: userTypes[0]?.id ?? '', planId: '', serviceId: services[0]?.id ?? '', commissionType: '', minAmount: '1', maxAmount: '1000', transactionType: '', specificUser: '', value: '', active: true });
+    setForm({ userTypeId: prefill.userTypeId ?? userTypes[0]?.id ?? '', planId: '', serviceId: prefill.serviceId ?? services[0]?.id ?? '', commissionType: '', minAmount: '1', maxAmount: '1000', transactionType: '', specificUser: '', value: '', active: true });
     setFormError(null); setView('form');
   };
   const openEdit = (row) => {
@@ -84,18 +103,18 @@ export default function CommissionSlotScreen() {
         chainType: form.transactionType, specificUser: form.specificUser.trim(), isActive: form.active,
       };
       if (editing) await api.commissionSlots.update(editing.id, body); else await api.commissionSlots.create(body);
-      setView('list'); await load({ page: editing ? page : 1 });
+      setView('list'); await load({ page: editing ? page : 1 }); loadMatrix();
     } catch (e) { setFormError(e.message); } finally { setSaving(false); }
   };
 
   const toggleStatus = async (row) => {
     setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, is_active: !r.is_active } : r)));
-    try { await api.commissionSlots.update(row.id, { isActive: !row.is_active }); }
+    try { await api.commissionSlots.update(row.id, { isActive: !row.is_active }); loadMatrix(); }
     catch (e) { setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, is_active: row.is_active } : r))); setError(e.message); }
   };
   const confirmDelete = async () => {
     setDeleting(true);
-    try { await api.commissionSlots.remove(toDelete.id); setToDelete(null); await load({ page: rows.length === 1 && page > 1 ? page - 1 : page }); }
+    try { await api.commissionSlots.remove(toDelete.id); setToDelete(null); await load({ page: rows.length === 1 && page > 1 ? page - 1 : page }); loadMatrix(); }
     catch (e) { setError(e.message); } finally { setDeleting(false); }
   };
 
@@ -153,7 +172,17 @@ export default function CommissionSlotScreen() {
 
   return (
     <View style={{ gap: 16 }}>
-      <View style={styles.actionBar}><Button title="+ ADD NEW SLOT" onPress={openAdd} style={{ paddingHorizontal: 20 }} /></View>
+      <View style={[styles.actionBar, { justifyContent: 'space-between', alignItems: 'center' }]}>
+        <View style={styles.tabs}>
+          {[['matrix', 'By Service × User Type'], ['list', 'All Slots']].map(([k, label]) => (
+            <Pressable key={k} onPress={() => setTab(k)} style={[styles.tab, tab === k && styles.tabOn]}><Text style={[styles.tabText, tab === k && styles.tabTextOn]}>{label}</Text></Pressable>
+          ))}
+        </View>
+        <Button title="+ ADD NEW SLOT" onPress={() => openAdd()} style={{ paddingHorizontal: 20 }} />
+      </View>
+      {tab === 'matrix' ? (
+        <SlotMatrix slots={allSlots} services={allServices} userTypes={userTypes} error={error} onEdit={openEdit} onAdd={openAdd} />
+      ) : (
       <Card>
         <View style={styles.cardHead}>
           <Text style={styles.cardTitle}>View All Commission Slots</Text>
@@ -208,6 +237,7 @@ export default function CommissionSlotScreen() {
           </View>
         </View>
       </Card>
+      )}
 
       <Modal visible={!!toDelete} transparent animationType="fade" onRequestClose={() => setToDelete(null)}>
         <View style={styles.modalBackdrop}>
@@ -225,7 +255,65 @@ export default function CommissionSlotScreen() {
   );
 }
 
+// Rows = services, columns = user types; each cell lists that type's slots for the service.
+function SlotMatrix({ slots, services, userTypes, error, onEdit, onAdd }) {
+  if (!slots) return <Card><ActivityIndicator color={colors.primary} /></Card>;
+  const used = new Set(slots.map((r) => r.service_id));
+  // Switched-on services, plus switched-off ones that still have slots.
+  const rows = services.filter((s) => s.is_active || used.has(s.id));
+  const cell = (s, t) => slots.filter((r) => r.service_id === s.id && r.user_type_id === t.id);
+  return (
+    <Card>
+      <Text style={styles.matrixHint}>Commission for each user type, service-wise. Self = on own transactions, Chain = also on the downline's, Debit = charge taken from the user. Tap a slot to edit, + Add for that service and user type.</Text>
+      {error ? <Alert type="error">{error}</Alert> : null}
+      <ScrollView horizontal>
+        <View style={{ minWidth: 220 + userTypes.length * 190 }}>
+          <View style={[styles.tr, styles.th]}>
+            <View style={[styles.cell, styles.mSvc]}><Text style={styles.thText}>Service</Text></View>
+            {userTypes.map((t) => <View key={t.id} style={[styles.cell, styles.mType]}><Text style={styles.thText}>{t.name}</Text></View>)}
+          </View>
+          {rows.map((s, i) => (
+            <View key={s.id} style={[styles.tr, i % 2 ? styles.trAlt : null, { alignItems: 'stretch' }]}>
+              <View style={[styles.cell, styles.mSvc]}>
+                <Text style={[styles.td, !s.is_active && { color: colors.muted }]}>{s.title}</Text>
+                {!s.is_active ? <Text style={styles.offText}>OFF in Service Master</Text> : null}
+              </View>
+              {userTypes.map((t) => (
+                <View key={t.id} style={[styles.cell, styles.mType, styles.mCell]}>
+                  {cell(s, t).map((r) => (
+                    <Pressable key={r.id} onPress={() => onEdit(r)} style={[styles.chip, r.txn_type === 'debit' ? styles.chipDebit : r.chain_type === 'chain' ? styles.chipChain : styles.chipSelf, !r.is_active && styles.chipOff]}>
+                      <Text style={styles.chipText}>{chipLabel(r)}{r.operator ? ` · ${r.operator}` : ''}{!r.is_active ? ' (off)' : ''}</Text>
+                      <Text style={styles.chipSub}>{r.plan_name} · {Number(r.min_amount)}–{Number(r.max_amount)}{r.specific_user ? ` · ${r.specific_user}` : ''}</Text>
+                    </Pressable>
+                  ))}
+                  {s.is_active ? <Pressable onPress={() => onAdd({ userTypeId: t.id, serviceId: s.id })} hitSlop={4}><Text style={styles.addLink}>+ Add</Text></Pressable> : null}
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
+  tabs: { flexDirection: 'row', backgroundColor: '#e2e8f0', borderRadius: radius.md, padding: 3 },
+  tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.sm },
+  tabOn: { backgroundColor: '#fff' },
+  tabText: { color: colors.muted, fontWeight: '600', fontSize: 13.5 },
+  tabTextOn: { color: colors.primary },
+  matrixHint: { color: colors.muted, fontSize: 12.5, marginBottom: 12 },
+  mSvc: { width: 220 }, mType: { width: 190 }, mCell: { gap: 6, alignItems: 'flex-start' },
+  offText: { color: colors.danger, fontSize: 11, marginTop: 2 },
+  chip: { borderRadius: radius.sm, paddingVertical: 5, paddingHorizontal: 8, borderWidth: 1, alignSelf: 'stretch' },
+  chipSelf: { backgroundColor: colors.successBg, borderColor: '#a7f3d0' },
+  chipChain: { backgroundColor: colors.infoBg, borderColor: '#bfdbfe' },
+  chipDebit: { backgroundColor: colors.warningBg, borderColor: '#fde68a' },
+  chipOff: { opacity: 0.5 },
+  chipText: { color: colors.text, fontSize: 12.5, fontWeight: '700' },
+  chipSub: { color: colors.muted, fontSize: 11, marginTop: 1 },
+  addLink: { color: colors.primary, fontSize: 12, fontWeight: '700', paddingVertical: 2 },
   actionBar: { flexDirection: 'row', justifyContent: 'flex-end' },
   formHeaderBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   formHeading: { fontSize: 20, fontWeight: '700', color: colors.text },
