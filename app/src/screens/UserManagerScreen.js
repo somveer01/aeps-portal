@@ -80,7 +80,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
     api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {});
     api.plans.list({ pageSize: 100 }).then((r) => setPlans(r.rows)).catch(() => {});
     api.managedUsers.list({ pageSize: 100 }).then((r) => setParents(r.rows)).catch(() => {});
-    api.services.list({ pageSize: 100 }).then((r) => setServices(r.rows)).catch(() => {});
+    api.services.list({ pageSize: 100, active: true }).then((r) => setServices(r.rows)).catch(() => {});
     api.moduleOptions().then((r) => setModules(r.modules)).catch(() => {});
     /* eslint-disable-next-line */
   }, []);
@@ -132,7 +132,10 @@ export default function UserManagerScreen({ network = false, onDone }) {
     const list = p[key] || []; const has = list.some((x) => String(x) === String(val));
     return { ...p, [key]: has ? list.filter((x) => String(x) !== String(val)) : [...list, val] };
   });
-  const selectedTypeName = (userTypes.find((u) => String(u.id) === String(f.userTypeId)) || {}).name || '';
+  const selectedType = userTypes.find((u) => String(u.id) === String(f.userTypeId)) || {};
+  const selectedTypeName = selectedType.name || '';
+  // A type with no Parent Type (e.g. Super Distributor) always sits under the admin; the API enforces it too.
+  const parentIsAdmin = !network && !!selectedType.id && !selectedType.parent_type_id;
   const isEmployee = selectedTypeName.toLowerCase() === 'employee';
   const allServiceIds = services.map((s) => s.id);
   const allModuleRoutes = modules.map((m) => m.route);
@@ -235,7 +238,14 @@ export default function UserManagerScreen({ network = false, onDone }) {
           <Text style={styles.section}>AEPS / Parent Details</Text>
           <View style={styles.grid}>
             <Field label="Merchant ID" value={f.merchantId} onChange={(v) => set('merchantId', v)} placeholder="Submerchant ID" />
-            <View style={styles.field}><Select label="Parent Id" value={f.parentId} options={parentOptions} onChange={(v) => set('parentId', v)} placeholder="-- Self / None --" /></View>
+            {parentIsAdmin ? (
+              <View style={styles.field}>
+                <Text style={styles.label}>Parent Id</Text>
+                <TextInput value="Admin (fixed)" editable={false} style={[styles.input, { color: colors.muted }]} />
+              </View>
+            ) : (
+              <View style={styles.field}><Select label="Parent Id" value={f.parentId} options={parentOptions} onChange={(v) => set('parentId', v)} placeholder="-- Self / None --" /></View>
+            )}
             <View style={styles.field}><Select label="Assigned Employee" value={f.assignedEmployeeId} options={employeeOptions} onChange={(v) => set('assignedEmployeeId', v)} placeholder="-- None --" /></View>
           </View>
 

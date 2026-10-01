@@ -32,8 +32,9 @@ module.exports = {
     return { rows, total: Number(countRow.c) };
   },
   // Read-only "Commission Slab" listing filtered by user type + service.
-  async slab({ userTypeId = null, serviceId = null, page = 1, pageSize = 10 } = {}) {
+  async slab({ userTypeId = null, serviceId = null, activeServicesOnly = false, page = 1, pageSize = 10 } = {}) {
     const filter = (qb) => {
+      if (activeServicesOnly) qb.where('s.is_active', true);
       if (userTypeId) qb.where('cs.user_type_id', userTypeId);
       if (serviceId) qb.where('cs.service_id', serviceId);
     };

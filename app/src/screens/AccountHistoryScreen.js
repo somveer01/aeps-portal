@@ -30,7 +30,7 @@ export default function AccountHistoryScreen() {
     load(1);
     api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {});
     api.managedUsers.list({ pageSize: 100 }).then((r) => setUsers(r.rows)).catch(() => {});
-    api.services.list({ pageSize: 100 }).then((r) => setServices(r.rows)).catch(() => {});
+    api.services.list({ pageSize: 100, active: true }).then((r) => setServices(r.rows)).catch(() => {});
     /* eslint-disable-next-line */
   }, []);
   useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied]);

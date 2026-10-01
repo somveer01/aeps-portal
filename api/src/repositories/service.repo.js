@@ -12,8 +12,9 @@ function withCategory() {
 }
 
 module.exports = {
-  async list({ q = '', page = 1, pageSize = 10 } = {}) {
+  async list({ q = '', page = 1, pageSize = 10, activeOnly = false } = {}) {
     const filter = (qb) => {
+      if (activeOnly) qb.where('s.is_active', true);
       if (q) qb.where((w) => w.whereILike('s.title', `%${q}%`).orWhereILike('c.name', `%${q}%`));
     };
     const countRow = await db(`${TABLE} as s`)

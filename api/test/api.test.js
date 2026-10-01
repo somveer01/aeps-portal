@@ -128,7 +128,8 @@ test('audit log written for wallet adjust', async () => {
 });
 
 test('user creation records creator; parent validated (self, cycle)', async () => {
-  const ut = await db('user_types').orderBy('id').first('id');
+  // A type with a Parent Type: top-level types are always placed under the admin (visibility.test.js).
+  const ut = await db('user_types').whereNotNull('parent_type_id').orderBy('id').first('id');
   const tok = signFor(await adminUser()); // earlier tests bump token_epoch, so mint a fresh token
   const mk = (name, extra) => api(BASE, tok).post('/api/users', { name, mobile: '9000000099', userTypeId: ut.id, password: 'Test@1234', ...extra });
   const created = [];

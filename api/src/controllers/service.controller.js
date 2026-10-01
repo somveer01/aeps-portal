@@ -40,7 +40,8 @@ async function list(req, res, next) {
     const q = clean(req.query.q);
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
-    const { rows, total } = await repo.list({ q, page, pageSize });
+    // ?active=1 -> only switched-on services (dropdowns); Service Master itself lists all.
+    const { rows, total } = await repo.list({ q, page, pageSize, activeOnly: req.query.active === '1' });
     return res.json({ rows, total, page, pageSize });
   } catch (err) { return next(err); }
 }

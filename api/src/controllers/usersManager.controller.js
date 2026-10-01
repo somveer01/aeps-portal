@@ -105,6 +105,16 @@ async function checkParent(parentId, selfId) {
   return null;
 }
 
+// Top-level account types (no Parent Type, e.g. Super Distributor) always sit directly under
+// the admin. Returns the admin's id for such a type, or undefined when the parent is free to pick.
+async function topLevelParent(userTypeId, req) {
+  const type = userTypeId ? await userTypeRepo.findById(userTypeId) : null;
+  if (!type || type.parent_type_id) return undefined;
+  if (req.user.role === 'admin') return req.user.id;
+  const admin = await db('users').where({ role: 'admin' }).orderBy('id').first('id');
+  return admin ? admin.id : null;
+}
+
 async function create(req, res, next) {
   try {
     const b = req.body;
@@ -116,11 +126,15 @@ async function create(req, res, next) {
     if (b.planId && !(await planRepo.findById(intOrNull(b.planId)))) return res.status(400).json({ error: 'Invalid plan', code: 'INVALID_PLAN' });
     if (String(b.password || '').length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters', code: 'WEAK_PASSWORD' });
 
-    const parentErr = await checkParent(intOrNull(b.parentId), null);
-    if (parentErr) return res.status(400).json(parentErr);
+    const forcedParent = await topLevelParent(userTypeId, req);
+    if (forcedParent === undefined) {
+      const parentErr = await checkParent(intOrNull(b.parentId), null);
+      if (parentErr) return res.status(400).json(parentErr);
+    }
 
     const passwordHash = await bcrypt.hash(String(b.password), 12);
     const fields = mapFields(b);
+    if (forcedParent !== undefined) fields.parent_id = forcedParent;
     const id = await createUserWithCode((code) => ({
       username: code, user_code: code, password_hash: passwordHash, role: 'user',
       wallet_balance: 0, kyc_status: 'pending', ekyc_status: 'pending',
@@ -135,15 +149,19 @@ async function create(req, res, next) {
 async function update(req, res, next) {
   try {
     const id = parseInt(req.params.id, 10);
-    if (!(await repo.findFull(id))) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
+    const existing = await repo.findFull(id);
+    if (!existing) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
     const b = req.body;
     if (b.mobile !== undefined && !/^\d{10}$/.test(clean(b.mobile))) return res.status(400).json({ error: 'Mobile must be 10 digits', code: 'INVALID_MOBILE' });
     if (b.userTypeId !== undefined && !(await userTypeRepo.findById(intOrNull(b.userTypeId)))) return res.status(400).json({ error: 'Invalid account type', code: 'INVALID_USER_TYPE' });
-    if (b.parentId !== undefined) {
+    const forcedParent = await topLevelParent(b.userTypeId !== undefined ? intOrNull(b.userTypeId) : existing.user_type_id, req);
+    if (forcedParent === undefined && b.parentId !== undefined) {
       const parentErr = await checkParent(intOrNull(b.parentId), id);
       if (parentErr) return res.status(400).json(parentErr);
     }
-    await repo.update(id, mapFields(b));
+    const fields = mapFields(b);
+    if (forcedParent !== undefined) fields.parent_id = forcedParent;
+    await repo.update(id, fields);
     return res.json({ row: await repo.findFull(id) });
   } catch (err) { return next(err); }
 }

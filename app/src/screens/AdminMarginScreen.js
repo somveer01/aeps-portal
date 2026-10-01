@@ -31,7 +31,7 @@ export default function AdminMarginScreen() {
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   }, [page, applied]);
 
-  useEffect(() => { api.services.list({ pageSize: 100 }).then((r) => setServices(r.rows)).catch(() => {}); }, []);
+  useEffect(() => { api.services.list({ pageSize: 100, active: true }).then((r) => setServices(r.rows)).catch(() => {}); }, []);
   useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied]);
 
   const svcOptions = [{ label: 'All', value: '' }, ...services.map((s) => ({ label: s.title, value: s.title }))];

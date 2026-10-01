@@ -15,10 +15,14 @@ const QUICK = [
 export default function RetailerDashboard({ onOpen }) {
   const [summary, setSummary] = useState(null);
   const [stats, setStats] = useState([]);
+  const [allowed, setAllowed] = useState(null); // routes of services that are on and allowed for me
   useEffect(() => {
     api.retailer.summary().then(setSummary).catch(() => {});
+    api.retailer.catalogue().then((c) => setAllowed(new Set([...(c.b2b || []), ...(c.online || [])].map((t) => t.route)))).catch(() => setAllowed(new Set()));
     api.retailer.serviceStats().then((r) => setStats(r.rows || [])).catch(() => {});
   }, []);
+
+  const quick = QUICK.filter(([, , route]) => allowed && allowed.has(route));
 
   return (
     <View style={{ gap: 16 }}>
@@ -36,10 +40,11 @@ export default function RetailerDashboard({ onOpen }) {
         <ServiceChart rows={stats} />
       </Card>
 
+      {quick.length ? (
       <Card>
         <Text style={styles.section}>Quick Services</Text>
         <View style={styles.quick}>
-          {QUICK.map(([title, icon, route]) => (
+          {quick.map(([title, icon, route]) => (
             <Pressable key={route} style={styles.quickTile} onPress={() => onOpen(route, title)}>
               <View style={styles.quickIcon}><Icon name={icon} size={22} color={colors.primary} /></View>
               <Text style={styles.quickLabel}>{title}</Text>
@@ -47,6 +52,7 @@ export default function RetailerDashboard({ onOpen }) {
           ))}
         </View>
       </Card>
+      ) : null}
     </View>
   );
 }

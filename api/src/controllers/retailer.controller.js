@@ -121,7 +121,7 @@ async function myCommissionSlab(req, res, next) {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
-    const { rows, total } = await commissionSlotRepo.slab({ userTypeId: req.user.userTypeId, serviceId: null, page, pageSize });
+    const { rows, total } = await commissionSlotRepo.slab({ userTypeId: req.user.userTypeId, serviceId: null, activeServicesOnly: true, page, pageSize });
     return res.json({ rows, total, page, pageSize });
   } catch (err) { return next(err); }
 }

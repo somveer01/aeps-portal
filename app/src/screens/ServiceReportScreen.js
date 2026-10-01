@@ -43,7 +43,7 @@ export default function ServiceReportScreen({ network = false }) {
       api.managedUsers.list({ pageSize: 100 }).then((r) => setUsers(r.rows)).catch(() => {});
     }
     if (network) api.retailer.catalogue().then((r) => setServices([...r.b2b, ...r.online].map((t) => ({ title: t.title })))).catch(() => {});
-    else api.services.list({ pageSize: 100 }).then((r) => setServices(r.rows)).catch(() => {});
+    else api.services.list({ pageSize: 100, active: true }).then((r) => setServices(r.rows)).catch(() => {});
     /* eslint-disable-next-line */
   }, []);
   useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied]);

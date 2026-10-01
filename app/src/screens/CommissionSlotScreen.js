@@ -41,14 +41,16 @@ export default function CommissionSlotScreen() {
   useEffect(() => {
     load({ page: 1 });
     api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {});
-    api.services.list({ pageSize: 100 }).then((r) => setServices(r.rows)).catch(() => {});
+    api.services.list({ pageSize: 100, active: true }).then((r) => setServices(r.rows)).catch(() => {});
     api.plans.list({ pageSize: 100 }).then((r) => setPlans(r.rows)).catch(() => {});
     /* eslint-disable-next-line */
   }, []);
   useEffect(() => { const t = setTimeout(() => load({ page: 1, q }), 350); return () => clearTimeout(t); /* eslint-disable-next-line */ }, [q]);
 
   const utOptions = userTypes.map((u) => ({ label: u.name, value: u.id }));
+  // Only switched-on services are offered; a slot being edited keeps its (possibly switched-off) service.
   const svcOptions = services.map((s) => ({ label: s.title, value: s.id }));
+  if (editing && !services.some((s) => s.id === editing.service_id)) svcOptions.push({ label: `${editing.service_name} (off)`, value: editing.service_id });
   // Plans filtered by the selected user type (falls back to all if none match).
   const planOptions = useMemo(() => {
     const filtered = plans.filter((p) => String(p.user_type_id) === String(form.userTypeId));
