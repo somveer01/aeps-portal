@@ -116,13 +116,14 @@ async function commissionReport(req, res, next) {
   try { const f = ownerFilters(req); const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
 
-// GET /api/retailer/my-commission-slab  (read-only, this retailer's user type, services they may use)
+// GET /api/retailer/my-commission-slab  (read-only, this user's type, services that are ON)
 async function myCommissionSlab(req, res, next) {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
-    const serviceIds = [...await permission.allowedServiceIds(req.user.id)]; // only services this user may use
-    const { rows, total } = await commissionSlotRepo.slab({ userTypeId: req.user.userTypeId, serviceId: null, activeServicesOnly: true, serviceIds, page, pageSize });
+    // Every slab of my type for services that are ON. Not limited by my own Service Permissions:
+    // a distributor earns chain commission on its downline's transactions without using the service.
+    const { rows, total } = await commissionSlotRepo.slab({ userTypeId: req.user.userTypeId, serviceId: null, activeServicesOnly: true, page, pageSize });
     return res.json({ rows, total, page, pageSize });
   } catch (err) { return next(err); }
 }

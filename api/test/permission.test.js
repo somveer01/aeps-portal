@@ -139,3 +139,20 @@ test('Users Manager form saves only the difference from the type default', async
   assert.ok(await db('user_service_overrides').where({ user_id: userId, service_id: svcB.id, allowed: true }).first());
   await db('services').where({ id: svcB.id }).update({ is_active: true });
 });
+
+test('My Commission Slab still lists slabs when the user may use no service (chain earners)', async () => {
+  const [plan] = await db('plans').insert({ user_type_id: type.id, name: `${TAG} Plan` }).returning(['id']);
+  await db('commission_slots').insert({
+    user_type_id: type.id, service_id: svcA.id, plan_id: plan.id, commission_type: 'percentage', min_amount: 1, max_amount: 1000, value: 2, chain_type: 'chain',
+  });
+  try {
+    await db('user_service_overrides').where({ user_id: userId }).del();
+    await db('user_type_services').where({ user_type_id: type.id }).del();
+    const r = await api(BASE, userTok).get('/api/retailer/my-commission-slab?pageSize=100');
+    assert.equal(r.s, 200);
+    assert.equal(r.b.rows.length, 1, 'chain slab shown although the user cannot use the service');
+  } finally {
+    await db('commission_slots').where({ plan_id: plan.id }).del();
+    await db('plans').where({ id: plan.id }).del();
+  }
+});
