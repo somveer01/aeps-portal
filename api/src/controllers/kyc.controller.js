@@ -76,7 +76,8 @@ async function submit(req, res, next) {
     if (await db('kyc_submissions').where({ user_id: req.user.id, status: 'pending' }).first('id')) throw err(409, 'ALREADY_PENDING', 'Your KYC is already under review');
 
     const aadhaar = clean(b.aadhaarNumber).replace(/\s|-/g, '');
-    if (!/^[2-9]\d{11}$/.test(aadhaar)) throw err(400, 'INVALID_AADHAAR', 'Enter your 12-digit Aadhaar number');
+    if (!/^\d{12}$/.test(aadhaar)) throw err(400, 'INVALID_AADHAAR', 'Enter your 12-digit Aadhaar number');
+    if (!/^[2-9]/.test(aadhaar)) throw err(400, 'INVALID_AADHAAR', 'Aadhaar number cannot start with 0 or 1');
     const pan = clean(b.panNumber).toUpperCase();
     if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) throw err(400, 'INVALID_PAN', 'Enter a valid PAN (e.g. ABCDE1234F)');
     const bankName = clean(b.bankName); const holder = clean(b.accountHolder);

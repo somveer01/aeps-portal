@@ -109,7 +109,9 @@ function KycForm({ onSubmitted }) {
 
   const submit = async () => {
     setError(null);
-    if (!/^[2-9]\d{11}$/.test(f.aadhaarNumber.replace(/\s/g, ''))) return setError('Enter your 12-digit Aadhaar number.');
+    const aadhaar = f.aadhaarNumber.replace(/\s/g, '');
+    if (!/^\d{12}$/.test(aadhaar)) return setError('Enter your 12-digit Aadhaar number.');
+    if (!/^[2-9]/.test(aadhaar)) return setError('Aadhaar number cannot start with 0 or 1. Please check the number.');
     if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(f.panNumber)) return setError('Enter a valid PAN, like ABCDE1234F.');
     if (!f.bankName.trim() || !f.accountHolder.trim()) return setError('Enter the bank name and account holder name.');
     if (!/^\d{6,20}$/.test(f.accountNo)) return setError('Enter a valid account number.');
