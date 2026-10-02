@@ -7,7 +7,7 @@ import { api, assetUrl } from '../api/client';
 import { pickImage } from '../api/imagePicker';
 import { colors, radius } from '../theme';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 12; // a 3- or 4-column card grid
 const TYPE_OPTIONS = [
   { label: 'Internal Service', value: 'internal' },
   { label: 'External Service', value: 'external' },
@@ -30,6 +30,10 @@ const pcLabel = (row) => (Number(row.provider_commission_value) > 0
   ? (row.provider_commission_type === 'amount' ? `Rs ${Number(row.provider_commission_value).toFixed(2)}` : `${Number(row.provider_commission_value).toFixed(2)} %`)
   : '—');
 
+function Fact({ label, value }) {
+  return <View style={styles.fact}><Text style={styles.factLabel}>{label}</Text><Text style={styles.factValue} numberOfLines={1}>{value}</Text></View>;
+}
+
 export default function ServiceMasterScreen() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -38,6 +42,8 @@ export default function ServiceMasterScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [catFilter, setCatFilter] = useState(''); // '' = all categories
+  const [counts, setCounts] = useState([]); // [{ categoryId, count }] shown in the category dropdown
 
   const [view, setView] = useState('list');
   const [editing, setEditing] = useState(null);
@@ -58,19 +64,24 @@ export default function ServiceMasterScreen() {
   const load = useCallback(async (opts = {}) => {
     setLoading(true); setError(null);
     try {
-      const res = await api.services.list({ q: opts.q ?? q, page: opts.page ?? page, pageSize: PAGE_SIZE });
-      setRows(res.rows); setTotal(res.total); setPage(res.page);
+      const res = await api.services.list({ q: opts.q ?? q, page: opts.page ?? page, pageSize: PAGE_SIZE, categoryId: opts.categoryId ?? catFilter, withCounts: true });
+      setRows(res.rows); setTotal(res.total); setPage(res.page); setCounts(res.categoryCounts || []);
     } catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, q]);
+  }, [page, q, catFilter]);
 
   useEffect(() => {
-    load({ page: 1 });
     api.serviceCategoryOptions().then((r) => setCategories(r.rows)).catch(() => {});
     /* eslint-disable-next-line */
   }, []);
   useEffect(() => { const t = setTimeout(() => load({ page: 1, q }), 350); return () => clearTimeout(t); /* eslint-disable-next-line */ }, [q]);
+  useEffect(() => { load({ page: 1, categoryId: catFilter }); /* eslint-disable-next-line */ }, [catFilter]);
 
   const catOptions = categories.map((c) => ({ label: c.name, value: c.id }));
+  const countOf = (id) => (counts.find((x) => String(x.categoryId) === String(id)) || {}).count || 0;
+  const catFilterOptions = [
+    { label: `All categories (${counts.reduce((a, x) => a + x.count, 0)})`, value: '' },
+    ...categories.map((c) => ({ label: `${c.name} (${countOf(c.id)})`, value: c.id })),
+  ];
 
   const openAdd = () => { setEditing(null); setTitle(''); setCategoryId(categories[0]?.id ?? ''); setServiceType('internal'); setIcon(null); setActive(true); setPcType('percentage'); setPcValue('0'); setDailyLimit('0'); setFormError(null); setView('form'); };
   const openEdit = (row) => { setEditing(row); setTitle(row.title); setCategoryId(row.service_category_id); setServiceType(row.service_type); setIcon(row.icon || null); setActive(row.is_active); setPcType(row.provider_commission_type || 'percentage'); setPcValue(String(Number(row.provider_commission_value || 0))); setDailyLimit(String(Number(row.daily_limit || 0))); setFormError(null); setView('form'); };
@@ -174,57 +185,53 @@ export default function ServiceMasterScreen() {
       <Card>
         <View style={styles.cardHead}>
           <Text style={styles.cardTitle}>View All Services</Text>
-          <View style={styles.searchWrap}>
-            <Text style={styles.searchLabel}>Search:</Text>
-            <TextInput value={q} onChangeText={setQ} placeholder="Service or category…" placeholderTextColor={colors.muted} style={styles.search} />
+          <View style={styles.filters}>
+            <View style={styles.catSelect}>
+              <Select value={catFilter} onChange={setCatFilter} options={catFilterOptions} placeholder="All categories" />
+            </View>
+            <View style={styles.searchWrap}>
+              <Text style={styles.searchLabel}>Search:</Text>
+              <TextInput value={q} onChangeText={setQ} placeholder="Service or category…" placeholderTextColor={colors.muted} style={styles.search} />
+            </View>
           </View>
         </View>
 
         {error ? <Alert type="error">{error}</Alert> : null}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 1090, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text style={[styles.cell, styles.colNo, styles.thText]}>#</Text>
-              <Text style={[styles.cell, styles.colTitle, styles.thText]}>Service Title</Text>
-              <Text style={[styles.cell, styles.colCat, styles.thText]}>Service Category</Text>
-              <Text style={[styles.cell, styles.colType, styles.thText]}>Service Type</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.colPc, styles.thText]}>Provider Comm.</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.colLimit, styles.thText]}>Daily Limit</Text>
-              <Text style={[styles.cell, styles.colDate, styles.thText]}>Created on</Text>
-              <Text style={[styles.cell, styles.colStatus, styles.thText]}>Status</Text>
-              <Text style={[styles.cell, styles.colAction, styles.thText]}>Action</Text>
-            </View>
-
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No services found.</Text></View>
-                : rows.map((row, i) => (
-                  <View key={row.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.colNo, styles.td]}>{from + i}</Text>
-                    <View style={[styles.cell, styles.colTitle, styles.titleCell]}>
+        {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
+          : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No services found.</Text></View>
+            : (
+              <View style={styles.cardGrid}>
+                {rows.map((row) => (
+                  <View key={row.id} style={[styles.svcCard, !row.is_active && styles.svcCardOff]}>
+                    <View style={styles.svcTop}>
                       {row.icon ? (
-                        <Image source={{ uri: assetUrl(row.icon) }} style={styles.rowIcon} resizeMode="cover" />
+                        <Image source={{ uri: assetUrl(row.icon) }} style={styles.svcIcon} resizeMode="cover" />
                       ) : (
-                        <View style={[styles.rowIcon, styles.rowIconEmpty]}><Text style={{ color: '#94a3b8', fontSize: 12 }}>{row.title[0]}</Text></View>
+                        <View style={[styles.svcIcon, styles.svcIconEmpty]}><Text style={styles.svcIconLetter}>{row.title[0]}</Text></View>
                       )}
-                      <Text style={styles.td} numberOfLines={1}>{row.title}</Text>
-                    </View>
-                    <Text style={[styles.cell, styles.colCat, styles.td]}>{row.category_name}</Text>
-                    <Text style={[styles.cell, styles.colType, styles.td]}>{typeLabel(row.service_type)}</Text>
-                    <Text style={[styles.cell, styles.colPc, styles.td]}>{pcLabel(row)}</Text>
-                    <Text style={[styles.cell, styles.colLimit, styles.td]}>{Number(row.daily_limit) > 0 ? `Rs ${Number(row.daily_limit).toFixed(2)}` : 'No limit'}</Text>
-                    <Text style={[styles.cell, styles.colDate, styles.td]}>{fmtDate(row.created_at)}</Text>
-                    <View style={[styles.cell, styles.colStatus]}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.svcTitle} numberOfLines={2}>{row.title}</Text>
+                        <View style={styles.svcCat}><Text style={styles.svcCatText} numberOfLines={1}>{row.category_name}</Text></View>
+                      </View>
                       <Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" />
                     </View>
-                    <View style={[styles.cell, styles.colAction, styles.actions]}>
-                      <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text></Pressable>
-                      <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text></Pressable>
+                    <View style={styles.svcFacts}>
+                      <Fact label="Type" value={typeLabel(row.service_type).replace(' Service', '')} />
+                      <Fact label="Provider comm." value={pcLabel(row)} />
+                      <Fact label="Daily limit" value={Number(row.daily_limit) > 0 ? `Rs ${Number(row.daily_limit).toFixed(0)}` : 'No limit'} />
+                    </View>
+                    <View style={styles.svcFoot}>
+                      <Text style={[styles.svcState, { color: row.is_active ? colors.success : colors.muted }]}>{row.is_active ? '● Active' : '○ Switched off'}</Text>
+                      <View style={styles.actions}>
+                        <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text></Pressable>
+                        <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text></Pressable>
+                      </View>
                     </View>
                   </View>
                 ))}
-          </View>
-        </ScrollView>
+              </View>
+            )}
 
         <View style={styles.pagination}>
           <Text style={styles.entries}>Showing {from} to {to} of {total} entries</Text>
@@ -259,6 +266,24 @@ export default function ServiceMasterScreen() {
 
 const styles = StyleSheet.create({
   actionBar: { flexDirection: 'row', justifyContent: 'flex-end' },
+  filters: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
+  catSelect: { width: 240 },
+  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  svcCard: { flexGrow: 1, flexBasis: 260, maxWidth: 420, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: '#fff', padding: 14, gap: 12 },
+  svcCardOff: { backgroundColor: '#f8fafc' },
+  svcTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  svcIcon: { width: 44, height: 44, borderRadius: 10, backgroundColor: '#f1f5f9' },
+  svcIconEmpty: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.infoBg },
+  svcIconLetter: { color: colors.primary, fontSize: 18, fontWeight: '800' },
+  svcTitle: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  svcCat: { alignSelf: 'flex-start', backgroundColor: '#f1f5f9', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, marginTop: 4, maxWidth: '100%' },
+  svcCatText: { color: colors.muted, fontSize: 11.5, fontWeight: '600' },
+  svcFacts: { flexDirection: 'row', gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
+  fact: { flex: 1, minWidth: 0, gap: 2 },
+  factLabel: { color: colors.muted, fontSize: 11 },
+  factValue: { color: colors.text, fontSize: 13, fontWeight: '600' },
+  svcFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  svcState: { fontSize: 12, fontWeight: '700' },
   formHeaderBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   formHeading: { fontSize: 20, fontWeight: '700', color: colors.text },
   formActions: { flexDirection: 'row', justifyContent: 'flex-start', gap: 12, marginTop: 18 },

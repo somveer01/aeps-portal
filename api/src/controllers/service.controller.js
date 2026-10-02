@@ -41,8 +41,11 @@ async function list(req, res, next) {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
     // ?active=1 -> only switched-on services (dropdowns); Service Master itself lists all.
-    const { rows, total } = await repo.list({ q, page, pageSize, activeOnly: req.query.active === '1' });
-    return res.json({ rows, total, page, pageSize });
+    const categoryId = parseInt(req.query.categoryId, 10) || null;
+    const { rows, total } = await repo.list({ q, page, pageSize, activeOnly: req.query.active === '1', categoryId });
+    // ?withCounts=1 -> services per category for the filter chips.
+    const categoryCounts = req.query.withCounts === '1' ? await repo.countsByCategory({ q }) : undefined;
+    return res.json({ rows, total, page, pageSize, categoryCounts });
   } catch (err) { return next(err); }
 }
 

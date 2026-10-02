@@ -12,9 +12,10 @@ function withCategory() {
 }
 
 module.exports = {
-  async list({ q = '', page = 1, pageSize = 10, activeOnly = false } = {}) {
+  async list({ q = '', page = 1, pageSize = 10, activeOnly = false, categoryId = null } = {}) {
     const filter = (qb) => {
       if (activeOnly) qb.where('s.is_active', true);
+      if (categoryId) qb.where('s.service_category_id', categoryId);
       if (q) qb.where((w) => w.whereILike('s.title', `%${q}%`).orWhereILike('c.name', `%${q}%`));
     };
     const countRow = await db(`${TABLE} as s`)
@@ -22,6 +23,14 @@ module.exports = {
       .where(filter).count('s.id as c').first();
     const rows = await withCategory().where(filter).orderBy('s.id', 'asc').limit(pageSize).offset((page - 1) * pageSize);
     return { rows, total: Number(countRow.c) };
+  },
+  // Services per category (for the Service Master filter chips), honouring the search text.
+  async countsByCategory({ q = '' } = {}) {
+    const rows = await db(`${TABLE} as s`)
+      .join('service_categories as c', 'c.id', 's.service_category_id')
+      .modify((qb) => { if (q) qb.where((w) => w.whereILike('s.title', `%${q}%`).orWhereILike('c.name', `%${q}%`)); })
+      .groupBy('s.service_category_id').select('s.service_category_id as categoryId').count('s.id as count');
+    return rows.map((r) => ({ categoryId: r.categoryId, count: Number(r.count) }));
   },
   findById(id) { return withCategory().where('s.id', id).first(); },
   findByTitle(title) { return db(TABLE).whereRaw('LOWER(title)=LOWER(?)', [title]).first(); },

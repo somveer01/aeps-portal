@@ -200,8 +200,8 @@ export const api = {
 
   // Modules → Service Master
   services: {
-    list: ({ q = '', page = 1, pageSize = 10, active = false } = {}) =>
-      request(`/api/services?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}${active ? '&active=1' : ''}`, { auth: true }),
+    list: ({ q = '', page = 1, pageSize = 10, active = false, categoryId = '', withCounts = false } = {}) =>
+      request(`/api/services?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}${active ? '&active=1' : ''}${categoryId ? `&categoryId=${categoryId}` : ''}${withCounts ? '&withCounts=1' : ''}`, { auth: true }),
     create: (body) => request('/api/services', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/services/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/services/${id}`, { method: 'DELETE', auth: true }),

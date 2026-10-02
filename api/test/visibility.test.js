@@ -114,3 +114,14 @@ test('slot operator: dropdown choices, normalised, validated, cleared, audited',
     await db('audit_log').where('event', 'like', 'commission_slot_%').whereRaw("coalesce(detail->'after'->>'id', detail->'before'->>'id') = ?", [String(id)]).del();
   }
 });
+
+test('service list filters by category and returns per-category counts', async () => {
+  const cat = await db('services').where({ id: svc.id }).first('service_category_id');
+  const r = await A.get(`/api/services?categoryId=${cat.service_category_id}&withCounts=1&pageSize=100`);
+  assert.equal(r.s, 200);
+  assert.ok(r.b.rows.length && r.b.rows.every((x) => x.service_category_id === cat.service_category_id), 'only that category');
+  assert.ok(r.b.rows.some((x) => x.id === svc.id));
+  const c = r.b.categoryCounts.find((x) => x.categoryId === cat.service_category_id);
+  assert.equal(c.count, r.b.total, 'chip count matches the filtered total');
+  assert.equal((await A.get('/api/services?pageSize=5')).b.categoryCounts, undefined, 'counts only when asked');
+});
