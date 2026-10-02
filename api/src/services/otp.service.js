@@ -66,9 +66,11 @@ async function verifyOtp(userId, inputCode, purpose = 'login') {
   }
 
   const record = await otpRepo.findLatestActive(userId, purpose);
-  if (!record) {
+  const expired = record && new Date(record.expires_at).getTime() < Date.now();
+  // Master mode sends no OTP, so a missing or leftover expired row (e.g. from before master mode
+  // was switched on) must not end the login: count this wrong code in memory, same limit.
+  if (!record || (expired && masterOn())) {
     if (!masterOn()) return { ok: false, reason: 'no_otp' };
-    // Master mode sent no OTP: count this wrong code in memory, same limit as a real OTP.
     let entry = masterAttempts.get(key);
     if (!entry || entry.expiresAt < Date.now()) entry = { count: 0, expiresAt: Date.now() + env.otp.ttlSeconds * 1000 };
     if (entry.count >= max) return { ok: false, reason: 'too_many_attempts' };
@@ -77,7 +79,7 @@ async function verifyOtp(userId, inputCode, purpose = 'login') {
     return entry.count >= max ? { ok: false, reason: 'too_many_attempts' } : { ok: false, reason: 'mismatch', attemptsLeft: max - entry.count };
   }
 
-  if (new Date(record.expires_at).getTime() < Date.now()) {
+  if (expired) {
     return { ok: false, reason: 'expired' };
   }
 

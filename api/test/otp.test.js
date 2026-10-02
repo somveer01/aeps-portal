@@ -81,3 +81,19 @@ test('verify-otp endpoint returns the attempts left and the end-of-login code', 
   assert.equal(ok.s, 200);
   assert.ok(ok.b.accessToken);
 });
+
+test('dev master OTP: a leftover expired OTP row does not bounce a wrong try to login', async () => {
+  Object.assign(env, { devMasterOtp: '123456', nodeEnv: 'development' });
+  // An SMS OTP from before master mode was switched on, never used and long expired.
+  await db('otp_requests').insert({ user_id: user.id, otp_hash: await bcrypt.hash('555555', 4), purpose: 'login', expires_at: new Date(Date.now() - 3600000) });
+  await otp.issueOtp(user);
+  assert.deepEqual(await otp.verifyOtp(user.id, '000000'), { ok: false, reason: 'mismatch', attemptsLeft: 2 }, 'not "expired"');
+  assert.deepEqual(await otp.verifyOtp(user.id, '000001'), { ok: false, reason: 'mismatch', attemptsLeft: 1 });
+  assert.deepEqual(await otp.verifyOtp(user.id, '000002'), { ok: false, reason: 'too_many_attempts' });
+  await otp.issueOtp(user);
+  assert.deepEqual(await otp.verifyOtp(user.id, '123456'), { ok: true });
+  // Outside master mode an expired OTP still ends the login.
+  Object.assign(env, { devMasterOtp: '', nodeEnv: 'production' });
+  assert.equal((await otp.verifyOtp(user.id, '000000')).reason, 'expired');
+  await db('otp_requests').where({ user_id: user.id }).del();
+});
