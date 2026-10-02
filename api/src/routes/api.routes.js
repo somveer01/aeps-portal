@@ -101,6 +101,7 @@ router.delete('/plans/:id', requireAdmin, plan.remove);
 
 // Modules → Commission Slots (admin CRUD; joins user type, service, plan).
 router.get('/commission-slots', requireAdmin, commissionSlot.list);
+router.get('/commission-slots/operator-options', requireAdmin, commissionSlot.operatorChoices);
 router.post('/commission-slots', requireAdmin, commissionSlot.create);
 router.put('/commission-slots/:id', requireAdmin, commissionSlot.update);
 router.delete('/commission-slots/:id', requireAdmin, commissionSlot.remove);

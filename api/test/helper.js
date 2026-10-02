@@ -21,6 +21,7 @@ function api(base, tok) {
     get: async (p, extra) => { const r = await fetch(base + p, { headers: headers(extra) }); return { s: r.status, b: await r.json().catch(() => ({})), h: r.headers }; },
     post: async (p, body, extra) => { const r = await fetch(base + p, { method: 'POST', headers: headers(extra), body: JSON.stringify(body || {}) }); return { s: r.status, b: await r.json().catch(() => ({})), h: r.headers }; },
     put: async (p, body, extra) => { const r = await fetch(base + p, { method: 'PUT', headers: headers(extra), body: JSON.stringify(body || {}) }); return { s: r.status, b: await r.json().catch(() => ({})), h: r.headers }; },
+    del: async (p, extra) => { const r = await fetch(base + p, { method: 'DELETE', headers: headers(extra) }); return { s: r.status, b: await r.json().catch(() => ({})), h: r.headers }; },
   };
 }
 

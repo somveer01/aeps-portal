@@ -84,3 +84,33 @@ test('a top-level account type is always placed under the admin', async () => {
   assert.equal(m.s, 200);
   assert.equal(m.b.row.parent_id, other.id);
 });
+
+test('slot operator: dropdown choices, normalised, validated, cleared, audited', async () => {
+  const mobile = await db('services').whereRaw("lower(title) = 'mobile recharge'").first('id');
+  const opts = await A.get(`/api/commission-slots/operator-options?serviceId=${mobile.id}`);
+  assert.equal(opts.s, 200);
+  assert.equal(opts.b.kind, 'operator');
+  assert.ok(opts.b.options.includes('Airtel'));
+  const none = await A.get(`/api/commission-slots/operator-options?serviceId=${svc.id}`);
+  assert.deepEqual(none.b, { kind: null, options: [] }, 'a service without operators has no choice');
+
+  const body = { userTypeId: topType.id, serviceId: mobile.id, planId: plan.id, commissionType: 'percentage', minAmount: 1, maxAmount: 1000, value: 4, chainType: 'chain' };
+  assert.equal((await A.post('/api/commission-slots', { ...body, operator: 'Airtel Prepaid' })).s, 400, 'typo refused');
+  assert.equal((await A.post('/api/commission-slots', { ...body, serviceId: svc.id, operator: 'Airtel' })).s, 400, 'no operator for this service');
+  const c = await A.post('/api/commission-slots', { ...body, operator: 'airtel' });
+  assert.equal(c.s, 201, JSON.stringify(c.b));
+  const { id } = c.b.row;
+  try {
+    assert.equal(c.b.row.operator, 'Airtel', 'stored with the master spelling');
+    const u = await A.put(`/api/commission-slots/${id}`, { ...body, operator: '' });
+    assert.equal(u.s, 200, JSON.stringify(u.b));
+    assert.equal(u.b.row.operator, null, 'empty = all operators');
+    assert.equal((await A.del(`/api/commission-slots/${id}`)).s, 200);
+    const events = (await db('audit_log').whereIn('event', ['commission_slot_created', 'commission_slot_updated', 'commission_slot_deleted'])
+      .whereRaw("coalesce(detail->'after'->>'id', detail->'before'->>'id') = ?", [String(id)]).select('event')).map((r) => r.event).sort();
+    assert.deepEqual(events, ['commission_slot_created', 'commission_slot_deleted', 'commission_slot_updated']);
+  } finally {
+    await db('commission_slots').where({ id }).del();
+    await db('audit_log').where('event', 'like', 'commission_slot_%').whereRaw("coalesce(detail->'after'->>'id', detail->'before'->>'id') = ?", [String(id)]).del();
+  }
+});

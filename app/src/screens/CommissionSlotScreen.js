@@ -28,7 +28,7 @@ export default function CommissionSlotScreen() {
   const [userTypes, setUserTypes] = useState([]); const [services, setServices] = useState([]); const [plans, setPlans] = useState([]);
 
   const [view, setView] = useState('list'); const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ userTypeId: '', planId: '', serviceId: '', commissionType: '', minAmount: '', maxAmount: '', transactionType: '', specificUser: '', value: '', active: true });
+  const [form, setForm] = useState({ userTypeId: '', planId: '', serviceId: '', commissionType: '', minAmount: '', maxAmount: '', transactionType: '', specificUser: '', operator: '', value: '', active: true });
   const [saving, setSaving] = useState(false); const [formError, setFormError] = useState(null);
   const [toDelete, setToDelete] = useState(null); const [deleting, setDeleting] = useState(false);
   // Matrix tab (default): every slot laid out as service x user type, like Service Permissions.
@@ -48,6 +48,14 @@ export default function CommissionSlotScreen() {
   }, []);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  // Operator / Mode choices for the selected service ({ kind: 'operator'|'mode'|null, options }).
+  const [opChoices, setOpChoices] = useState({ kind: null, options: [] });
+  useEffect(() => {
+    if (!form.serviceId) { setOpChoices({ kind: null, options: [] }); return; }
+    let live = true;
+    api.commissionSlots.operatorOptions(form.serviceId).then((r) => { if (live) setOpChoices(r); }).catch(() => {});
+    return () => { live = false; };
+  }, [form.serviceId]);
 
   const load = useCallback(async (opts = {}) => {
     setLoading(true); setError(null);
@@ -78,12 +86,12 @@ export default function CommissionSlotScreen() {
 
   const openAdd = (prefill = {}) => {
     setEditing(null);
-    setForm({ userTypeId: prefill.userTypeId ?? userTypes[0]?.id ?? '', planId: '', serviceId: prefill.serviceId ?? services[0]?.id ?? '', commissionType: '', minAmount: '1', maxAmount: '1000', transactionType: '', specificUser: '', value: '', active: true });
+    setForm({ userTypeId: prefill.userTypeId ?? userTypes[0]?.id ?? '', planId: '', serviceId: prefill.serviceId ?? services[0]?.id ?? '', commissionType: '', minAmount: '1', maxAmount: '1000', transactionType: '', specificUser: '', operator: '', value: '', active: true });
     setFormError(null); setView('form');
   };
   const openEdit = (row) => {
     setEditing(row);
-    setForm({ userTypeId: row.user_type_id, planId: row.plan_id, serviceId: row.service_id, commissionType: row.commission_type, minAmount: String(row.min_amount), maxAmount: String(row.max_amount), transactionType: row.chain_type, specificUser: row.specific_user || '', value: String(row.value), active: row.is_active });
+    setForm({ userTypeId: row.user_type_id, planId: row.plan_id, serviceId: row.service_id, commissionType: row.commission_type, minAmount: String(row.min_amount), maxAmount: String(row.max_amount), transactionType: row.chain_type, specificUser: row.specific_user || '', operator: row.operator || '', value: String(row.value), active: row.is_active });
     setFormError(null); setView('form');
   };
 
@@ -100,7 +108,7 @@ export default function CommissionSlotScreen() {
       const body = {
         userTypeId: form.userTypeId, serviceId: form.serviceId, planId: form.planId,
         commissionType: form.commissionType, minAmount: min, maxAmount: max, value: val,
-        chainType: form.transactionType, specificUser: form.specificUser.trim(), isActive: form.active,
+        chainType: form.transactionType, specificUser: form.specificUser.trim(), operator: form.operator.trim(), isActive: form.active,
       };
       if (editing) await api.commissionSlots.update(editing.id, body); else await api.commissionSlots.create(body);
       setView('list'); await load({ page: editing ? page : 1 }); loadMatrix();
@@ -147,6 +155,15 @@ export default function CommissionSlotScreen() {
             <View style={styles.field}><Select label="Transaction Type *" value={form.transactionType} options={CHAIN_OPTIONS} onChange={(v) => set('transactionType', v)} placeholder="-- Choose --" searchable={false} /></View>
             <View style={styles.field}><Text style={styles.label}>For Any Specific User</Text>
               <TextInput value={form.specificUser} onChangeText={(v) => set('specificUser', v)} placeholder="Enter User Login Id" placeholderTextColor={colors.muted} style={styles.modalInput} autoCapitalize="none" /></View>
+            <View style={styles.field}>
+              <Select label={opChoices.kind === 'mode' ? 'Transfer Mode' : 'Operator'} value={form.operator} onChange={(v) => set('operator', v)}
+                options={[
+                  { label: opChoices.kind === 'mode' ? 'All modes' : 'All operators', value: '' },
+                  ...opChoices.options.map((o) => ({ label: o, value: o })),
+                  // An older value that is not in the list stays visible so editing never drops it silently.
+                  ...(form.operator && !opChoices.options.some((o) => o.toLowerCase() === form.operator.toLowerCase()) ? [{ label: `${form.operator} (not in list)`, value: form.operator }] : []),
+                ]} />
+              <Text style={[styles.hint, { paddingTop: 4 }]}>{opChoices.kind ? 'All = pays on every one. A slot for one operator wins over the "All" slot for that operator.' : 'This service has no operator choice.'}</Text></View>
 
             {/* Dynamic field: appears once a Commission Type is chosen */}
             {form.commissionType ? (
@@ -262,6 +279,11 @@ function SlotMatrix({ slots, services, userTypes, error, onEdit, onAdd }) {
   // Switched-on services, plus switched-off ones that still have slots.
   const rows = services.filter((s) => s.is_active || used.has(s.id));
   const cell = (s, t) => slots.filter((r) => r.service_id === s.id && r.user_type_id === t.id);
+  // Commission slots of a cell that all name an operator: list them (the rest of the operators pay nothing).
+  const gap = (list) => {
+    const earn = list.filter((r) => r.is_active && r.txn_type !== 'debit');
+    return earn.length && earn.every((r) => r.operator) ? [...new Set(earn.map((r) => r.operator))].join(', ') : '';
+  };
   return (
     <Card>
       <Text style={styles.matrixHint}>Commission for each user type, service-wise. Self = on own transactions, Chain = also on the downline's, Debit = charge taken from the user. Tap a slot to edit, + Add for that service and user type.</Text>
@@ -286,6 +308,7 @@ function SlotMatrix({ slots, services, userTypes, error, onEdit, onAdd }) {
                       <Text style={styles.chipSub}>{r.plan_name} · {Number(r.min_amount)}–{Number(r.max_amount)}{r.specific_user ? ` · ${r.specific_user}` : ''}</Text>
                     </Pressable>
                   ))}
+                  {gap(cell(s, t)) ? <Text style={styles.gapWarn}>{`⚠ Only ${gap(cell(s, t))} — other operators earn nothing`}</Text> : null}
                   {s.is_active ? <Pressable onPress={() => onAdd({ userTypeId: t.id, serviceId: s.id })} hitSlop={4}><Text style={styles.addLink}>+ Add</Text></Pressable> : null}
                 </View>
               ))}
@@ -314,6 +337,7 @@ const styles = StyleSheet.create({
   chipText: { color: colors.text, fontSize: 12.5, fontWeight: '700' },
   chipSub: { color: colors.muted, fontSize: 11, marginTop: 1 },
   addLink: { color: colors.primary, fontSize: 12, fontWeight: '700', paddingVertical: 2 },
+  gapWarn: { color: colors.warning, fontSize: 11.5, fontWeight: '600' },
   actionBar: { flexDirection: 'row', justifyContent: 'flex-end' },
   formHeaderBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   formHeading: { fontSize: 20, fontWeight: '700', color: colors.text },

@@ -231,6 +231,7 @@ export const api = {
     create: (body) => request('/api/commission-slots', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/commission-slots/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/commission-slots/${id}`, { method: 'DELETE', auth: true }),
+    operatorOptions: (serviceId) => request(`/api/commission-slots/operator-options?serviceId=${serviceId}`, { auth: true }),
   },
 
   // Banks master (for Company Bank dropdown)
