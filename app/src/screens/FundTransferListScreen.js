@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { Card, Button, Alert, Select, DateField, StatusBadge } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
 
@@ -23,11 +24,13 @@ export default function FundTransferListScreen({ network = false }) {
   const [applied, setApplied] = useState({});
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
 
+  const grid = useGrid(); // DataGrid column sort + filters
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
-    try { const res = await (network ? api.network.fundTransfer : api.fundTransfer).list({ ...applied, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(p); }
+    try { const res = await (network ? api.network.fundTransfer : api.fundTransfer).list({ ...applied, ...grid.params, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(p); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, applied]);
+  }, [page, applied, grid.sort, grid.filters]);
+  useGridReload(grid, () => load(1));
 
   useEffect(() => {
     load(1);
@@ -68,39 +71,21 @@ export default function FundTransferListScreen({ network = false }) {
 
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: 1370, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text style={[styles.cell, styles.cNo, styles.thText]}>#</Text>
-              <Text style={[styles.cell, styles.cUser, styles.thText]}>From User</Text>
-              <Text style={[styles.cell, styles.cUser, styles.thText]}>To User</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>Amount</Text>
-              <Text style={[styles.cell, styles.cType, styles.thText]}>Transfer Type</Text>
-              <Text style={[styles.cell, styles.cRemark, styles.thText]}>Remark</Text>
-              <Text style={[styles.cell, styles.cWallet, styles.thText]}>Receiver Wallet</Text>
-              <Text style={[styles.cell, styles.cStatus, styles.thText]}>Status</Text>
-              <Text style={[styles.cell, styles.cDate, styles.thText]}>Date</Text>
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No transfers found.</Text></View>
-                : rows.map((r, i) => (
-                  <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.cNo, styles.td]}>{from + i}</Text>
-                    <View style={[styles.cell, styles.cUser]}><Text style={styles.td}>{r.from_code || 'ADMIN'}</Text><Text style={styles.sub}>{r.from_name || 'Admin'}</Text></View>
-                    <View style={[styles.cell, styles.cUser]}><Text style={styles.td}>{r.to_code}</Text><Text style={styles.sub}>{r.to_name} · {r.to_outlet || ''}</Text></View>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{money(r.amount)}</Text>
-                    <Text style={[styles.cell, styles.cType, { color: r.transfer_type === 'debit' ? colors.danger : colors.success, fontWeight: '700', fontSize: 13, textTransform: 'capitalize' }]}>{r.transfer_type}</Text>
-                    <Text style={[styles.cell, styles.cRemark, styles.td]} numberOfLines={2}>{r.remark || '—'}</Text>
-                    <View style={[styles.cell, styles.cWallet]}>
-                      <Text style={styles.sub}>Before {money(r.before_balance)}</Text>
-                      <Text style={styles.td}>Updated {money(r.updated_balance)}</Text>
-                    </View>
-                    <View style={[styles.cell, styles.cStatus]}><StatusBadge label={r.status || 'success'} tone={statusTone(r.status || 'success')} /></View>
-                    <Text style={[styles.cell, styles.cDate, styles.td]}>{fmtDateTime(r.created_at)}</Text>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading}
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'from', title: 'From User', width: 170, render: (r) => <View><Text style={styles.td}>{r.from_code || 'ADMIN'}</Text><Text style={styles.sub}>{r.from_name || 'Admin'}</Text></View> },
+            { key: 'to', title: 'To User', width: 190, render: (r) => <View><Text style={styles.td}>{r.to_code}</Text><Text style={styles.sub}>{r.to_name} · {r.to_outlet || ''}</Text></View> },
+            { key: 'amount', title: 'Amount', width: 115, render: (r) => <Text style={styles.td}>{money(r.amount)}</Text> },
+            { key: 'transfer_type', title: 'Transfer Type', width: 125, render: (r) => <Text style={{ color: r.transfer_type === 'debit' ? colors.danger : colors.success, fontWeight: '700', fontSize: 13, textTransform: 'capitalize' }}>{r.transfer_type}</Text> },
+            { key: 'remark', title: 'Remark', flex: 1, minWidth: 220, render: (r) => <Text style={styles.td} numberOfLines={2}>{r.remark || '—'}</Text> },
+            { key: 'wallet', title: 'Receiver Wallet', width: 170, render: (r) => <View><Text style={styles.sub}>Before {money(r.before_balance)}</Text><Text style={styles.td}>Updated {money(r.updated_balance)}</Text></View> },
+            { key: 'status', title: 'Status', width: 115, render: (r) => <StatusBadge label={r.status || 'success'} tone={statusTone(r.status || 'success')} /> },
+            { key: 'created_at', title: 'Date', width: 165, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
     </View>

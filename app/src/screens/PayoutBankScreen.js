@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Modal, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { Card, Button, Alert, Select, DateField, StatusBadge } from '../components/UI';
 import { api, assetUrl } from '../api/client';
+import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { pickImage } from '../api/imagePicker';
 import { colors, radius } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
@@ -30,11 +31,13 @@ export default function PayoutBankScreen() {
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
   const setForm = (k, v) => setF((p) => ({ ...p, [k]: v }));
 
+  const grid = useGrid(); // DataGrid column sort + filters
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
-    try { const res = await api.payoutBanks.list({ ...applied, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(p); }
+    try { const res = await api.payoutBanks.list({ ...applied, ...grid.params, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(p); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, applied]);
+  }, [page, applied, grid.sort, grid.filters]);
+  useGridReload(grid, () => load(1));
 
   useEffect(() => {
     load(1);
@@ -133,45 +136,23 @@ export default function PayoutBankScreen() {
 
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: 1420, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text numberOfLines={1} style={[styles.cell, styles.cNo, styles.thText]}>#</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cName, styles.thText]}>Bank Name</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cAcc, styles.thText]}>Account No</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cIfsc, styles.thText]}>IFSC</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cName, styles.thText]}>AC Holder</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cPass, styles.thText]}>Passbook</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cStatus, styles.thText]}>Status</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cUser, styles.thText]}>User Id</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cRemark, styles.thText]}>Remark</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cDate, styles.thText]}>Date</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cAction, styles.thText]}>Action</Text>
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No payout banks found.</Text></View>
-                : rows.map((r, i) => (
-                  <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.cNo, styles.td]}>{from + i}</Text>
-                    <Text style={[styles.cell, styles.cName, styles.td]}>{r.bank_name}</Text>
-                    <Text style={[styles.cell, styles.cAcc, styles.td]}>{r.account_no}</Text>
-                    <Text style={[styles.cell, styles.cIfsc, styles.td]}>{r.ifsc_code}</Text>
-                    <Text style={[styles.cell, styles.cName, styles.td]}>{r.ac_holder}</Text>
-                    <View style={[styles.cell, styles.cPass]}>
-                      {r.passbook ? <Pressable onPress={() => setViewImg(assetUrl(r.passbook))}><Image source={{ uri: assetUrl(r.passbook) }} style={styles.thumb} resizeMode="cover" /></Pressable> : <Text style={styles.td}>NA</Text>}
-                    </View>
-                    <View style={[styles.cell, styles.cStatus]}><StatusBadge label={r.status} tone={statusTone(r.status)} /></View>
-                    <View style={[styles.cell, styles.cUser]}><Text style={styles.td}>{r.user_code}</Text><Text style={styles.sub}>{r.user_name}</Text></View>
-                    <Text style={[styles.cell, styles.cRemark, styles.td]} numberOfLines={2}>{r.remark || '—'}</Text>
-                    <Text style={[styles.cell, styles.cDate, styles.td]}>{fmtDate(r.created_at)}</Text>
-                    <View style={[styles.cell, styles.cAction, styles.actions]}>
-                      {r.status === 'pending' ? <Pressable onPress={() => openAct(r)} style={styles.actBtn}><Text style={styles.actBtnText}>Review</Text></Pressable> : null}
-                      <Pressable onPress={() => openEdit(r)} hitSlop={6} style={styles.iconBtn}><Text style={{ color: colors.primary, fontSize: 14 }}>✎</Text></Pressable>
-                    </View>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading}
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'bank_name', title: 'Bank Name', width: 150 },
+            { key: 'account_no', title: 'Account No', width: 170 },
+            { key: 'ifsc_code', title: 'IFSC', width: 125 },
+            { key: 'ac_holder', title: 'AC Holder', width: 150 },
+            { key: 'passbook', title: 'Passbook', width: 100, sortable: false, filterable: false, render: (r) => (r.passbook ? <Pressable onPress={() => setViewImg(assetUrl(r.passbook))}><Image source={{ uri: assetUrl(r.passbook) }} style={styles.thumb} resizeMode="cover" /></Pressable> : <Text style={styles.td}>NA</Text>) },
+            { key: 'status', title: 'Status', width: 115, render: (r) => <StatusBadge label={r.status} tone={statusTone(r.status)} /> },
+            { key: 'user', title: 'User Id', width: 180, render: (r) => <View><Text style={styles.td}>{r.user_code}</Text><Text style={styles.sub}>{r.user_name}</Text></View> },
+            { key: 'remark', title: 'Remark', flex: 1, minWidth: 220, render: (r) => <Text style={styles.td} numberOfLines={2}>{r.remark || '—'}</Text> },
+            { key: 'created_at', title: 'Date', width: 130, render: (r) => <Text style={styles.td}>{fmtDate(r.created_at)}</Text> },
+            { key: 'action', title: 'Action', width: 130, sortable: false, filterable: false, render: (r) => (<View style={styles.actions}>{r.status === 'pending' ? <Pressable onPress={() => openAct(r)} style={styles.actBtn}><Text style={styles.actBtnText}>Review</Text></Pressable> : null}<Pressable onPress={() => openEdit(r)} hitSlop={6} style={styles.iconBtn}><Text style={{ color: colors.primary, fontSize: 14 }}>✎</Text></Pressable></View>) },
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
 

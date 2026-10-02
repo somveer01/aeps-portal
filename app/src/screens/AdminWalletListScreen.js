@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { Card, Button, Alert, Select, DateField } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
 
@@ -21,11 +22,13 @@ export default function AdminWalletListScreen() {
   const [applied, setApplied] = useState({});
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
 
+  const grid = useGrid(); // DataGrid column sort + filters
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
-    try { const res = await api.adminWallet.list({ ...applied, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); setBalance(res.balance); }
+    try { const res = await api.adminWallet.list({ ...applied, ...grid.params, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); setBalance(res.balance); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, applied]);
+  }, [page, applied, grid.sort, grid.filters]);
+  useGridReload(grid, () => load(1));
 
   useEffect(() => { load(1); /* eslint-disable-next-line */ }, []);
   useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied]);
@@ -48,34 +51,20 @@ export default function AdminWalletListScreen() {
 
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: 1050, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text style={[styles.cell, styles.cNo, styles.thText]}>#</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>Added Amount</Text>
-              <Text style={[styles.cell, styles.cType, styles.thText]}>Txn Type</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>Before Balance</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>Updated Balance</Text>
-              <Text style={[styles.cell, styles.cRemark, styles.thText]}>Remark</Text>
-              <Text style={[styles.cell, styles.cUser, styles.thText]}>User</Text>
-              <Text style={[styles.cell, styles.cDate, styles.thText]}>Created on</Text>
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No wallet transactions found.</Text></View>
-                : rows.map((r, i) => (
-                  <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.cNo, styles.td]}>{from + i}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{money(r.amount)}</Text>
-                    <Text style={[styles.cell, styles.cType, { color: r.txn_type === 'debit' ? colors.danger : colors.success, fontWeight: '700', fontSize: 13 }]}>{cap(r.txn_type)}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{money(r.before_balance)}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{money(r.updated_balance)}</Text>
-                    <Text style={[styles.cell, styles.cRemark, styles.td]} numberOfLines={2}>{r.remark || '—'}</Text>
-                    <Text style={[styles.cell, styles.cUser, styles.td]}>{r.user_name || r.user_username}</Text>
-                    <Text style={[styles.cell, styles.cDate, styles.td]}>{fmtDateTime(r.created_at)}</Text>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading}
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'amount', title: 'Added Amount', width: 125, render: (r) => <Text style={styles.td}>{money(r.amount)}</Text> },
+            { key: 'txn_type', title: 'Txn Type', width: 110, render: (r) => <Text style={{ color: r.txn_type === 'debit' ? colors.danger : colors.success, fontWeight: '700', fontSize: 13, textTransform: 'capitalize' }}>{cap(r.txn_type)}</Text> },
+            { key: 'before_balance', title: 'Before Balance', width: 135, render: (r) => <Text style={styles.td}>{money(r.before_balance)}</Text> },
+            { key: 'updated_balance', title: 'Updated Balance', width: 135, render: (r) => <Text style={styles.td}>{money(r.updated_balance)}</Text> },
+            { key: 'remark', title: 'Remark', flex: 1, minWidth: 220, render: (r) => <Text style={styles.td} numberOfLines={2}>{r.remark || '—'}</Text> },
+            { key: 'user', title: 'User', width: 160, render: (r) => <Text style={styles.td}>{r.user_name || r.user_username}</Text> },
+            { key: 'created_at', title: 'Created on', width: 165, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
     </View>

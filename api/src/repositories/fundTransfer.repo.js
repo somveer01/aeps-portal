@@ -1,6 +1,15 @@
 'use strict';
 
 const db = require('../config/db');
+const { applyGridFilters, applyGridSortFirst, DATE_COL } = require('../utils/gridQuery');
+
+// Sortable / filterable grid columns (keys = the app's DataGrid column keys).
+const GRID = {
+  from: { sort: 'fu.user_code', filter: "concat_ws(' ', coalesce(fu.user_code, 'admin'), coalesce(fu.full_name, 'admin'))" },
+  to: { sort: 'tu.user_code', filter: "concat_ws(' ', tu.user_code, tu.full_name, tu.shop_name)" },
+  amount: 'x.amount', transfer_type: 'x.transfer_type', remark: 'x.remark', wallet: 'x.updated_balance',
+  status: { sort: 'x.status', filter: "coalesce(x.status, 'success')" }, created_at: DATE_COL('x.created_at'),
+};
 
 function joins() {
   return db('fund_transfers as x')
@@ -15,7 +24,8 @@ const COLS = [
 ];
 
 module.exports = {
-  async list({ startDate, endDate, userTypeId, userId, transferType, fromUserId = null, page = 1, pageSize = 10 } = {}) {
+  GRID,
+  async list({ startDate, endDate, userTypeId, userId, transferType, fromUserId = null, grid = null, page = 1, pageSize = 10 } = {}) {
     const filter = (qb) => {
       if (fromUserId) qb.where('x.from_user_id', fromUserId);
       if (startDate) qb.whereRaw('x.created_at::date >= ?', [startDate]);
@@ -23,9 +33,10 @@ module.exports = {
       if (userTypeId) qb.where('tu.user_type_id', userTypeId);
       if (userId) qb.where('x.to_user_id', userId);
       if (transferType) qb.where('x.transfer_type', transferType);
+      applyGridFilters(qb, grid);
     };
     const countRow = await joins().where(filter).count('x.id as c').first();
-    const rows = await joins().where(filter).select(...COLS).orderBy('x.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
+    const rows = await joins().where(filter).select(...COLS).modify((qb) => applyGridSortFirst(qb, grid)).orderBy('x.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
     return { rows, total: Number(countRow.c) };
   },
   findById(id) { return joins().where('x.id', id).select(...COLS).first(); },

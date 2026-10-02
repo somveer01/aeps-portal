@@ -144,6 +144,7 @@ export default function CityMasterScreen() {
 }
 
 const styles = StyleSheet.create({
+  actions: { flexDirection: 'row', gap: 14 },
   actionBar: { flexDirection: 'row', justifyContent: 'flex-end' },
   formHeaderBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   formHeading: { fontSize: 20, fontWeight: '700', color: colors.text },

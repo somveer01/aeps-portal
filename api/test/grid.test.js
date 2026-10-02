@@ -85,3 +85,25 @@ test('master lists: sort + column filters on every master endpoint', async () =>
     assert.equal(r.s, 200, path);
   }
 });
+
+test('report lists: GST/TDS, admin margin, transfers, payout banks, admin wallet, slab/slots take grid params', async () => {
+  const paths = [
+    '/api/gst-report?sort=net_amount&dir=desc&f_user=a',
+    '/api/tds-report?sort=created_at&dir=asc&f_source=own',
+    '/api/admin-margin-report?sort=margin&dir=desc&f_service_name=a',
+    '/api/fund-transfers?sort=amount&dir=asc&f_from=admin',
+    '/api/payout-banks?sort=bank_name&dir=asc&f_status=a',
+    '/api/admin-wallet?sort=amount&dir=desc&f_txn_type=credit',
+    '/api/commission-slab?sort=value&dir=desc&f_service=a',
+    '/api/commission-slots?sort=user_type&dir=asc&f_chain_type=chain',
+  ];
+  for (const p of paths) {
+    // eslint-disable-next-line no-await-in-loop
+    const r = await A.get(p);
+    assert.equal(r.s, 200, `${p} -> ${JSON.stringify(r.b).slice(0, 120)}`);
+  }
+  const slots = await A.get('/api/commission-slots?f_chain_type=chain&pageSize=100');
+  assert.ok(slots.b.rows.every((x) => x.chain_type === 'chain'), 'slot column filter');
+  const credit = await A.get('/api/admin-wallet?f_txn_type=credit&pageSize=100');
+  assert.ok(credit.b.rows.every((x) => x.txn_type === 'credit'), 'admin wallet column filter');
+});

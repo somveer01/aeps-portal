@@ -55,8 +55,21 @@ const fundRequestJoins = () => withUser('fund_requests')()
 const FR_COLS = ['x.*', ...USER_COLS, 'cb.bank_name', 'cb.account_no',
   db.raw("coalesce(nullif(ap.user_code, ''), ap.username) as approver_code"), 'ap.full_name as approver_name', 'ap.role as approver_role'];
 
+const COMMISSION_GRID = {
+  service_name: 'x.service_name', slot_type: 'x.slot_type', type_value: 'x.type_value', type_value_amount: 'x.type_value_amount',
+  gst_percent: 'x.gst_percent', gst_amount: 'x.gst_amount', tds_percent: 'x.tds_percent', tds_amount: 'x.tds_amount',
+  net_amount: 'x.net_amount', wallet_txn_type: 'x.wallet_txn_type', wallet_txn_amount: 'x.wallet_txn_amount', remark: 'x.remark',
+  before_balance: 'x.before_balance', updated_balance: 'x.updated_balance', user: { sort: 'u.full_name', filter: USER_TEXT },
+  source: { sort: 'su.user_code', filter: "concat_ws(' ', su.user_code, su.full_name, case when x.level = 0 then 'own transaction' end)" },
+  created_at: DATE_COL('x.created_at'),
+};
+const MARGIN_GRID = {
+  service_name: 'x.service_name', user: { sort: 'u.full_name', filter: USER_TEXT }, amount: 'x.amount', provider_commission: 'x.provider_commission',
+  charges_collected: 'x.charges_collected', commission_paid: 'x.commission_paid', margin: 'x.margin', created_at: DATE_COL('x.created_at'),
+};
+
 module.exports = {
-  ACCOUNT_GRID, SERVICE_GRID, FUND_REQUEST_GRID,
+  ACCOUNT_GRID, SERVICE_GRID, FUND_REQUEST_GRID, COMMISSION_GRID, MARGIN_GRID,
 
   accountTransactions(f) {
     return paginate(withUser('account_transactions'), ['x.*', ...USER_COLS],
@@ -92,7 +105,7 @@ module.exports = {
   async adminMargins(f) {
     const filter = (qb) => { applyCommon(qb, f); if (f.service) qb.where('x.service_name', f.service); };
     const page = await paginate(withUser('admin_margins'), ['x.*', ...USER_COLS], filter, f);
-    const t = await withUser('admin_margins')().where(filter)
+    const t = await withUser('admin_margins')().where(filter).where((qb) => applyGridFilters(qb, f.grid))
       .sum({ amount: 'x.amount', provider_commission: 'x.provider_commission', charges_collected: 'x.charges_collected', commission_paid: 'x.commission_paid', margin: 'x.margin' })
       .first();
     const totals = Object.fromEntries(Object.entries(t || {}).map(([k, v]) => [k, Number(v || 0)]));

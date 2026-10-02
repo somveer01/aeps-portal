@@ -1,5 +1,6 @@
 'use strict';
 
+const { parseGrid } = require('../utils/gridQuery');
 const repo = require('../repositories/fundTransfer.repo');
 const usersRepo = require('../repositories/usersManager.repo');
 const db = require('../config/db');
@@ -30,6 +31,7 @@ async function list(req, res, next) {
       userTypeId: req.query.userTypeId ? parseInt(req.query.userTypeId, 10) : null,
       userId: req.query.userId ? parseInt(req.query.userId, 10) : null,
       transferType: ['credit', 'debit'].includes(req.query.transferType) ? req.query.transferType : null,
+      grid: parseGrid(req.query, repo.GRID),
       page: Math.max(1, parseInt(req.query.page, 10) || 1),
       pageSize: Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10)),
     });

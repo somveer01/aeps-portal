@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { Card, Button, Alert, Select, DateField } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
 
@@ -26,14 +27,16 @@ export default function TaxReportScreen({ kind = 'gst' }) {
   const [applied, setApplied] = useState({});
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
 
+  const grid = useGrid(); // DataGrid column sort + filters
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
     try {
       const fn = isGst ? api.reports.gstReport : api.reports.tdsReport;
-      const res = await fn({ ...applied, page: p, pageSize: PAGE_SIZE });
+      const res = await fn({ ...applied, ...grid.params, page: p, pageSize: PAGE_SIZE });
       setRows(res.rows); setTotal(res.total); setPage(res.page);
     } catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, applied, isGst]);
+  }, [page, applied, isGst, grid.sort, grid.filters]);
+  useGridReload(grid, () => load(1));
 
   useEffect(() => {
     load(1);
@@ -67,56 +70,28 @@ export default function TaxReportScreen({ kind = 'gst' }) {
 
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: 1870, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text style={[styles.cell, styles.cNo, styles.thText]}>#</Text>
-              <Text style={[styles.cell, styles.cSvc, styles.thText]}>Service Name</Text>
-              <Text style={[styles.cell, styles.cType, styles.thText]}>Type</Text>
-              <Text style={[styles.cell, styles.cVal, styles.thText]}>Type Value</Text>
-              <Text style={[styles.cell, styles.cVal, styles.thText]}>Type Value in Amount</Text>
-              <Text style={[styles.cell, styles.cPct, styles.thText]}>{taxLabel} %</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>{taxLabel} Amt</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>Net Amount</Text>
-              <Text style={[styles.cell, styles.cWtt, styles.thText]}>Wallet Txn Type</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>Wallet Txn Amount</Text>
-              <Text style={[styles.cell, styles.cRemark, styles.thText]}>Remark</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>Before Bal</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>Updated Bal</Text>
-              <Text style={[styles.cell, styles.cUser, styles.thText]}>Earned By</Text>
-              <Text style={[styles.cell, styles.cFrom, styles.thText]}>Earned From</Text>
-              <Text style={[styles.cell, styles.cDate, styles.thText]}>Date</Text>
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No records found.</Text></View>
-                : rows.map((r, i) => (
-                  <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.cNo, styles.td]}>{from + i}</Text>
-                    <Text style={[styles.cell, styles.cSvc, styles.td]}>{r.service_name}</Text>
-                    <Text style={[styles.cell, styles.cType, styles.td]}>{r.slot_type === 'amount' ? 'By Amount' : 'By Percentage'}</Text>
-                    <Text style={[styles.cell, styles.cVal, styles.td]}>{r.slot_type === 'amount' ? `Rs ${Number(r.type_value).toFixed(2)}` : `${Number(r.type_value).toFixed(2)} %`}</Text>
-                    <Text style={[styles.cell, styles.cVal, styles.td]}>{Number(r.type_value_amount).toFixed(2)}</Text>
-                    <Text style={[styles.cell, styles.cPct, styles.td]}>{Number(isGst ? r.gst_percent : r.tds_percent).toFixed(0)}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{Number(isGst ? r.gst_amount : r.tds_amount).toFixed(2)}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{Number(r.net_amount).toFixed(2)}</Text>
-                    <Text style={[styles.cell, styles.cWtt, { color: r.wallet_txn_type === 'debit' ? colors.danger : colors.success, fontWeight: '700', fontSize: 13 }]}>{cap(r.wallet_txn_type)}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{Number(r.wallet_txn_amount).toFixed(2)}</Text>
-                    <Text style={[styles.cell, styles.cRemark, styles.td]} numberOfLines={4}>{r.remark || '—'}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{money(r.before_balance)}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{money(r.updated_balance)}</Text>
-                    <View style={[styles.cell, styles.cUser]}>
-                      <Text style={styles.td}>{r.user_name}</Text>
-                      <Text style={styles.sub}>{r.user_code} · {r.user_mobile}</Text>
-                    </View>
-                    <View style={[styles.cell, styles.cFrom]}>
-                      <Text style={styles.td}>{Number(r.level) > 0 ? (r.source_user_code || '—') : 'Own transaction'}</Text>
-                      {Number(r.level) > 0 ? <Text style={styles.sub}>Chain level {r.level}</Text> : null}
-                    </View>
-                    <Text style={[styles.cell, styles.cDate, styles.td]}>{fmtDateTime(r.created_at)}</Text>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading}
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'service_name', title: 'Service Name', width: 150 },
+            { key: 'slot_type', title: 'Type', width: 130, render: (r) => <Text style={styles.td}>{r.slot_type === 'amount' ? 'By Amount' : 'By Percentage'}</Text> },
+            { key: 'type_value', title: 'Type Value', width: 120, render: (r) => <Text style={styles.td}>{r.slot_type === 'amount' ? `Rs ${Number(r.type_value).toFixed(2)}` : `${Number(r.type_value).toFixed(2)} %`}</Text> },
+            { key: 'type_value_amount', title: 'Type Value in Amount', width: 150, render: (r) => <Text style={styles.td}>{Number(r.type_value_amount).toFixed(2)}</Text> },
+            { key: isGst ? 'gst_percent' : 'tds_percent', title: `${taxLabel} %`, width: 100, render: (r) => <Text style={styles.td}>{Number(isGst ? r.gst_percent : r.tds_percent).toFixed(0)}</Text> },
+            { key: isGst ? 'gst_amount' : 'tds_amount', title: `${taxLabel} Amt`, width: 110, render: (r) => <Text style={styles.td}>{Number(isGst ? r.gst_amount : r.tds_amount).toFixed(2)}</Text> },
+            { key: 'net_amount', title: 'Net Amount', width: 120, render: (r) => <Text style={styles.td}>{Number(r.net_amount).toFixed(2)}</Text> },
+            { key: 'wallet_txn_type', title: 'Wallet Txn Type', width: 130, render: (r) => <Text style={{ color: r.wallet_txn_type === 'debit' ? colors.danger : colors.success, fontWeight: '700', fontSize: 13, textTransform: 'capitalize' }}>{cap(r.wallet_txn_type)}</Text> },
+            { key: 'wallet_txn_amount', title: 'Wallet Txn Amount', width: 140, render: (r) => <Text style={styles.td}>{Number(r.wallet_txn_amount).toFixed(2)}</Text> },
+            { key: 'remark', title: 'Remark', flex: 1, minWidth: 220, render: (r) => <Text style={styles.td} numberOfLines={4}>{r.remark || '—'}</Text> },
+            { key: 'before_balance', title: 'Before Bal', width: 120, render: (r) => <Text style={styles.td}>{money(r.before_balance)}</Text> },
+            { key: 'updated_balance', title: 'Updated Bal', width: 120, render: (r) => <Text style={styles.td}>{money(r.updated_balance)}</Text> },
+            { key: 'user', title: 'Earned By', width: 180, render: (r) => <View><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{`${r.user_code} · ${r.user_mobile}`}</Text></View> },
+            { key: 'source', title: 'Earned From', width: 160, render: (r) => <View><Text style={styles.td}>{Number(r.level) > 0 ? (r.source_user_code || '—') : 'Own transaction'}</Text>{Number(r.level) > 0 ? <Text style={styles.sub}>Chain level {r.level}</Text> : null}</View> },
+            { key: 'created_at', title: 'Date', width: 165, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
     </View>

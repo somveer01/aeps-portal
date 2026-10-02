@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
 
@@ -16,11 +17,13 @@ export default function CommissionSlabScreen() {
   const [applied, setApplied] = useState({});
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
 
+  const grid = useGrid(); // DataGrid column sort + filters
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
-    try { const res = await api.commissionSlab({ ...applied, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
+    try { const res = await api.commissionSlab({ ...applied, ...grid.params, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, applied]);
+  }, [page, applied, grid.sort, grid.filters]);
+  useGridReload(grid, () => load(1));
 
   useEffect(() => {
     load(1);
@@ -49,39 +52,21 @@ export default function CommissionSlabScreen() {
 
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: 1150, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text style={[styles.cell, styles.cNo, styles.thText]}>#</Text>
-              <Text style={[styles.cell, styles.cUt, styles.thText]}>User Type</Text>
-              <Text style={[styles.cell, styles.cSvc, styles.thText]}>Service</Text>
-              <Text style={[styles.cell, styles.cCt, styles.thText]}>Commision Type</Text>
-              <Text style={[styles.cell, styles.cRange, styles.thText]}>Amount Range</Text>
-              <Text style={[styles.cell, styles.cVal, styles.thText]}>Amount / Percentage</Text>
-              <Text style={[styles.cell, styles.cPlan, styles.thText]}>Plan</Text>
-              <Text style={[styles.cell, styles.cType, styles.thText]}>Type</Text>
-              <Text style={[styles.cell, styles.cChain, styles.thText]}>Chain Type</Text>
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No commission slabs found.</Text></View>
-                : rows.map((r, i) => (
-                  <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.cNo, styles.td]}>{from + i}</Text>
-                    <Text style={[styles.cell, styles.cUt, styles.td]}>{r.user_type_name}</Text>
-                    <View style={[styles.cell, styles.cSvc]}>
-                      <Text style={styles.td}>{r.service_name}</Text>
-                      {r.operator ? <Text style={styles.sub}>{r.operator}</Text> : null}
-                    </View>
-                    <Text style={[styles.cell, styles.cCt, styles.td]}>{r.commission_type === 'amount' ? 'By Amount' : 'By Percentage'}</Text>
-                    <Text style={[styles.cell, styles.cRange, styles.td]}>Rs {Number(r.min_amount).toFixed(2)} - {Number(r.max_amount).toFixed(2)}</Text>
-                    <Text style={[styles.cell, styles.cVal, styles.td]}>{r.commission_type === 'amount' ? `Rs ${Number(r.value).toFixed(2)}` : `${Number(r.value).toFixed(2)} %`}</Text>
-                    <Text style={[styles.cell, styles.cPlan, styles.td]}>{r.plan_name}</Text>
-                    <Text style={[styles.cell, styles.cType, { color: r.txn_type === 'debit' ? colors.danger : colors.success, fontWeight: '700', fontSize: 13 }]}>{cap(r.txn_type)}</Text>
-                    <Text style={[styles.cell, styles.cChain, styles.td]}>{cap(r.chain_type)}</Text>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading}
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'user_type', title: 'User Type', width: 140, render: (r) => <Text style={styles.td}>{r.user_type_name}</Text> },
+            { key: 'service', title: 'Service', width: 170, render: (r) => <View><Text style={styles.td}>{r.service_name}</Text>{r.operator ? <Text style={styles.sub}>{r.operator}</Text> : null}</View> },
+            { key: 'commission_type', title: 'Commision Type', width: 140, render: (r) => <Text style={styles.td}>{r.commission_type === 'amount' ? 'By Amount' : 'By Percentage'}</Text> },
+            { key: 'range', title: 'Amount Range', width: 170, render: (r) => <Text style={styles.td}>{`Rs ${Number(r.min_amount).toFixed(2)} - ${Number(r.max_amount).toFixed(2)}`}</Text> },
+            { key: 'value', title: 'Amount / Percentage', width: 150, render: (r) => <Text style={styles.td}>{r.commission_type === 'amount' ? `Rs ${Number(r.value).toFixed(2)}` : `${Number(r.value).toFixed(2)} %`}</Text> },
+            { key: 'plan', title: 'Plan', width: 150, render: (r) => <Text style={styles.td}>{r.plan_name}</Text> },
+            { key: 'txn_type', title: 'Type', width: 100, render: (r) => <Text style={{ color: r.txn_type === 'debit' ? colors.danger : colors.success, fontWeight: '700', fontSize: 13, textTransform: 'capitalize' }}>{cap(r.txn_type)}</Text> },
+            { key: 'chain_type', title: 'Chain Type', width: 110, render: (r) => <Text style={styles.td}>{cap(r.chain_type)}</Text> },
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
     </View>

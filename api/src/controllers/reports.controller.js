@@ -34,19 +34,19 @@ async function fundRequests(req, res, next) {
 }
 
 async function gstReport(req, res, next) {
-  try { const f = filters(req); const { rows, total } = await repo.commissionLedger(f); return res.json({ rows, total, page: f.page, pageSize: f.pageSize }); }
+  try { const f = { ...filters(req), grid: parseGrid(req.query, repo.COMMISSION_GRID) }; const { rows, total } = await repo.commissionLedger(f); return res.json({ rows, total, page: f.page, pageSize: f.pageSize }); }
   catch (err) { return next(err); }
 }
 
 async function tdsReport(req, res, next) {
-  try { const f = filters(req); const { rows, total } = await repo.commissionLedger(f); return res.json({ rows, total, page: f.page, pageSize: f.pageSize }); }
+  try { const f = { ...filters(req), grid: parseGrid(req.query, repo.COMMISSION_GRID) }; const { rows, total } = await repo.commissionLedger(f); return res.json({ rows, total, page: f.page, pageSize: f.pageSize }); }
   catch (err) { return next(err); }
 }
 
 // PUT /api/fund-requests/:id  { status: 'approved'|'rejected', adminRemark }
 // GET /api/admin-margin-report — what the company keeps per transaction, with totals.
 async function adminMarginReport(req, res, next) {
-  try { const f = filters(req); const r = await repo.adminMargins(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); }
+  try { const f = { ...filters(req), grid: parseGrid(req.query, repo.MARGIN_GRID) }; const r = await repo.adminMargins(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); }
   catch (err) { return next(err); }
 }
 

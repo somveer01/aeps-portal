@@ -1,6 +1,13 @@
 'use strict';
 
 const db = require('../config/db');
+const { applyGridFilters, applyGridSortFirst, DATE_COL } = require('../utils/gridQuery');
+
+// Sortable / filterable grid columns (keys = the app's DataGrid column keys).
+const GRID = {
+  bank_name: 'x.bank_name', account_no: 'x.account_no', ifsc_code: 'x.ifsc_code', ac_holder: 'x.ac_holder', status: 'x.status',
+  user: { sort: 'u.user_code', filter: "concat_ws(' ', u.user_code, u.full_name, u.mobile)" }, remark: 'x.remark', created_at: DATE_COL('x.created_at'),
+};
 
 function joins() {
   return db('payout_banks as x')
@@ -10,16 +17,18 @@ function joins() {
 const COLS = ['x.*', 'u.full_name as user_name', 'u.mobile as user_mobile', 'u.user_code', 'ut.name as user_type_name'];
 
 module.exports = {
-  async list({ startDate, endDate, userTypeId, userId, status, page = 1, pageSize = 10 } = {}) {
+  GRID,
+  async list({ startDate, endDate, userTypeId, userId, status, grid = null, page = 1, pageSize = 10 } = {}) {
     const filter = (qb) => {
       if (startDate) qb.whereRaw('x.created_at::date >= ?', [startDate]);
       if (endDate) qb.whereRaw('x.created_at::date <= ?', [endDate]);
       if (userTypeId) qb.where('u.user_type_id', userTypeId);
       if (userId) qb.where('x.user_id', userId);
       if (status) qb.where('x.status', status);
+      applyGridFilters(qb, grid);
     };
     const countRow = await joins().where(filter).count('x.id as c').first();
-    const rows = await joins().where(filter).select(...COLS).orderBy('x.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
+    const rows = await joins().where(filter).select(...COLS).modify((qb) => applyGridSortFirst(qb, grid)).orderBy('x.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
     return { rows, total: Number(countRow.c) };
   },
   findById(id) { return joins().where('x.id', id).select(...COLS).first(); },

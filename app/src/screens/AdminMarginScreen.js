@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { Card, Button, Alert, Select, DateField } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
 
@@ -23,13 +24,15 @@ export default function AdminMarginScreen() {
   const [applied, setApplied] = useState({});
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
 
+  const grid = useGrid(); // DataGrid column sort + filters
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
     try {
-      const res = await api.reports.adminMargin({ ...applied, page: p, pageSize: PAGE_SIZE });
+      const res = await api.reports.adminMargin({ ...applied, ...grid.params, page: p, pageSize: PAGE_SIZE });
       setRows(res.rows); setTotal(res.total); setTotals(res.totals); setPage(res.page);
     } catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, applied]);
+  }, [page, applied, grid.sort, grid.filters]);
+  useGridReload(grid, () => load(1));
 
   useEffect(() => { api.services.list({ pageSize: 100, active: true }).then((r) => setServices(r.rows)).catch(() => {}); }, []);
   useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied]);
@@ -60,30 +63,21 @@ export default function AdminMarginScreen() {
 
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: 1120, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              {['#', 'Service', 'User', 'Amount', 'Provider Comm.', 'Charges', 'Paid Out', 'Margin', 'Date'].map((h, i) => (
-                <Text key={h} numberOfLines={1} style={[styles.cell, styles.thText, { width: COLS[i] }]}>{h}</Text>
-              ))}
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No transactions found.</Text></View>
-                : rows.map((r, i) => (
-                  <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.td, { width: COLS[0] }]}>{from + i}</Text>
-                    <Text style={[styles.cell, styles.td, { width: COLS[1] }]}>{r.service_name}</Text>
-                    <View style={[styles.cell, { width: COLS[2] }]}><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code}</Text></View>
-                    <Text style={[styles.cell, styles.td, { width: COLS[3] }]}>{money(r.amount)}</Text>
-                    <Text style={[styles.cell, styles.td, { width: COLS[4] }]}>{money(r.provider_commission)}</Text>
-                    <Text style={[styles.cell, styles.td, { width: COLS[5] }]}>{money(r.charges_collected)}</Text>
-                    <Text style={[styles.cell, styles.td, { width: COLS[6] }]}>{money(r.commission_paid)}</Text>
-                    <Text style={[styles.cell, { width: COLS[7], color: marginColor(r.margin), fontWeight: '700', fontSize: 13 }]}>{money(r.margin)}</Text>
-                    <Text style={[styles.cell, styles.td, { width: COLS[8] }]}>{fmtDateTime(r.created_at)}</Text>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading}
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'service_name', title: 'Service', width: 150 },
+            { key: 'user', title: 'User', width: 180, render: (r) => <View><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code}</Text></View> },
+            { key: 'amount', title: 'Amount', width: 115, render: (r) => <Text style={styles.td}>{money(r.amount)}</Text> },
+            { key: 'provider_commission', title: 'Provider Comm.', width: 135, render: (r) => <Text style={styles.td}>{money(r.provider_commission)}</Text> },
+            { key: 'charges_collected', title: 'Charges', width: 115, render: (r) => <Text style={styles.td}>{money(r.charges_collected)}</Text> },
+            { key: 'commission_paid', title: 'Paid Out', width: 115, render: (r) => <Text style={styles.td}>{money(r.commission_paid)}</Text> },
+            { key: 'margin', title: 'Margin', width: 120, render: (r) => <Text style={{ color: marginColor(r.margin), fontWeight: '700', fontSize: 13 }}>{money(r.margin)}</Text> },
+            { key: 'created_at', title: 'Date', width: 165, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
     </View>

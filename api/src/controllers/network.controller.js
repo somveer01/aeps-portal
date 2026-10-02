@@ -166,7 +166,7 @@ async function listTransfers(req, res, next) {
       startDate: clean(req.query.startDate) || null, endDate: clean(req.query.endDate) || null,
       userTypeId: intOrNull(req.query.userTypeId), userId: intOrNull(req.query.userId),
       transferType: ['credit', 'debit'].includes(req.query.transferType) ? req.query.transferType : null,
-      fromUserId: req.user.id, ...f,
+      fromUserId: req.user.id, ...f, grid: parseGrid(req.query, fundRepo.GRID),
     });
     return res.json({ rows, total, ...f });
   } catch (err) { return next(err); }

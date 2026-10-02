@@ -108,13 +108,13 @@ async function serviceReport(req, res, next) {
   try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.SERVICE_GRID) }; const r = await reportsRepo.serviceTransactions(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
 async function gstReport(req, res, next) {
-  try { const f = ownerFilters(req); const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
+  try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.COMMISSION_GRID) }; const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
 async function tdsReport(req, res, next) {
-  try { const f = ownerFilters(req); const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
+  try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.COMMISSION_GRID) }; const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
 async function commissionReport(req, res, next) {
-  try { const f = ownerFilters(req); const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
+  try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.COMMISSION_GRID) }; const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
 
 // GET /api/retailer/my-commission-slab  (read-only, this user's type, services that are ON)
@@ -124,7 +124,7 @@ async function myCommissionSlab(req, res, next) {
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
     // Every slab of my type for services that are ON. Not limited by my own Service Permissions:
     // a distributor earns chain commission on its downline's transactions without using the service.
-    const { rows, total } = await commissionSlotRepo.slab({ userTypeId: req.user.userTypeId, serviceId: null, activeServicesOnly: true, page, pageSize });
+    const { rows, total } = await commissionSlotRepo.slab({ userTypeId: req.user.userTypeId, serviceId: null, activeServicesOnly: true, grid: parseGrid(req.query, commissionSlotRepo.GRID), page, pageSize });
     return res.json({ rows, total, page, pageSize });
   } catch (err) { return next(err); }
 }
