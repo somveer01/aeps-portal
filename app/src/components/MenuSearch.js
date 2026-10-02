@@ -36,6 +36,10 @@ export default function MenuSearch({ menu, onSelect, variant = 'sidebar', style 
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const closeTimer = useRef(null);
+  // Mouse is over the result list: a click there blurs the input first, so blur must not close the
+  // list (it would vanish before the click lands when the button is held for a moment).
+  const overList = useRef(false);
+  const focused = useRef(false);
   const topbar = variant === 'topbar';
 
   const items = useMemo(() => flatten(menu), [menu]);
@@ -43,6 +47,7 @@ export default function MenuSearch({ menu, onSelect, variant = 'sidebar', style 
   const showList = open && q.trim().length > 0;
 
   const pick = (it) => {
+    clearTimeout(closeTimer.current); overList.current = false;
     setQ(''); setOpen(false); setHi(0);
     onSelect(it.node, it.ancestorIds);
   };
@@ -62,8 +67,8 @@ export default function MenuSearch({ menu, onSelect, variant = 'sidebar', style 
         <TextInput
           value={q}
           onChangeText={(v) => { setQ(v); setOpen(true); setHi(0); }}
-          onFocus={() => { clearTimeout(closeTimer.current); setOpen(true); }}
-          onBlur={() => { closeTimer.current = setTimeout(() => setOpen(false), 150); }}
+          onFocus={() => { focused.current = true; clearTimeout(closeTimer.current); setOpen(true); }}
+          onBlur={() => { focused.current = false; closeTimer.current = setTimeout(() => { if (!overList.current) setOpen(false); }, 150); }}
           onKeyPress={onKeyPress}
           placeholder="Search menu…"
           placeholderTextColor={topbar ? 'rgba(255,255,255,0.75)' : colors.muted}
@@ -85,7 +90,8 @@ export default function MenuSearch({ menu, onSelect, variant = 'sidebar', style 
           ) : (
             <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 320 }}>
               {results.map((it, i) => (
-                <Pressable key={it.node.id} onPress={() => pick(it)} onHoverIn={() => setHi(i)}
+                <Pressable key={it.node.id} onPress={() => pick(it)} onPressIn={() => { overList.current = true; }}
+                  onHoverIn={() => { overList.current = true; setHi(i); }} onHoverOut={() => { overList.current = false; if (!focused.current) setOpen(false); }}
                   style={[styles.row, i === hi && styles.rowOn]}>
                   <Icon name={it.node.icon} size={16} color={colors.primary} />
                   <View style={{ flex: 1 }}>
