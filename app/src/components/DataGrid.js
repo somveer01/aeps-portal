@@ -90,6 +90,27 @@ function FilterInput({ value, onChange }) {
 
 const colStyle = (c) => (c.width ? { width: c.width } : { flex: c.flex || 1, minWidth: c.minWidth || 120 });
 
+/**
+ * Grid state for a screen: const grid = useGrid(); pass grid.params to the list API, and
+ * <DataGrid sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters} />.
+ * Then useGridReload(grid, () => load({ page: 1 })) reloads page 1 when sort / filters change.
+ */
+export function useGrid() {
+  const [sort, setSort] = useState(null);
+  const [filters, setFilters] = useState({});
+  return { sort, setSort, filters, setFilters, params: gridParams(sort, filters) };
+}
+
+export function useGridReload(grid, reload) {
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; } // the screen's own mount effect loads first
+    reloadRef.current();
+  }, [grid.sort, grid.filters]);
+}
+
 /** Query params for the API from the grid state: { sort, dir, f_<key> }. */
 export function gridParams(sort, filters = {}) {
   const out = sort ? { sort: sort.key, dir: sort.dir } : {};

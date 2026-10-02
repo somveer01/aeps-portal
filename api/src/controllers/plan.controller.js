@@ -1,5 +1,6 @@
 'use strict';
 
+const { parseGrid } = require('../utils/gridQuery');
 const repo = require('../repositories/plan.repo');
 const userTypeRepo = require('../repositories/userType.repo');
 
@@ -11,7 +12,7 @@ async function list(req, res, next) {
     const userTypeId = req.query.userTypeId ? parseInt(req.query.userTypeId, 10) : null;
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
-    const { rows, total } = await repo.list({ q, userTypeId, page, pageSize });
+    const { rows, total } = await repo.list({ q, userTypeId, page, pageSize, grid: parseGrid(req.query, repo.GRID) });
     return res.json({ rows, total, page, pageSize });
   } catch (err) { return next(err); }
 }

@@ -1,14 +1,20 @@
 'use strict';
 
 const db = require('../config/db');
+const { applyGridFilters, applyGridSortFirst, DATE_COL, STATUS_COL } = require('../utils/gridQuery');
+
+// Sortable / filterable grid columns.
+const GRID = { name: 'name', status: STATUS_COL('is_active'), created_at: DATE_COL('created_at') };
 
 const TABLE = 'service_categories';
 
 module.exports = {
+  GRID,
   /** Paginated + searchable list. Returns { rows, total }. */
-  async list({ q = '', page = 1, pageSize = 10 } = {}) {
+  async list({ q = '', page = 1, pageSize = 10, grid = null } = {}) {
     const base = db(TABLE);
     if (q) base.whereILike('name', `%${q}%`);
+    applyGridFilters(base, grid);
 
     const countRow = await base.clone().count('id as c').first();
     const total = Number(countRow.c);
@@ -16,6 +22,7 @@ module.exports = {
     const rows = await base
       .clone()
       .select('*')
+      .modify((qb) => applyGridSortFirst(qb, grid))
       .orderBy('created_at', 'desc')
       .limit(pageSize)
       .offset((page - 1) * pageSize);

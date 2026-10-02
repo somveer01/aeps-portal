@@ -1,6 +1,10 @@
 'use strict';
 
 const db = require('../config/db');
+const { applyGridFilters, applyGridSortFirst } = require('../utils/gridQuery');
+
+// Sortable / filterable grid columns.
+const GRID = { state: 's.name', name: 'c.name' };
 
 const TABLE = 'cities';
 
@@ -12,11 +16,13 @@ function withState() {
 }
 
 module.exports = {
+  GRID,
   /** Paginated + searchable (matches city OR state name). Returns { rows, total }. */
-  async list({ q = '', stateId = null, page = 1, pageSize = 10 } = {}) {
+  async list({ q = '', stateId = null, page = 1, pageSize = 10, grid = null } = {}) {
     const filter = (qb) => {
       if (stateId) qb.where('c.state_id', stateId);
       if (q) qb.andWhere((w) => w.whereILike('c.name', `%${q}%`).orWhereILike('s.name', `%${q}%`));
+      applyGridFilters(qb, grid);
     };
 
     const countRow = await db(`${TABLE} as c`)
@@ -27,6 +33,7 @@ module.exports = {
 
     const rows = await withState()
       .where(filter)
+      .modify((qb) => applyGridSortFirst(qb, grid))
       .orderBy([{ column: 's.name', order: 'asc' }, { column: 'c.name', order: 'asc' }])
       .limit(pageSize)
       .offset((page - 1) * pageSize);

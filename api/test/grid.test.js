@@ -68,3 +68,20 @@ test('Service Report and Fund Requests accept grid params', async () => {
   assert.equal((await A.get('/api/service-report?sort=amount&dir=asc&f_status=success')).s, 200);
   assert.equal((await A.get('/api/fund-requests?sort=amount&dir=desc&f_approver=admin')).s, 200);
 });
+
+test('master lists: sort + column filters on every master endpoint', async () => {
+  const cities = await A.get('/api/cities?sort=name&dir=desc&pageSize=5');
+  assert.equal(cities.s, 200);
+  const names = cities.b.rows.map((r) => r.name);
+  assert.deepEqual(names, [...names].sort((a, b) => b.localeCompare(a, 'en', { sensitivity: 'base' })), 'cities sorted Z→A');
+  const one = cities.b.rows[0];
+  const byState = await A.get(`/api/cities?f_state=${encodeURIComponent(one.state_name)}&f_name=${encodeURIComponent(one.name)}`);
+  assert.ok(byState.b.rows.some((r) => r.id === one.id));
+  const active = await A.get('/api/user-types?f_status=inactive');
+  assert.ok(active.b.rows.every((r) => !r.is_active), 'status filter');
+  for (const path of ['/api/service-categories', '/api/plans', '/api/company-banks', '/api/banners', '/api/announcements', '/api/ticket-departments']) {
+    // eslint-disable-next-line no-await-in-loop
+    const r = await A.get(`${path}?sort=created_at&dir=asc&f_status=active`);
+    assert.equal(r.s, 200, path);
+  }
+});

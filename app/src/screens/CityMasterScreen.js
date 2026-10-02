@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 
 const PAGE_SIZE = 10;
@@ -25,15 +26,17 @@ export default function CityMasterScreen() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
 
+  const grid = useGrid(); // DataGrid column sort + filters
   const load = useCallback(async (opts = {}) => {
     setLoading(true); setError(null);
     try {
       const p = opts.page ?? page;
       const query = opts.q ?? q;
-      const res = await api.cities.list({ q: query, page: p, pageSize: PAGE_SIZE });
+      const res = await api.cities.list({ ...grid.params, q: query, page: p, pageSize: PAGE_SIZE });
       setRows(res.rows); setTotal(res.total); setPage(res.page);
     } catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, q]);
+  }, [page, q, grid.sort, grid.filters]);
+  useGridReload(grid, () => load({ page: 1 }));
 
   useEffect(() => { load({ page: 1 }); api.states().then((r) => setStates(r.states)).catch(() => {}); /* eslint-disable-next-line */ }, []);
   useEffect(() => { const t = setTimeout(() => load({ page: 1, q }), 350); return () => clearTimeout(t); /* eslint-disable-next-line */ }, [q]);
@@ -103,35 +106,20 @@ export default function CityMasterScreen() {
 
         {error ? <Alert type="error">{error}</Alert> : null}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 640, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text style={[styles.cell, styles.colNo, styles.thText]}>#</Text>
-              <Text style={[styles.cell, styles.colState, styles.thText]}>State</Text>
-              <Text style={[styles.cell, styles.colCity, styles.thText]}>City</Text>
-              <Text style={[styles.cell, styles.colAction, styles.thText]}>Action</Text>
-            </View>
-
-            {loading ? (
-              <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-            ) : rows.length === 0 ? (
-              <View style={styles.empty}><Text style={{ color: colors.muted }}>No cities found.</Text></View>
-            ) : (
-              rows.map((row, i) => (
-                <View key={row.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                  <Text style={[styles.cell, styles.colNo, styles.td]}>{from + i}</Text>
-                  <Text style={[styles.cell, styles.colState, styles.td]}>{row.state_name}</Text>
-                  <Text style={[styles.cell, styles.colCity, styles.td]}>{row.name}</Text>
-                  <View style={[styles.cell, styles.colAction]}>
-                    <Pressable onPress={() => openEdit(row)} style={styles.iconBtn} hitSlop={6}>
-                      <Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading} emptyText="No cities found."
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (row, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'state', title: 'State', width: 220, render: (row) => <Text style={styles.td}>{row.state_name}</Text> },
+            { key: 'name', title: 'City', flex: 1, minWidth: 200 },
+            { key: 'action', title: 'Action', width: 110, sortable: false, filterable: false, render: (row) => (
+              <View style={styles.actions}>
+                <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text></Pressable>
+              </View>
+            ) },
+          ]}
+        />
 
         <View style={styles.pagination}>
           <Text style={styles.entries}>Showing {from} to {to} of {total} entries</Text>

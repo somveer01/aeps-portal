@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Card, Button, Alert } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 
 const PAGE_SIZE = 10;
@@ -40,15 +41,17 @@ export default function ServiceCategoryScreen() {
   const [toDelete, setToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
+  const grid = useGrid(); // DataGrid column sort + filters
   const load = useCallback(async (opts = {}) => {
     setLoading(true); setError(null);
     try {
       const p = opts.page ?? page;
       const query = opts.q ?? q;
-      const res = await api.serviceCategories.list({ q: query, page: p, pageSize: PAGE_SIZE });
+      const res = await api.serviceCategories.list({ ...grid.params, q: query, page: p, pageSize: PAGE_SIZE });
       setRows(res.rows); setTotal(res.total); setPage(res.page);
     } catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, q]);
+  }, [page, q, grid.sort, grid.filters]);
+  useGridReload(grid, () => load({ page: 1 }));
 
   useEffect(() => { load({ page: 1 }); /* eslint-disable-next-line */ }, []);
 
@@ -148,47 +151,22 @@ export default function ServiceCategoryScreen() {
         {error ? <Alert type="error">{error}</Alert> : null}
 
         {/* Table */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 640, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text style={[styles.cell, styles.colNo, styles.thText]}>#</Text>
-              <Text style={[styles.cell, styles.colName, styles.thText]}>Service Category</Text>
-              <Text style={[styles.cell, styles.colStatus, styles.thText]}>Status</Text>
-              <Text style={[styles.cell, styles.colDate, styles.thText]}>Created on</Text>
-              <Text style={[styles.cell, styles.colAction, styles.thText]}>Action</Text>
-            </View>
-
-            {loading ? (
-              <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-            ) : rows.length === 0 ? (
-              <View style={styles.empty}><Text style={{ color: colors.muted }}>No service categories found.</Text></View>
-            ) : (
-              rows.map((row, i) => (
-                <View key={row.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                  <Text style={[styles.cell, styles.colNo, styles.td]}>{from + i}</Text>
-                  <Text style={[styles.cell, styles.colName, styles.td]}>{row.name}</Text>
-                  <View style={[styles.cell, styles.colStatus]}>
-                    <Switch
-                      value={!!row.is_active}
-                      onValueChange={() => toggleStatus(row)}
-                      trackColor={{ true: colors.success, false: '#cbd5e1' }}
-                      thumbColor="#fff"
-                    />
-                  </View>
-                  <Text style={[styles.cell, styles.colDate, styles.td]}>{fmtDate(row.created_at)}</Text>
-                  <View style={[styles.cell, styles.colAction, styles.actions]}>
-                    <Pressable onPress={() => openEdit(row)} style={styles.iconBtn} hitSlop={6}>
-                      <Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text>
-                    </Pressable>
-                    <Pressable onPress={() => setToDelete(row)} style={styles.iconBtn} hitSlop={6}>
-                      <Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading} emptyText="No service categories found."
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (row, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'name', title: 'Service Category', flex: 1, minWidth: 200 },
+            { key: 'status', title: 'Status', width: 100, render: (row) => <Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /> },
+            { key: 'created_at', title: 'Created on', width: 175, render: (row) => <Text style={styles.td}>{fmtDate(row.created_at)}</Text> },
+            { key: 'action', title: 'Action', width: 110, sortable: false, filterable: false, render: (row) => (
+              <View style={styles.actions}>
+                <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text></Pressable>
+                <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text></Pressable>
+              </View>
+            ) },
+          ]}
+        />
 
         {/* Pagination */}
         <View style={styles.pagination}>

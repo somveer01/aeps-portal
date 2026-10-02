@@ -11,6 +11,9 @@
  * date filtered on its displayed text while sorted on the timestamp itself).
  */
 const DATE_TEXT = (col) => `to_char(${col}, 'DD Mon YYYY HH24:MI YYYY-MM-DD')`;
+// A date column sorted on the value and filtered on its displayed text; a status switch filtered as words.
+const DATE_COL = (col) => ({ sort: col, filter: DATE_TEXT(col) });
+const STATUS_COL = (col) => ({ sort: col, filter: `case when ${col} then 'active on yes' else 'inactive off no blocked' end` });
 
 function parseGrid(query = {}, columns = {}) {
   const expr = (key, kind) => {
@@ -39,4 +42,9 @@ function applyGridSort(qb, grid, fallbackCol, fallbackDir = 'desc') {
   qb.orderBy(fallbackCol, fallbackDir);
 }
 
-module.exports = { parseGrid, applyGridFilters, applyGridSort, DATE_TEXT };
+/** Only the chosen column sort; call before the list's own orderBy, which then breaks ties. */
+function applyGridSortFirst(qb, grid) {
+  if (grid && grid.sort) qb.orderByRaw(`${grid.sort.col} ${grid.sort.dir} nulls last`);
+}
+
+module.exports = { parseGrid, applyGridFilters, applyGridSort, applyGridSortFirst, DATE_TEXT, DATE_COL, STATUS_COL };

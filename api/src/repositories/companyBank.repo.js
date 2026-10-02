@@ -1,15 +1,21 @@
 'use strict';
 
 const db = require('../config/db');
+const { applyGridFilters, applyGridSortFirst, STATUS_COL } = require('../utils/gridQuery');
+
+// Sortable / filterable grid columns.
+const GRID = { bank_name: 'bank_name', account_holder: 'account_holder', account_no: 'account_no', ifsc_code: 'ifsc_code', status: STATUS_COL('is_active') };
 
 const TABLE = 'company_banks';
 
 module.exports = {
-  async list({ q = '', page = 1, pageSize = 10 } = {}) {
+  GRID,
+  async list({ q = '', page = 1, pageSize = 10, grid = null } = {}) {
     const base = db(TABLE);
     if (q) base.where((w) => w.whereILike('bank_name', `%${q}%`).orWhereILike('account_holder', `%${q}%`).orWhereILike('account_no', `%${q}%`));
+    applyGridFilters(base, grid);
     const countRow = await base.clone().count('id as c').first();
-    const rows = await base.clone().select('*').orderBy('id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
+    const rows = await base.clone().select('*').modify((qb) => applyGridSortFirst(qb, grid)).orderBy('id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
     return { rows, total: Number(countRow.c) };
   },
   findById(id) { return db(TABLE).where({ id }).first(); },

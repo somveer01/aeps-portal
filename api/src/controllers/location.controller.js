@@ -1,5 +1,6 @@
 'use strict';
 
+const { parseGrid } = require('../utils/gridQuery');
 const stateRepo = require('../repositories/state.repo');
 const cityRepo = require('../repositories/city.repo');
 
@@ -19,7 +20,7 @@ async function listCities(req, res, next) {
     const stateId = req.query.stateId ? parseInt(req.query.stateId, 10) : null;
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
-    const { rows, total } = await cityRepo.list({ q, stateId, page, pageSize });
+    const { rows, total } = await cityRepo.list({ q, stateId, page, pageSize, grid: parseGrid(req.query, cityRepo.GRID) });
     return res.json({ rows, total, page, pageSize });
   } catch (err) {
     return next(err);

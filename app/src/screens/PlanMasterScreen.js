@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 
 const PAGE_SIZE = 10;
@@ -23,11 +24,13 @@ export default function PlanMasterScreen() {
   const [saving, setSaving] = useState(false); const [formError, setFormError] = useState(null);
   const [toDelete, setToDelete] = useState(null); const [deleting, setDeleting] = useState(false);
 
+  const grid = useGrid(); // DataGrid column sort + filters
   const load = useCallback(async (opts = {}) => {
     setLoading(true); setError(null);
-    try { const res = await api.plans.list({ q: opts.q ?? q, page: opts.page ?? page, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
+    try { const res = await api.plans.list({ ...grid.params, q: opts.q ?? q, page: opts.page ?? page, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, q]);
+  }, [page, q, grid.sort, grid.filters]);
+  useGridReload(grid, () => load({ page: 1 }));
 
   useEffect(() => { load({ page: 1 }); api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {}); /* eslint-disable-next-line */ }, []);
   useEffect(() => { const t = setTimeout(() => load({ page: 1, q }), 350); return () => clearTimeout(t); /* eslint-disable-next-line */ }, [q]);
@@ -96,33 +99,23 @@ export default function PlanMasterScreen() {
             <TextInput value={q} onChangeText={setQ} placeholder="Plan or user type…" placeholderTextColor={colors.muted} style={styles.search} /></View>
         </View>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 700, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text style={[styles.cell, styles.colNo, styles.thText]}>#</Text>
-              <Text style={[styles.cell, styles.colUt, styles.thText]}>User Type</Text>
-              <Text style={[styles.cell, styles.colName, styles.thText]}>Plan Name</Text>
-              <Text style={[styles.cell, styles.colDate, styles.thText]}>Created on</Text>
-              <Text style={[styles.cell, styles.colStatus, styles.thText]}>Status</Text>
-              <Text style={[styles.cell, styles.colAction, styles.thText]}>Action</Text>
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No plans found.</Text></View>
-                : rows.map((row, i) => (
-                  <View key={row.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.colNo, styles.td]}>{from + i}</Text>
-                    <Text style={[styles.cell, styles.colUt, styles.td]}>{row.user_type_name}</Text>
-                    <Text style={[styles.cell, styles.colName, styles.td]}>{row.name}</Text>
-                    <Text style={[styles.cell, styles.colDate, styles.td]}>{fmtDate(row.created_at)}</Text>
-                    <View style={[styles.cell, styles.colStatus]}><Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
-                    <View style={[styles.cell, styles.colAction, styles.actions]}>
-                      <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text></Pressable>
-                      <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text></Pressable>
-                    </View>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading} emptyText="No plans found."
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (row, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'user_type', title: 'User Type', width: 180, render: (row) => <Text style={styles.td}>{row.user_type_name}</Text> },
+            { key: 'name', title: 'Plan Name', flex: 1, minWidth: 180 },
+            { key: 'created_at', title: 'Created on', width: 175, render: (row) => <Text style={styles.td}>{fmtDate(row.created_at)}</Text> },
+            { key: 'status', title: 'Status', width: 100, render: (row) => <Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /> },
+            { key: 'action', title: 'Action', width: 110, sortable: false, filterable: false, render: (row) => (
+              <View style={styles.actions}>
+                <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text></Pressable>
+                <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text></Pressable>
+              </View>
+            ) },
+          ]}
+        />
         <View style={styles.pagination}>
           <Text style={styles.entries}>Showing {from} to {to} of {total} entries</Text>
           <View style={styles.pager}>

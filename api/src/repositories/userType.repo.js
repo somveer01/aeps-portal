@@ -1,15 +1,21 @@
 'use strict';
 
 const db = require('../config/db');
+const { applyGridFilters, applyGridSortFirst, DATE_COL, STATUS_COL } = require('../utils/gridQuery');
+
+// Sortable / filterable grid columns.
+const GRID = { name: 't.name', parent: 'pt.name', created_at: DATE_COL('t.created_at'), status: STATUS_COL('t.is_active') };
 
 const TABLE = 'user_types';
 
 module.exports = {
-  async list({ q = '', page = 1, pageSize = 10 } = {}) {
+  GRID,
+  async list({ q = '', page = 1, pageSize = 10, grid = null } = {}) {
     const base = db(`${TABLE} as t`).leftJoin(`${TABLE} as pt`, 'pt.id', 't.parent_type_id');
     if (q) base.whereILike('t.name', `%${q}%`);
+    applyGridFilters(base, grid);
     const countRow = await base.clone().count('t.id as c').first();
-    const rows = await base.clone().select('t.*', 'pt.name as parent_type_name').orderBy('t.id', 'asc').limit(pageSize).offset((page - 1) * pageSize);
+    const rows = await base.clone().select('t.*', 'pt.name as parent_type_name').modify((qb) => applyGridSortFirst(qb, grid)).orderBy('t.id', 'asc').limit(pageSize).offset((page - 1) * pageSize);
     return { rows, total: Number(countRow.c) };
   },
   findById(id) { return db(TABLE).where({ id }).first(); },

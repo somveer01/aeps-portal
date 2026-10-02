@@ -146,8 +146,7 @@ export const api = {
 
   // Modules → Application Banners
   banners: {
-    list: ({ q = '', page = 1, pageSize = 10 } = {}) =>
-      request(`/api/banners?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`, { auth: true }),
+    list: (params = {}) => request(`/api/banners?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     create: (body) => request('/api/banners', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/banners/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/banners/${id}`, { method: 'DELETE', auth: true }),
@@ -155,8 +154,7 @@ export const api = {
 
   // Modules → Announcements
   announcements: {
-    list: ({ q = '', page = 1, pageSize = 10 } = {}) =>
-      request(`/api/announcements?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`, { auth: true }),
+    list: (params = {}) => request(`/api/announcements?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     active: (userTypeId = '') => request(`/api/announcements/active?userTypeId=${userTypeId}`, { auth: true }),
     create: (body) => request('/api/announcements', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/announcements/${id}`, { method: 'PUT', body, auth: true }),
@@ -173,8 +171,7 @@ export const api = {
 
   // Modules → Ticket Departments
   ticketDepartments: {
-    list: ({ q = '', page = 1, pageSize = 10 } = {}) =>
-      request(`/api/ticket-departments?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`, { auth: true }),
+    list: (params = {}) => request(`/api/ticket-departments?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     create: (body) => request('/api/ticket-departments', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/ticket-departments/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/ticket-departments/${id}`, { method: 'DELETE', auth: true }),
@@ -182,8 +179,7 @@ export const api = {
 
   // Modules → Service Categories
   serviceCategories: {
-    list: ({ q = '', page = 1, pageSize = 10 } = {}) =>
-      request(`/api/service-categories?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`, { auth: true }),
+    list: (params = {}) => request(`/api/service-categories?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     create: (body) => request('/api/service-categories', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/service-categories/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/service-categories/${id}`, { method: 'DELETE', auth: true }),
@@ -191,8 +187,7 @@ export const api = {
 
   // Modules → User Type Master
   userTypes: {
-    list: ({ q = '', page = 1, pageSize = 10 } = {}) =>
-      request(`/api/user-types?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`, { auth: true }),
+    list: (params = {}) => request(`/api/user-types?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     create: (body) => request('/api/user-types', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/user-types/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/user-types/${id}`, { method: 'DELETE', auth: true }),
@@ -217,8 +212,7 @@ export const api = {
 
   // Modules → Plan Master
   plans: {
-    list: ({ q = '', userTypeId = '', page = 1, pageSize = 10 } = {}) =>
-      request(`/api/plans?q=${encodeURIComponent(q)}&userTypeId=${userTypeId}&page=${page}&pageSize=${pageSize}`, { auth: true }),
+    list: (params = {}) => request(`/api/plans?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     create: (body) => request('/api/plans', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/plans/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/plans/${id}`, { method: 'DELETE', auth: true }),
@@ -226,8 +220,7 @@ export const api = {
 
   // Modules → Commission Slots
   commissionSlots: {
-    list: ({ q = '', page = 1, pageSize = 10 } = {}) =>
-      request(`/api/commission-slots?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`, { auth: true }),
+    list: (params = {}) => request(`/api/commission-slots?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     create: (body) => request('/api/commission-slots', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/commission-slots/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/commission-slots/${id}`, { method: 'DELETE', auth: true }),
@@ -397,8 +390,7 @@ export const api = {
 
   // Company Banks
   companyBanks: {
-    list: ({ q = '', page = 1, pageSize = 10 } = {}) =>
-      request(`/api/company-banks?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`, { auth: true }),
+    list: (params = {}) => request(`/api/company-banks?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     create: (body) => request('/api/company-banks', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/company-banks/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/company-banks/${id}`, { method: 'DELETE', auth: true }),
@@ -420,8 +412,7 @@ export const api = {
   // Reusable location data (used by City Master + any state/city dropdown)
   states: () => request('/api/states', { auth: true }),
   cities: {
-    list: ({ q = '', stateId = '', page = 1, pageSize = 10 } = {}) =>
-      request(`/api/cities?q=${encodeURIComponent(q)}&stateId=${stateId}&page=${page}&pageSize=${pageSize}`, { auth: true }),
+    list: (params = {}) => request(`/api/cities?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     create: (body) => request('/api/cities', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/cities/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/cities/${id}`, { method: 'DELETE', auth: true }),

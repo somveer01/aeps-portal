@@ -1,6 +1,10 @@
 'use strict';
 
 const db = require('../config/db');
+const { applyGridFilters, applyGridSortFirst, DATE_COL, STATUS_COL } = require('../utils/gridQuery');
+
+// Sortable / filterable grid columns.
+const GRID = { user_type: 'u.name', message: 'a.message', created_at: DATE_COL('a.created_at'), status: STATUS_COL('a.is_active') };
 
 const TABLE = 'announcements';
 
@@ -11,10 +15,11 @@ function joined() {
 }
 
 module.exports = {
-  async list({ q = '', page = 1, pageSize = 10 } = {}) {
-    const filter = (qb) => { if (q) qb.where((w) => w.whereILike('a.message', `%${q}%`).orWhereILike('u.name', `%${q}%`)); };
+  GRID,
+  async list({ q = '', page = 1, pageSize = 10, grid = null } = {}) {
+    const filter = (qb) => { if (q) qb.where((w) => w.whereILike('a.message', `%${q}%`).orWhereILike('u.name', `%${q}%`)); applyGridFilters(qb, grid); };
     const countRow = await db(`${TABLE} as a`).leftJoin('user_types as u', 'u.id', 'a.user_type_id').where(filter).count('a.id as c').first();
-    const rows = await joined().where(filter).orderBy('a.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
+    const rows = await joined().where(filter).modify((qb) => applyGridSortFirst(qb, grid)).orderBy('a.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
     return { rows, total: Number(countRow.c) };
   },
   activeForUserType(userTypeId = null) {
