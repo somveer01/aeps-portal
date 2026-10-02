@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ActivityIndicator, ScrollView, Pressable, Image, Modal } from 'react-native';
 import { Card, Button, Alert, Select, StatusBadge } from '../components/UI';
 import { api, assetUrl } from '../api/client';
+import DataGrid, { useGrid } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 import { Pager, reportStyles } from './AccountHistoryScreen';
 import { KYC_DOCS } from './retailer/KycScreen';
@@ -19,11 +20,12 @@ export default function KycRequestScreen() {
   const [loading, setLoading] = useState(true); const [error, setError] = useState(null); const [notice, setNotice] = useState(null);
   const [open, setOpen] = useState(null);
 
+  const grid = useGrid(); // DataGrid column sort + filters; load() changes with it, so the effect below reloads
   const load = useCallback(async (p = 1) => {
     setLoading(true); setError(null);
-    try { const r = await api.kyc.requests({ status, q, page: p, pageSize: PAGE_SIZE }); setRows(r.rows); setTotal(r.total); setPage(p); }
+    try { const r = await api.kyc.requests({ status, q, ...grid.params, page: p, pageSize: PAGE_SIZE }); setRows(r.rows); setTotal(r.total); setPage(p); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [status, q]);
+  }, [status, q, grid.sort, grid.filters]); // eslint-disable-line
   useEffect(() => { const t = setTimeout(() => load(1), 300); return () => clearTimeout(t); }, [load]);
 
   if (open) {
@@ -48,35 +50,26 @@ export default function KycRequestScreen() {
       </Card>
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: COLS.reduce((a, b) => a + b, 0), flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              {['#', 'User', 'Type', 'Mobile', 'PAN', 'Aadhaar', 'Submitted', 'Status', 'Reviewed', 'Action'].map((h, i) => (
-                <Text key={h} numberOfLines={1} style={[styles.cell, styles.thText, { width: COLS[i] }]}>{h}</Text>
-              ))}
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>{status === 'pending' ? 'No KYC waiting for review.' : 'No submissions found.'}</Text></View>
-                : rows.map((r, i) => (
-                  <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.td, { width: COLS[0] }]}>{from + i}</Text>
-                    <View style={[styles.cell, { width: COLS[1] }]}><Text style={styles.td} numberOfLines={1}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code}{r.outlet_name ? ` · ${r.outlet_name}` : ''}</Text></View>
-                    <Text style={[styles.cell, styles.td, { width: COLS[2] }]}>{r.user_type_name}</Text>
-                    <Text style={[styles.cell, styles.td, { width: COLS[3] }]}>{r.user_mobile}</Text>
-                    <Text style={[styles.cell, styles.td, { width: COLS[4] }]}>{r.pan_number}</Text>
-                    <Text style={[styles.cell, styles.td, { width: COLS[5] }]}>XXXX {r.aadhaar_last4}</Text>
-                    <Text style={[styles.cell, styles.td, { width: COLS[6] }]}>{dt(r.created_at)}</Text>
-                    <View style={[styles.cell, { width: COLS[7] }]}><StatusBadge label={r.status} tone={tone(r.status)} /></View>
-                    <View style={[styles.cell, { width: COLS[8] }]}><Text style={styles.td}>{r.reviewed_at ? dt(r.reviewed_at) : '—'}</Text>{r.reviewed_by_code ? <Text style={styles.sub}>by {r.reviewed_by_code}</Text> : null}</View>
-                    <View style={[styles.cell, { width: COLS[9] }]}>
-                      <Pressable onPress={() => setOpen(r)} style={[styles.actBtn, r.status !== 'pending' && styles.actBtnGhost]}>
-                        <Text style={[styles.actBtnText, r.status !== 'pending' && { color: colors.primary }]}>{r.status === 'pending' ? 'Review' : 'View'}</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading} emptyText={status === 'pending' ? 'No KYC waiting for review.' : 'No submissions found.'}
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'user', title: 'User', width: COLS[1], render: (r) => <View><Text style={styles.td} numberOfLines={1}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code}{r.outlet_name ? ` · ${r.outlet_name}` : ''}</Text></View> },
+            { key: 'user_type', title: 'Type', width: COLS[2], render: (r) => <Text style={styles.td}>{r.user_type_name}</Text> },
+            { key: 'mobile', title: 'Mobile', width: COLS[3], render: (r) => <Text style={styles.td}>{r.user_mobile}</Text> },
+            { key: 'pan_number', title: 'PAN', width: COLS[4] },
+            { key: 'aadhaar', title: 'Aadhaar', width: COLS[5], render: (r) => <Text style={styles.td}>XXXX {r.aadhaar_last4}</Text> },
+            { key: 'created_at', title: 'Submitted', width: COLS[6], render: (r) => <Text style={styles.td}>{dt(r.created_at)}</Text> },
+            { key: 'status', title: 'Status', width: COLS[7], render: (r) => <StatusBadge label={r.status} tone={tone(r.status)} /> },
+            { key: 'reviewed', title: 'Reviewed', width: COLS[8], render: (r) => <View><Text style={styles.td}>{r.reviewed_at ? dt(r.reviewed_at) : '—'}</Text>{r.reviewed_by_code ? <Text style={styles.sub}>by {r.reviewed_by_code}</Text> : null}</View> },
+            { key: 'action', title: 'Action', width: COLS[9], sortable: false, filterable: false, render: (r) => (
+              <Pressable onPress={() => setOpen(r)} style={[styles.actBtn, r.status !== 'pending' && styles.actBtnGhost]}>
+                <Text style={[styles.actBtnText, r.status !== 'pending' && { color: colors.primary }]}>{r.status === 'pending' ? 'Review' : 'View'}</Text>
+              </Pressable>
+            ) },
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
     </View>

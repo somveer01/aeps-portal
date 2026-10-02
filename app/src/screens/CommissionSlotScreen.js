@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 
 const PAGE_SIZE = 10;
@@ -57,11 +58,13 @@ export default function CommissionSlotScreen() {
     return () => { live = false; };
   }, [form.serviceId]);
 
+  const grid = useGrid(); // DataGrid column sort + filters (All Slots tab)
   const load = useCallback(async (opts = {}) => {
     setLoading(true); setError(null);
-    try { const res = await api.commissionSlots.list({ q: opts.q ?? q, page: opts.page ?? page, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
+    try { const res = await api.commissionSlots.list({ ...grid.params, q: opts.q ?? q, page: opts.page ?? page, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, q]);
+  }, [page, q, grid.sort, grid.filters]);
+  useGridReload(grid, () => load({ page: 1 }));
 
   useEffect(() => {
     load({ page: 1 });
@@ -207,44 +210,27 @@ export default function CommissionSlotScreen() {
             <TextInput value={q} onChangeText={setQ} placeholder="Service, user type or plan…" placeholderTextColor={colors.muted} style={styles.search} /></View>
         </View>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 1000, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text style={[styles.cell, styles.colNo, styles.thText]}>#</Text>
-              <Text style={[styles.cell, styles.colUt, styles.thText]}>User Type</Text>
-              <Text style={[styles.cell, styles.colSvc, styles.thText]}>Service</Text>
-              <Text style={[styles.cell, styles.colCt, styles.thText]}>Commission Type</Text>
-              <Text style={[styles.cell, styles.colRange, styles.thText]}>Amount Range</Text>
-              <Text style={[styles.cell, styles.colVal, styles.thText]}>Amount / Percentage</Text>
-              <Text style={[styles.cell, styles.colPlan, styles.thText]}>Plan</Text>
-              <Text style={[styles.cell, styles.colChain, styles.thText]}>Chain Type</Text>
-              <Text style={[styles.cell, styles.colStatus, styles.thText]}>Status</Text>
-              <Text style={[styles.cell, styles.colAction, styles.thText]}>Action</Text>
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No commission slots found.</Text></View>
-                : rows.map((row, i) => (
-                  <View key={row.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.colNo, styles.td]}>{from + i}</Text>
-                    <Text style={[styles.cell, styles.colUt, styles.td]}>{row.user_type_name}</Text>
-                    <View style={[styles.cell, styles.colSvc]}>
-                      <Text style={styles.td}>{row.service_name}</Text>
-                      {row.operator ? <Text style={styles.subLabel}>{row.operator}</Text> : null}
-                    </View>
-                    <Text style={[styles.cell, styles.colCt, styles.td]}>{commissionLabel(row.commission_type)}</Text>
-                    <Text style={[styles.cell, styles.colRange, styles.td]}>{money(row.min_amount)} - {Number(row.max_amount).toFixed(2)}</Text>
-                    <Text style={[styles.cell, styles.colVal, styles.td]}>{valueLabel(row)}</Text>
-                    <Text style={[styles.cell, styles.colPlan, styles.td]}>{row.plan_name}</Text>
-                    <Text style={[styles.cell, styles.colChain, styles.td]}>{chainLabel(row.chain_type)}</Text>
-                    <View style={[styles.cell, styles.colStatus]}><Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
-                    <View style={[styles.cell, styles.colAction, styles.actions]}>
-                      <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text></Pressable>
-                      <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text></Pressable>
-                    </View>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading} emptyText="No commission slots found."
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (row, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'user_type', title: 'User Type', width: 140, render: (row) => <Text style={styles.td}>{row.user_type_name}</Text> },
+            { key: 'service', title: 'Service', width: 170, render: (row) => <View><Text style={styles.td}>{row.service_name}</Text>{row.operator ? <Text style={styles.subLabel}>{row.operator}</Text> : null}</View> },
+            { key: 'commission_type', title: 'Commission Type', width: 145, render: (row) => <Text style={styles.td}>{commissionLabel(row.commission_type)}</Text> },
+            { key: 'range', title: 'Amount Range', width: 170, render: (row) => <Text style={styles.td}>{money(row.min_amount)} - {Number(row.max_amount).toFixed(2)}</Text> },
+            { key: 'value', title: 'Amount / Percentage', width: 155, render: (row) => <Text style={styles.td}>{valueLabel(row)}</Text> },
+            { key: 'plan', title: 'Plan', width: 150, render: (row) => <Text style={styles.td}>{row.plan_name}</Text> },
+            { key: 'chain_type', title: 'Chain Type', width: 110, render: (row) => <Text style={styles.td}>{chainLabel(row.chain_type)}</Text> },
+            { key: 'status', title: 'Status', width: 100, render: (row) => <Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /> },
+            { key: 'action', title: 'Action', width: 100, sortable: false, filterable: false, render: (row) => (
+              <View style={styles.actions}>
+                <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text></Pressable>
+                <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text></Pressable>
+              </View>
+            ) },
+          ]}
+        />
         <View style={styles.pagination}>
           <Text style={styles.entries}>Showing {from} to {to} of {total} entries</Text>
           <View style={styles.pager}>

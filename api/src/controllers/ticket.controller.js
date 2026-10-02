@@ -1,5 +1,6 @@
 'use strict';
 
+const { parseGrid } = require('../utils/gridQuery');
 const repo = require('../repositories/ticket.repo');
 const deptRepo = require('../repositories/ticketDept.repo');
 const audit = require('../repositories/audit.repo');
@@ -26,6 +27,7 @@ async function adminList(req, res, next) {
       userId: req.query.userId ? parseInt(req.query.userId, 10) : null,
       startDate: clean(req.query.startDate) || null,
       endDate: clean(req.query.endDate) || null,
+      grid: parseGrid(req.query, repo.GRID),
       page: Math.max(1, parseInt(req.query.page, 10) || 1),
       pageSize: Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10)),
     });
@@ -74,6 +76,7 @@ async function retailerList(req, res, next) {
     const { rows, total } = await repo.listForUser({
       userId: req.user.id,
       status: STATUSES.includes(req.query.status) ? req.query.status : null,
+      grid: parseGrid(req.query, repo.GRID),
       page: Math.max(1, parseInt(req.query.page, 10) || 1),
       pageSize: Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10)),
     });

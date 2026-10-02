@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ActivityIndicator, ScrollView, Pressable, Modal } from 'react-native';
 import { Card, Button, Alert } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { useGrid } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 import { Pager, reportStyles } from './AccountHistoryScreen';
 
@@ -24,11 +25,12 @@ export default function PendingTransactionsScreen() {
   const [error, setError] = useState(null); const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(null); const [settle, setSettle] = useState(null);
 
+  const grid = useGrid(); // DataGrid column sort + filters
   const load = useCallback(async (p = 1) => {
     setLoading(true); setError(null);
-    try { const r = await api.pending.list({ q, page: p, pageSize: PAGE_SIZE }); setRows(r.rows); setTotal(r.total); setPage(p); }
+    try { const r = await api.pending.list({ q, ...grid.params, page: p, pageSize: PAGE_SIZE }); setRows(r.rows); setTotal(r.total); setPage(p); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [q]);
+  }, [q, grid.sort, grid.filters]); // eslint-disable-line -- load() changes with the grid, so the effect below reloads
   useEffect(() => { const t = setTimeout(() => load(1), 300); return () => clearTimeout(t); }, [load]);
 
   const checkAll = async () => {
@@ -61,37 +63,28 @@ export default function PendingTransactionsScreen() {
           <Text style={styles.label}>Search</Text>
           <TextInput value={q} onChangeText={setQ} placeholder="User ID, name, our ref or provider ref" placeholderTextColor={colors.muted} style={styles.input} />
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: COLS.reduce((a, b) => a + b, 0), flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              {['#', 'User', 'Service', 'Target', 'Amount', 'Our ref / provider ref', 'Waiting', 'Checks', 'Action'].map((h, i) => (
-                <Text key={h} numberOfLines={1} style={[styles.cell, styles.thText, { width: COLS[i] }]}>{h}</Text>
-              ))}
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>Nothing pending. Every transaction has a final status.</Text></View>
-                : rows.map((r, i) => {
-                  const stuck = Number(r.age_seconds) >= STUCK_SEC;
-                  return (
-                    <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null, stuck && styles.stuck]}>
-                      <Text style={[styles.cell, styles.td, { width: COLS[0] }]}>{from + i}</Text>
-                      <View style={[styles.cell, { width: COLS[1] }]}><Text style={styles.td} numberOfLines={1}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code}</Text></View>
-                      <View style={[styles.cell, { width: COLS[2] }]}><Text style={styles.td}>{r.service}</Text>{r.operator ? <Text style={styles.sub} numberOfLines={1}>{r.operator}</Text> : null}</View>
-                      <Text style={[styles.cell, styles.td, { width: COLS[3] }]} numberOfLines={1}>{r.target || '—'}</Text>
-                      <View style={[styles.cell, { width: COLS[4] }]}><Text style={styles.td}>{money(r.amount)}</Text>{Number(r.debit_amount) !== Number(r.amount) ? <Text style={styles.sub}>held {money(r.debit_amount)}</Text> : null}</View>
-                      <View style={[styles.cell, { width: COLS[5] }]}><Text style={styles.td} numberOfLines={1}>{r.client_ref}</Text><Text style={styles.sub} numberOfLines={1}>{r.reference_id || '—'}</Text></View>
-                      <View style={[styles.cell, { width: COLS[6] }]}><Text style={[styles.td, stuck && { color: colors.danger, fontWeight: '700' }]}>{age(r.age_seconds)}</Text>{stuck ? <Text style={[styles.sub, { color: colors.danger }]}>Raise with provider</Text> : null}</View>
-                      <Text style={[styles.cell, styles.td, { width: COLS[7] }]}>{r.check_count}</Text>
-                      <View style={[styles.cell, styles.actions, { width: COLS[8] }]}>
-                        <Pressable onPress={() => checkOne(r)} disabled={!!busy} style={styles.btn}><Text style={styles.btnText}>{busy === r.id ? '…' : 'Check now'}</Text></Pressable>
-                        <Pressable onPress={() => setSettle({ row: r, status: 'success' })} disabled={!!busy} style={[styles.btn, styles.btnOk]}><Text style={[styles.btnText, { color: '#fff' }]}>Success</Text></Pressable>
-                        <Pressable onPress={() => setSettle({ row: r, status: 'failed' })} disabled={!!busy} style={[styles.btn, styles.btnBad]}><Text style={[styles.btnText, { color: '#fff' }]}>Failed</Text></Pressable>
-                      </View>
-                    </View>
-                  );
-                })}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading} emptyText="Nothing pending. Every transaction has a final status."
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          rowStyle={(r) => (Number(r.age_seconds) >= STUCK_SEC ? styles.stuck : null)}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'user', title: 'User', width: COLS[1], render: (r) => <View><Text style={styles.td} numberOfLines={1}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code}</Text></View> },
+            { key: 'service', title: 'Service', width: COLS[2], render: (r) => <View><Text style={styles.td}>{r.service}</Text>{r.operator ? <Text style={styles.sub} numberOfLines={1}>{r.operator}</Text> : null}</View> },
+            { key: 'target', title: 'Target', width: COLS[3], render: (r) => <Text style={styles.td} numberOfLines={1}>{r.target || '—'}</Text> },
+            { key: 'amount', title: 'Amount', width: COLS[4], render: (r) => <View><Text style={styles.td}>{money(r.amount)}</Text>{Number(r.debit_amount) !== Number(r.amount) ? <Text style={styles.sub}>held {money(r.debit_amount)}</Text> : null}</View> },
+            { key: 'refs', title: 'Our ref / provider ref', width: COLS[5], render: (r) => <View><Text style={styles.td} numberOfLines={1}>{r.client_ref}</Text><Text style={styles.sub} numberOfLines={1}>{r.reference_id || '—'}</Text></View> },
+            { key: 'waiting', title: 'Waiting', width: COLS[6], render: (r) => { const stuck = Number(r.age_seconds) >= STUCK_SEC; return <View><Text style={[styles.td, stuck && { color: colors.danger, fontWeight: '700' }]}>{age(r.age_seconds)}</Text>{stuck ? <Text style={[styles.sub, { color: colors.danger }]}>Raise with provider</Text> : null}</View>; } },
+            { key: 'checks', title: 'Checks', width: COLS[7], render: (r) => <Text style={styles.td}>{r.check_count}</Text> },
+            { key: 'action', title: 'Action', width: COLS[8], sortable: false, filterable: false, render: (r) => (
+              <View style={styles.actions}>
+                <Pressable onPress={() => checkOne(r)} disabled={!!busy} style={styles.btn}><Text style={styles.btnText}>{busy === r.id ? '…' : 'Check now'}</Text></Pressable>
+                <Pressable onPress={() => setSettle({ row: r, status: 'success' })} disabled={!!busy} style={[styles.btn, styles.btnOk]}><Text style={[styles.btnText, { color: '#fff' }]}>Success</Text></Pressable>
+                <Pressable onPress={() => setSettle({ row: r, status: 'failed' })} disabled={!!busy} style={[styles.btn, styles.btnBad]}><Text style={[styles.btnText, { color: '#fff' }]}>Failed</Text></Pressable>
+              </View>
+            ) },
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
       <SettleModal settle={settle} onClose={() => setSettle(null)} onDone={(msg) => { setSettle(null); setNotice(msg); load(page); }} />

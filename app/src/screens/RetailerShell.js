@@ -110,11 +110,11 @@ export default function RetailerShell({ user, onLogout }) {
     if (r === '/network/fund-transfers') return <FundTransferListScreen network />;
     if (r === '/network/report') return <ServiceReportScreen network />;
     if (r === '/network/fund-requests') return <FundRequestScreen mode="network" onDone={loadSummary} />;
-    if (r === '/account-history') return <RetailerReportScreen kind="accountHistory" />;
-    if (r === '/service-report') return <RetailerReportScreen kind="serviceReport" />;
-    if (r === '/gst-report') return <RetailerReportScreen kind="gst" />;
-    if (r === '/tds-report') return <RetailerReportScreen kind="tds" />;
-    if (r === '/commission-report') return <RetailerReportScreen kind="commission" />;
+    if (r === '/account-history') return <RetailerReportScreen key="accountHistory" kind="accountHistory" />;
+    if (r === '/service-report') return <RetailerReportScreen key="serviceReport" kind="serviceReport" />;
+    if (r === '/gst-report') return <RetailerReportScreen key="gst" kind="gst" />;
+    if (r === '/tds-report') return <RetailerReportScreen key="tds" kind="tds" />;
+    if (r === '/commission-report') return <RetailerReportScreen key="commission" kind="commission" />;
     if (r === '/my-commission-slab') return <MyCommissionSlabScreen />;
     if (r === '/support-ticket') return <SupportTicketScreen />;
     if (r === '/profile') return <SimplePage title="Profile" note={`${summary?.shopName || ''}\nUser ID: ${summary?.userCode || user.username}\nName: ${summary?.name || user.fullName}`} />;

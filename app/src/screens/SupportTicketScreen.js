@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ActivityIndicator, ScrollView, Pressable, Modal } from 'react-native';
 import { Card, Button, Select, Alert, DateField, StatusBadge } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius, shadows } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
 
@@ -22,11 +23,13 @@ export default function SupportTicketScreen() {
   const [active, setActive] = useState(null); // ticket being viewed in modal
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
 
+  const grid = useGrid(); // DataGrid column sort + filters
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
-    try { const res = await api.tickets.list({ ...applied, page: p, pageSize: PAGE }); setRows(res.rows); setTotal(res.total); setPage(p); }
+    try { const res = await api.tickets.list({ ...applied, ...grid.params, page: p, pageSize: PAGE }); setRows(res.rows); setTotal(res.total); setPage(p); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, applied]);
+  }, [page, applied, grid.sort, grid.filters]);
+  useGridReload(grid, () => load(1));
 
   useEffect(() => { load(1); api.ticketDepartments.list({ pageSize: 100 }).then((r) => setDepts([{ label: 'All', value: '' }, ...r.rows.map((d) => ({ label: d.name, value: d.id }))])).catch(() => {}); /* eslint-disable-next-line */ }, []);
   useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied]);
@@ -53,29 +56,20 @@ export default function SupportTicketScreen() {
 
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: 1015, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[reportStyles.tr, reportStyles.th]}>
-              {['#', 'Ticket No', 'Retailer', 'Subject', 'Department', 'Priority', 'Status', 'Date'].map((h, i) => (
-                <Text key={i} numberOfLines={1} style={[reportStyles.cell, reportStyles.thText, { width: [40, 120, 150, 200, 130, 80, 115, 130][i] }]}>{h}</Text>
-              ))}
-            </View>
-            {loading ? <View style={reportStyles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={reportStyles.empty}><Text style={{ color: colors.muted }}>No tickets found.</Text></View>
-                : rows.map((r, i) => (
-                  <Pressable key={r.id} onPress={() => openTicket(r.id)} style={[reportStyles.tr, i % 2 ? reportStyles.trAlt : null]}>
-                    <Text style={[reportStyles.cell, reportStyles.td, { width: 40 }]}>{from + i}</Text>
-                    <Text style={[reportStyles.cell, reportStyles.td, { width: 120, fontWeight: '700' }]}>{r.ticket_no}</Text>
-                    <View style={[reportStyles.cell, { width: 150 }]}><Text style={reportStyles.td}>{r.user_name}</Text><Text style={reportStyles.sub}>{r.user_code}</Text></View>
-                    <Text style={[reportStyles.cell, reportStyles.td, { width: 200 }]} numberOfLines={1}>{r.subject}</Text>
-                    <Text style={[reportStyles.cell, reportStyles.td, { width: 130 }]}>{r.department_name}</Text>
-                    <Text style={[reportStyles.cell, reportStyles.td, { width: 80, textTransform: 'capitalize' }]}>{r.priority}</Text>
-                    <View style={[reportStyles.cell, { width: 115 }]}><StatusBadge label={cap(r.status)} tone={statusTone(r.status)} /></View>
-                    <Text style={[reportStyles.cell, reportStyles.td, { width: 130 }]}>{dt(r.created_at)}</Text>
-                  </Pressable>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading} emptyText="No tickets found." onRowPress={(r) => openTicket(r.id)}
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={reportStyles.td}>{from + i}</Text> },
+            { key: 'ticket_no', title: 'Ticket No', width: 130, render: (r) => <Text style={[reportStyles.td, { fontWeight: '700' }]}>{r.ticket_no}</Text> },
+            { key: 'user', title: 'Retailer', width: 160, render: (r) => <View><Text style={reportStyles.td}>{r.user_name}</Text><Text style={reportStyles.sub}>{r.user_code}</Text></View> },
+            { key: 'subject', title: 'Subject', flex: 1, minWidth: 200, render: (r) => <Text style={reportStyles.td} numberOfLines={1}>{r.subject}</Text> },
+            { key: 'department', title: 'Department', width: 140, render: (r) => <Text style={reportStyles.td}>{r.department_name}</Text> },
+            { key: 'priority', title: 'Priority', width: 100, render: (r) => <Text style={[reportStyles.td, { textTransform: 'capitalize' }]}>{r.priority}</Text> },
+            { key: 'status', title: 'Status', width: 120, render: (r) => <StatusBadge label={cap(r.status)} tone={statusTone(r.status)} /> },
+            { key: 'created_at', title: 'Date', width: 135, render: (r) => <Text style={reportStyles.td}>{dt(r.created_at)}</Text> },
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
 

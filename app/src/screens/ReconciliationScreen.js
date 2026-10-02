@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ActivityIndicator, ScrollView, Pressable, Modal } from 'react-native';
 import { Card, Button, Alert, DateField, StatusBadge, Select } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { useGrid } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 import { Pager, reportStyles } from './AccountHistoryScreen';
 
@@ -28,11 +29,12 @@ export default function ReconciliationScreen() {
   const [date, setDate] = useState(yesterday()); const [running, setRunning] = useState(false);
   const [open, setOpen] = useState(null);
 
+  const grid = useGrid(); // DataGrid; load() changes with it, so the [load] effect reloads
   const load = useCallback(async (p = 1) => {
     setLoading(true); setError(null);
-    try { const r = await api.reconciliation.runs({ page: p, pageSize: PAGE_SIZE }); setRuns(r.rows); setTotal(r.total); setPage(p); }
+    try { const r = await api.reconciliation.runs({ ...grid.params, page: p, pageSize: PAGE_SIZE }); setRuns(r.rows); setTotal(r.total); setPage(p); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, []);
+  }, [grid.sort, grid.filters]); // eslint-disable-line
   useEffect(() => { load(1); }, [load]);
 
   const runNow = async () => {
@@ -61,34 +63,21 @@ export default function ReconciliationScreen() {
         </View>
       </Card>
       <Card>
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: RUN_COLS.reduce((a, b) => a + b, 0), flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              {['Date', 'Checked', 'Matched', 'To review', 'Open items', 'Settled', 'Ran', 'Action'].map((h, i) => (
-                <Text key={h} numberOfLines={1} style={[styles.cell, styles.thText, { width: RUN_COLS[i] }]}>{h}</Text>
-              ))}
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : runs.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No runs yet. Pick a date and run one.</Text></View>
-                : runs.map((r, i) => (
-                  <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.td, { width: RUN_COLS[0], fontWeight: '700' }]}>{r.run_date}</Text>
-                    <Text style={[styles.cell, styles.td, { width: RUN_COLS[1] }]}>{r.total}</Text>
-                    <Text style={[styles.cell, styles.td, { width: RUN_COLS[2] }]}>{r.matched}</Text>
-                    <Text style={[styles.cell, styles.td, { width: RUN_COLS[3] }]}>{r.mismatched}</Text>
-                    <View style={[styles.cell, { width: RUN_COLS[4] }]}>
-                      {r.status === 'failed' ? <StatusBadge label="Run failed" tone="danger" />
-                        : <StatusBadge label={r.open_items ? `${r.open_items} open` : 'All clear'} tone={r.open_items ? 'warning' : 'success'} />}
-                    </View>
-                    <Text style={[styles.cell, styles.td, { width: RUN_COLS[5] }]}>{r.auto_fixed}</Text>
-                    <View style={[styles.cell, { width: RUN_COLS[6] }]}><Text style={styles.td}>{dt(r.started_at)}</Text><Text style={styles.sub}>{r.run_by_name || 'Scheduler'}</Text></View>
-                    <View style={[styles.cell, { width: RUN_COLS[7] }]}>
-                      <Pressable onPress={() => setOpen(r)} style={styles.btn}><Text style={styles.btnText}>View</Text></Pressable>
-                    </View>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={runs} loading={loading} emptyText="No runs yet. Pick a date and run one."
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'date', title: 'Date', width: RUN_COLS[0], render: (r) => <Text style={[styles.td, { fontWeight: '700' }]}>{r.run_date}</Text> },
+            { key: 'total', title: 'Checked', width: RUN_COLS[1] },
+            { key: 'matched', title: 'Matched', width: RUN_COLS[2] },
+            { key: 'mismatched', title: 'To review', width: RUN_COLS[3] },
+            { key: 'open_items', title: 'Open items', width: RUN_COLS[4], render: (r) => (r.status === 'failed' ? <StatusBadge label="Run failed" tone="danger" />
+              : <StatusBadge label={r.open_items ? `${r.open_items} open` : 'All clear'} tone={r.open_items ? 'warning' : 'success'} />) },
+            { key: 'auto_fixed', title: 'Settled', width: RUN_COLS[5] },
+            { key: 'ran', title: 'Ran', width: RUN_COLS[6], render: (r) => <View><Text style={styles.td}>{dt(r.started_at)}</Text><Text style={styles.sub}>{r.run_by_name || 'Scheduler'}</Text></View> },
+            { key: 'action', title: 'Action', width: RUN_COLS[7], sortable: false, filterable: false, render: (r) => <Pressable onPress={() => setOpen(r)} style={styles.btn}><Text style={styles.btnText}>View</Text></Pressable> },
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
     </View>
@@ -99,10 +88,11 @@ function RunItems({ run, onBack }) {
   const [state, setState] = useState('open');
   const [rows, setRows] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(null);
   const [resolve, setResolve] = useState(null);
+  const grid = useGrid(); // DataGrid; load() changes with it, so the [load] effect reloads
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    try { setRows((await api.reconciliation.items(run.id, { state })).rows); } catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [run.id, state]);
+    try { setRows((await api.reconciliation.items(run.id, { state, ...grid.params })).rows); } catch (e) { setError(e.message); } finally { setLoading(false); }
+  }, [run.id, state, grid.sort, grid.filters]); // eslint-disable-line
   useEffect(() => { load(); }, [load]);
 
   return (
@@ -115,32 +105,21 @@ function RunItems({ run, onBack }) {
       <Card>
         <View style={{ maxWidth: 260, marginBottom: 12 }}><Select label="Show" value={state} options={STATE_OPTIONS} onChange={setState} searchable={false} /></View>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: ITEM_COLS.reduce((a, b) => a + b, 0), flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              {['Difference', 'Our ref', 'User', 'Ours', 'Provider', 'State', 'Note / action'].map((h, i) => (
-                <Text key={h} numberOfLines={1} style={[styles.cell, styles.thText, { width: ITEM_COLS[i] }]}>{h}</Text>
-              ))}
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>{state === 'open' ? 'Nothing left to review for this day.' : 'No items.'}</Text></View>
-                : rows.map((r, i) => (
-                  <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.td, { width: ITEM_COLS[0], fontWeight: '700' }]}>{TYPE_TEXT[r.type] || r.type}</Text>
-                    <View style={[styles.cell, { width: ITEM_COLS[1] }]}><Text style={styles.td} numberOfLines={1}>{r.client_ref || '—'}</Text>{r.service ? <Text style={styles.sub}>{r.service}</Text> : null}</View>
-                    <View style={[styles.cell, { width: ITEM_COLS[2] }]}><Text style={styles.td} numberOfLines={1}>{r.user_name || '—'}</Text>{r.user_code ? <Text style={styles.sub}>{r.user_code}</Text> : null}</View>
-                    <Text style={[styles.cell, styles.td, { width: ITEM_COLS[3] }]}>{r.our_status ? `${r.our_status} · ${money(r.our_amount)}` : 'not recorded'}</Text>
-                    <Text style={[styles.cell, styles.td, { width: ITEM_COLS[4] }]}>{r.provider_status ? `${r.provider_status} · ${money(r.provider_amount)}` : 'not in report'}</Text>
-                    <View style={[styles.cell, { width: ITEM_COLS[5] }]}><StatusBadge label={r.state} tone={r.state === 'open' ? 'warning' : 'success'} /></View>
-                    <View style={[styles.cell, { width: ITEM_COLS[6] }]}>
-                      {r.state === 'open'
-                        ? <Pressable onPress={() => setResolve(r)} style={styles.btn}><Text style={styles.btnText}>Resolve</Text></Pressable>
-                        : <Text style={styles.td} numberOfLines={3}>{r.note || '—'}{r.resolved_by_name ? ` (${r.resolved_by_name})` : ''}</Text>}
-                    </View>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading} emptyText={state === 'open' ? 'Nothing left to review for this day.' : 'No items.'}
+          sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+          columns={[
+            { key: 'type', title: 'Difference', width: ITEM_COLS[0], render: (r) => <Text style={[styles.td, { fontWeight: '700' }]}>{TYPE_TEXT[r.type] || r.type}</Text> },
+            { key: 'client_ref', title: 'Our ref', width: ITEM_COLS[1], render: (r) => <View><Text style={styles.td} numberOfLines={1}>{r.client_ref || '—'}</Text>{r.service ? <Text style={styles.sub}>{r.service}</Text> : null}</View> },
+            { key: 'user', title: 'User', width: ITEM_COLS[2], render: (r) => <View><Text style={styles.td} numberOfLines={1}>{r.user_name || '—'}</Text>{r.user_code ? <Text style={styles.sub}>{r.user_code}</Text> : null}</View> },
+            { key: 'ours', title: 'Ours', width: ITEM_COLS[3], render: (r) => <Text style={styles.td}>{r.our_status ? `${r.our_status} · ${money(r.our_amount)}` : 'not recorded'}</Text> },
+            { key: 'provider', title: 'Provider', width: ITEM_COLS[4], render: (r) => <Text style={styles.td}>{r.provider_status ? `${r.provider_status} · ${money(r.provider_amount)}` : 'not in report'}</Text> },
+            { key: 'state', title: 'State', width: ITEM_COLS[5], render: (r) => <StatusBadge label={r.state} tone={r.state === 'open' ? 'warning' : 'success'} /> },
+            { key: 'note', title: 'Note / action', width: ITEM_COLS[6], render: (r) => (r.state === 'open'
+              ? <Pressable onPress={() => setResolve(r)} style={styles.btn}><Text style={styles.btnText}>Resolve</Text></Pressable>
+              : <Text style={styles.td} numberOfLines={3}>{r.note || '—'}{r.resolved_by_name ? ` (${r.resolved_by_name})` : ''}</Text>) },
+          ]}
+        />
       </Card>
       <ResolveModal item={resolve} onClose={() => setResolve(null)} onDone={() => { setResolve(null); load(); }} />
     </View>

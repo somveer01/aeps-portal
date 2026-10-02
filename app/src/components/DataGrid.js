@@ -11,10 +11,11 @@ import { colors, radius } from '../theme';
  * columns: [{ key, title, width | flex(+minWidth), sortable = true, filterable = true,
  *             render?: (row, index) => node, align?: 'right' }]
  * Use sortable/filterable: false for '#' and action columns, or columns the API cannot sort.
+ * rowStyle?: (row, index) => style — e.g. highlight a stuck transaction. onRowPress?: (row) => void opens a row.
  */
 export default function DataGrid({
   columns, rows, loading, emptyText = 'No records found.', sort, onSort, filters = {}, onFilter,
-  maxHeight = 560, rowKey = (r) => r.id,
+  maxHeight = 560, rowKey = (r) => r.id, rowStyle, onRowPress,
 }) {
   const minWidth = columns.reduce((a, c) => a + (c.width || c.minWidth || 120), 0);
   const anyFilter = Object.values(filters).some(Boolean);
@@ -60,19 +61,22 @@ export default function DataGrid({
           {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
             : !rows.length ? <View style={styles.empty}><Text style={{ color: colors.muted }}>{anyFilter ? 'No records match the column filters.' : emptyText}</Text></View>
               : rows.map((r, i) => (
-                <View key={rowKey(r, i)} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
+                <Row key={rowKey(r, i)} onPress={onRowPress ? () => onRowPress(r) : null} style={[styles.tr, i % 2 ? styles.trAlt : null, rowStyle ? rowStyle(r, i) : null]}>
                   {columns.map((c) => (
                     <View key={c.key} style={[styles.cell, colStyle(c), c.align === 'right' && styles.right]}>
                       {c.render ? c.render(r, i) : <Text style={styles.td} numberOfLines={3}>{r[c.key] == null || r[c.key] === '' ? '—' : String(r[c.key])}</Text>}
                     </View>
                   ))}
-                </View>
+                </Row>
               ))}
         </ScrollView>
       </View>
     </ScrollView>
   );
 }
+
+// A clickable row when onRowPress is given, a plain one otherwise.
+const Row = ({ onPress, style, children }) => (onPress ? <Pressable onPress={onPress} style={style}>{children}</Pressable> : <View style={style}>{children}</View>);
 
 // Typing is debounced so the API is asked once the user pauses.
 function FilterInput({ value, onChange }) {

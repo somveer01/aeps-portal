@@ -4,6 +4,7 @@ import { Card, Button, Alert, Select, StatusBadge } from '../components/UI';
 import { api } from '../api/client';
 import { colors, radius } from '../theme';
 import { Pager, reportStyles } from './AccountHistoryScreen';
+import DataGrid, { useGrid } from '../components/DataGrid';
 
 // Modules → Service Permissions.
 // A user may use a service when it is ON in Service Master AND (their own allow/block, else their
@@ -110,13 +111,14 @@ function ServiceUsers({ services, userTypes }) {
   const [picked, setPicked] = useState(new Set());
   const [msg, setMsg] = useState(null); const [err, setErr] = useState(null); const [busy, setBusy] = useState(false);
 
+  const grid = useGrid(); // DataGrid; load() changes with it, so the [load] effect reloads
   const load = useCallback(async (p = 1) => {
     if (!serviceId) return;
     try {
-      const r = await api.servicePermissions.users(serviceId, { q: q.trim(), userTypeId: typeId, status, page: p, pageSize: PAGE_SIZE });
+      const r = await api.servicePermissions.users(serviceId, { q: q.trim(), userTypeId: typeId, status, ...grid.params, page: p, pageSize: PAGE_SIZE });
       setRes(r); setPage(p); setPicked(new Set()); setErr(null);
     } catch (e) { setErr(e.message); }
-  }, [serviceId, q, typeId, status]);
+  }, [serviceId, q, typeId, status, grid.sort, grid.filters]); // eslint-disable-line
   useEffect(() => { const t = setTimeout(() => load(1), 300); return () => clearTimeout(t); }, [load]);
 
   const rows = res ? res.rows : [];
@@ -147,6 +149,7 @@ function ServiceUsers({ services, userTypes }) {
       </View>
       {svc && !svc.is_active ? <View style={{ marginTop: 12 }}><Alert>{`${svc.title} is OFF in Service Master, so nobody can use it whatever is set here.`}</Alert></View> : null}
       <View style={styles.bulkBar}>
+        <Pressable onPress={() => setPicked(allPicked ? new Set() : new Set(rows.map((r) => r.id)))} style={styles.pickAll}><Tick checked={allPicked} /><Text style={styles.sub}>{allPicked ? 'Clear page' : 'Select page'}</Text></Pressable>
         <Text style={styles.sub}>{picked.size ? `${picked.size} selected` : 'Tick users, then:'}</Text>
         <Button title="Allow" onPress={() => apply('allow')} disabled={!picked.size || busy} />
         <Button title="Block" variant="navy" onPress={() => apply('block')} disabled={!picked.size || busy} />
@@ -154,28 +157,18 @@ function ServiceUsers({ services, userTypes }) {
       </View>
       <Alert type="success">{msg}</Alert>
       <Alert>{err}</Alert>
-      <ScrollView horizontal>
-        <View style={{ minWidth: 820, flex: 1 }}>
-          <View style={[styles.tr, styles.th]}>
-            <Pressable onPress={() => setPicked(allPicked ? new Set() : new Set(rows.map((r) => r.id)))} style={[styles.cell, styles.cPick]}><Tick checked={allPicked} light /></Pressable>
-            {['User', 'User Type', 'Type Default', 'User Setting', 'Can Use'].map((h, i) => (
-              <View key={h} style={[styles.cell, [styles.cUser, styles.cUType, styles.cSt, styles.cSt, styles.cSt][i]]}><Text style={styles.thText}>{h}</Text></View>
-            ))}
-          </View>
-          {!res ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-            : !rows.length ? <View style={styles.empty}><Text style={styles.sub}>No users found.</Text></View>
-              : rows.map((r, i) => (
-                <Pressable key={r.id} onPress={() => toggle(r.id)} style={[styles.tr, i % 2 === 1 && styles.trAlt]}>
-                  <View style={[styles.cell, styles.cPick]}><Tick checked={picked.has(r.id)} onPress={() => toggle(r.id)} /></View>
-                  <View style={[styles.cell, styles.cUser]}><Text style={styles.td}>{r.user_code} · {r.name}</Text>{!r.is_active ? <Text style={styles.offText}>Account blocked</Text> : null}</View>
-                  <View style={[styles.cell, styles.cUType]}><Text style={styles.td}>{r.user_type_name}</Text></View>
-                  <View style={[styles.cell, styles.cSt]}><StatusBadge label={r.type_default ? 'Allowed' : 'Not allowed'} tone={r.type_default ? 'info' : 'muted'} /></View>
-                  <View style={[styles.cell, styles.cSt]}>{r.override === null ? <Text style={styles.sub}>— default —</Text> : <StatusBadge label={r.override ? 'Allow' : 'Block'} tone={r.override ? 'success' : 'danger'} />}</View>
-                  <View style={[styles.cell, styles.cSt]}><StatusBadge label={r.effective && svc && svc.is_active ? 'Yes' : 'No'} tone={r.effective && svc && svc.is_active ? 'success' : 'danger'} /></View>
-                </Pressable>
-              ))}
-        </View>
-      </ScrollView>
+      <DataGrid
+        rows={rows} loading={!res} emptyText="No users found." onRowPress={(r) => toggle(r.id)}
+        sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
+        columns={[
+          { key: 'pick', title: '✓', width: 56, sortable: false, filterable: false, render: (r) => <Tick checked={picked.has(r.id)} onPress={() => toggle(r.id)} /> },
+          { key: 'user', title: 'User', flex: 1, minWidth: 240, render: (r) => <View><Text style={styles.td}>{r.user_code} · {r.name}</Text>{!r.is_active ? <Text style={styles.offText}>Account blocked</Text> : null}</View> },
+          { key: 'user_type', title: 'User Type', width: 150, render: (r) => <Text style={styles.td}>{r.user_type_name}</Text> },
+          { key: 'type_default', title: 'Type Default', width: 130, render: (r) => <StatusBadge label={r.type_default ? 'Allowed' : 'Not allowed'} tone={r.type_default ? 'info' : 'muted'} /> },
+          { key: 'override', title: 'User Setting', width: 130, render: (r) => (r.override === null ? <Text style={styles.sub}>— default —</Text> : <StatusBadge label={r.override ? 'Allow' : 'Block'} tone={r.override ? 'success' : 'danger'} />) },
+          { key: 'effective', title: 'Can Use', width: 120, render: (r) => <StatusBadge label={r.effective && svc && svc.is_active ? 'Yes' : 'No'} tone={r.effective && svc && svc.is_active ? 'success' : 'danger'} /> },
+        ]}
+      />
       <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
     </Card>
   );
@@ -202,6 +195,7 @@ const styles = StyleSheet.create({
   offText: { color: colors.danger, fontSize: 11, marginTop: 2 },
   cSvc: { width: 260 }, cType: { width: 130, alignItems: 'center' },
   cPick: { width: 50, alignItems: 'center' }, cUser: { flex: 1, minWidth: 240 }, cUType: { width: 150 }, cSt: { width: 125 },
+  pickAll: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   bulkBar: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginVertical: 14 },
   box: { width: 22, height: 22, borderRadius: 5, borderWidth: 1.5, borderColor: colors.border, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   boxLight: { borderColor: 'rgba(255,255,255,0.8)', backgroundColor: 'transparent' },

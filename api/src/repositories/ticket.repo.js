@@ -1,6 +1,15 @@
 'use strict';
 
 const db = require('../config/db');
+const { applyGridFilters, applyGridSortFirst, DATE_COL } = require('../utils/gridQuery');
+
+// Sortable / filterable columns of the ticket grids (keys = the app's DataGrid column keys).
+const GRID = {
+  ticket_no: 't.ticket_no', user: { sort: 'u.full_name', filter: "concat_ws(' ', u.full_name, u.user_code)" }, subject: 't.subject',
+  department: 'd.name', priority: 't.priority', status: 't.status', created_at: DATE_COL('t.created_at'),
+};
+// Count with the same joins the grid filters use.
+const counted = () => db('tickets as t').join('users as u', 'u.id', 't.user_id').join('ticket_departments as d', 'd.id', 't.department_id');
 
 function joined() {
   return db('tickets as t')
@@ -13,8 +22,9 @@ function joined() {
 }
 
 module.exports = {
+  GRID,
   // Admin: all tickets, filterable.
-  async list({ status = null, departmentId = null, priority = null, userId = null, startDate = null, endDate = null, page = 1, pageSize = 10 } = {}) {
+  async list({ status = null, departmentId = null, priority = null, userId = null, startDate = null, endDate = null, grid = null, page = 1, pageSize = 10 } = {}) {
     const filter = (qb) => {
       if (status) qb.where('t.status', status);
       if (departmentId) qb.where('t.department_id', departmentId);
@@ -22,17 +32,18 @@ module.exports = {
       if (userId) qb.where('t.user_id', userId);
       if (startDate) qb.whereRaw('t.created_at::date >= ?', [startDate]);
       if (endDate) qb.whereRaw('t.created_at::date <= ?', [endDate]);
+      applyGridFilters(qb, grid);
     };
-    const countRow = await db('tickets as t').where(filter).count('t.id as c').first();
-    const rows = await joined().where(filter).orderBy('t.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
+    const countRow = await counted().where(filter).count('t.id as c').first();
+    const rows = await joined().where(filter).modify((qb) => applyGridSortFirst(qb, grid)).orderBy('t.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
     return { rows, total: Number(countRow.c) };
   },
 
   // Retailer: only their own tickets.
-  async listForUser({ userId, status = null, page = 1, pageSize = 10 }) {
-    const filter = (qb) => { qb.where('t.user_id', userId); if (status) qb.where('t.status', status); };
-    const countRow = await db('tickets as t').where(filter).count('t.id as c').first();
-    const rows = await joined().where(filter).orderBy('t.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
+  async listForUser({ userId, status = null, grid = null, page = 1, pageSize = 10 }) {
+    const filter = (qb) => { qb.where('t.user_id', userId); if (status) qb.where('t.status', status); applyGridFilters(qb, grid); };
+    const countRow = await counted().where(filter).count('t.id as c').first();
+    const rows = await joined().where(filter).modify((qb) => applyGridSortFirst(qb, grid)).orderBy('t.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
     return { rows, total: Number(countRow.c) };
   },
 

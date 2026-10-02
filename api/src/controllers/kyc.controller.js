@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const { parseGrid, applyGridFilters, applyGridSortFirst, DATE_COL } = require('../utils/gridQuery');
 const env = require('../config/env');
 const audit = require('../repositories/audit.repo');
 const { KYC_DIR } = require('../middleware/upload');
@@ -113,19 +114,28 @@ const LIST_COLS = ['k.*', 'u.user_code', 'u.full_name as user_name', 'u.mobile a
 const listJoins = () => db('kyc_submissions as k').join('users as u', 'u.id', 'k.user_id')
   .leftJoin('user_types as ut', 'ut.id', 'u.user_type_id').leftJoin('users as rv', 'rv.id', 'k.reviewed_by');
 
-// GET /api/kyc-requests?status=pending&q=
+// Sortable / filterable columns of the KYC Requests grid.
+const KYC_GRID = {
+  user: { sort: 'u.full_name', filter: "concat_ws(' ', u.full_name, u.user_code, u.shop_name)" }, user_type: 'ut.name', mobile: 'u.mobile',
+  pan_number: 'k.pan_number', aadhaar: 'k.aadhaar_last4', created_at: DATE_COL('k.created_at'), status: 'k.status',
+  reviewed: { sort: 'k.reviewed_at', filter: "concat_ws(' ', to_char(k.reviewed_at, 'DD Mon YYYY YYYY-MM-DD'), rv.user_code, rv.username)" },
+};
+
+// GET /api/kyc-requests?status=pending&q=  (+ DataGrid sort/dir/f_<col>)
 async function adminList(req, res, next) {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
     const status = ['pending', 'approved', 'rejected'].includes(req.query.status) ? req.query.status : null;
     const q = clean(req.query.q);
+    const grid = parseGrid(req.query, KYC_GRID);
     const filter = (qb) => {
       if (status) qb.where('k.status', status);
+      applyGridFilters(qb, grid);
       if (q) qb.andWhere((w) => w.whereILike('u.full_name', `%${q}%`).orWhereILike('u.user_code', `%${q}%`).orWhereILike('u.mobile', `%${q}%`).orWhereILike('k.pan_number', `%${q}%`));
     };
     const countRow = await listJoins().where(filter).count('k.id as c').first();
-    const rows = await listJoins().where(filter).select(LIST_COLS).orderBy('k.id', status === 'pending' ? 'asc' : 'desc').limit(pageSize).offset((page - 1) * pageSize);
+    const rows = await listJoins().where(filter).select(LIST_COLS).modify((qb) => applyGridSortFirst(qb, grid)).orderBy('k.id', status === 'pending' ? 'asc' : 'desc').limit(pageSize).offset((page - 1) * pageSize);
     return res.json({ rows: rows.map(withLinks), total: Number(countRow.c), page, pageSize });
   } catch (e) { return next(e); }
 }

@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const db = require('../config/db');
+const { parseGrid, applyGridFilters, applyGridSortFirst, DATE_TEXT } = require('../utils/gridQuery');
 const env = require('../config/env');
 const audit = require('../repositories/audit.repo');
 const { finalize } = require('../services/txnPipeline.service');
@@ -43,19 +44,28 @@ async function providerCallback(req, res, next) {
 }
 
 // GET /api/pending-transactions?q=
+// Sortable / filterable columns of the Pending Transactions grid.
+const PENDING_GRID = {
+  user: { sort: 'u.full_name', filter: "concat_ws(' ', u.full_name, u.user_code)" },
+  service: { sort: 'x.service', filter: "concat_ws(' ', x.service, x.operator)" }, target: 'x.target', amount: 'x.amount',
+  refs: { sort: 'x.client_ref', filter: "concat_ws(' ', x.client_ref, x.reference_id)" },
+  waiting: { sort: 'x.created_at', filter: DATE_TEXT('x.created_at') }, checks: 'x.check_count',
+};
+
 async function listPending(req, res, next) {
   try {
-    const f = pageOf(req.query); const q = clean(req.query.q);
+    const f = pageOf(req.query); const q = clean(req.query.q); const grid = parseGrid(req.query, PENDING_GRID);
     const base = () => {
       const qb = db('service_transactions as x').join('users as u', 'u.id', 'x.user_id').where('x.status', 'pending');
       if (q) qb.andWhere((w) => w.whereILike('u.user_code', `%${q}%`).orWhereILike('u.full_name', `%${q}%`).orWhereILike('x.client_ref', `%${q}%`).orWhereILike('x.reference_id', `%${q}%`));
+      applyGridFilters(qb, grid);
       return qb;
     };
     const countRow = await base().count('x.id as c').first();
     const rows = await base().select('x.id', 'x.service', 'x.operator', 'x.target', 'x.amount', 'x.debit_amount', 'x.client_ref', 'x.reference_id',
       'x.created_at', 'x.check_count', 'x.last_checked_at', 'u.user_code', 'u.full_name as user_name',
       db.raw('extract(epoch from (now() - x.created_at))::int as age_seconds'))
-      .orderBy('x.created_at', 'asc').limit(f.pageSize).offset((f.page - 1) * f.pageSize);
+      .modify((qb) => applyGridSortFirst(qb, grid)).orderBy('x.created_at', 'asc').limit(f.pageSize).offset((f.page - 1) * f.pageSize);
     return res.json({ rows, total: Number(countRow.c), ...f });
   } catch (e) { return next(e); }
 }
@@ -95,14 +105,29 @@ async function settleByAdmin(req, res, next) {
 }
 
 // GET /api/reconciliation/runs
+// Sortable / filterable columns of the reconciliation grids.
+const RUN_GRID = {
+  date: { sort: 'r.run_date', filter: "to_char(r.run_date, 'YYYY-MM-DD DD Mon YYYY')" }, total: 'r.total', matched: 'r.matched', mismatched: 'r.mismatched',
+  open_items: { sort: "(select count(*) from reconciliation_items oi where oi.run_id = r.id and oi.state = 'open')", filter: "case when r.status = 'failed' then 'run failed' when (select count(*) from reconciliation_items oi where oi.run_id = r.id and oi.state = 'open') > 0 then (select count(*) from reconciliation_items oi where oi.run_id = r.id and oi.state = 'open') || ' open' else 'all clear' end" },
+  auto_fixed: 'r.auto_fixed', ran: { sort: 'r.started_at', filter: "concat_ws(' ', to_char(r.started_at, 'DD Mon YYYY HH24:MI YYYY-MM-DD'), coalesce(u.username, 'scheduler'))" },
+};
+const ITEM_GRID = {
+  type: 'i.type', client_ref: { sort: 'i.client_ref', filter: "concat_ws(' ', i.client_ref, x.service)" },
+  user: { sort: 'u.full_name', filter: "concat_ws(' ', u.full_name, u.user_code)" },
+  ours: { sort: 'i.our_status', filter: "concat_ws(' ', coalesce(i.our_status, 'not recorded'), i.our_amount)" },
+  provider: { sort: 'i.provider_status', filter: "concat_ws(' ', coalesce(i.provider_status, 'not in report'), i.provider_amount)" },
+  state: 'i.state', note: { sort: 'i.note', filter: "concat_ws(' ', i.note, rv.username)" },
+};
+
 async function listRuns(req, res, next) {
   try {
-    const f = pageOf(req.query);
-    const countRow = await db('reconciliation_runs').count('id as c').first();
-    const rows = await db('reconciliation_runs as r').leftJoin('users as u', 'u.id', 'r.run_by')
+    const f = pageOf(req.query); const grid = parseGrid(req.query, RUN_GRID);
+    const base = () => db('reconciliation_runs as r').leftJoin('users as u', 'u.id', 'r.run_by').where((qb) => applyGridFilters(qb, grid));
+    const countRow = await base().count('r.id as c').first();
+    const rows = await base()
       .select('r.*', db.raw("to_char(r.run_date, 'YYYY-MM-DD') as run_date"), 'u.username as run_by_name',
         db.raw("(select count(*)::int from reconciliation_items i where i.run_id = r.id and i.state = 'open') as open_items"))
-      .orderBy('r.id', 'desc').limit(f.pageSize).offset((f.page - 1) * f.pageSize);
+      .modify((qb) => applyGridSortFirst(qb, grid)).orderBy('r.id', 'desc').limit(f.pageSize).offset((f.page - 1) * f.pageSize);
     return res.json({ rows, total: Number(countRow.c), ...f });
   } catch (e) { return next(e); }
 }
@@ -124,6 +149,9 @@ async function listItems(req, res, next) {
       .leftJoin('users as u', 'u.id', 'x.user_id').leftJoin('users as rv', 'rv.id', 'i.resolved_by')
       .where('i.run_id', parseInt(req.params.id, 10));
     if (['open', 'resolved', 'auto'].includes(req.query.state)) qb.where('i.state', req.query.state);
+    const grid = parseGrid(req.query, ITEM_GRID);
+    applyGridFilters(qb, grid);
+    applyGridSortFirst(qb, grid);
     const rows = await qb.select('i.*', 'x.service', 'x.status as current_status', 'u.user_code', 'u.full_name as user_name', 'rv.username as resolved_by_name')
       .orderBy('i.id');
     return res.json({ rows });

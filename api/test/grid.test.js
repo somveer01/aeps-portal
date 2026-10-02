@@ -107,3 +107,23 @@ test('report lists: GST/TDS, admin margin, transfers, payout banks, admin wallet
   const credit = await A.get('/api/admin-wallet?f_txn_type=credit&pageSize=100');
   assert.ok(credit.b.rows.every((x) => x.txn_type === 'credit'), 'admin wallet column filter');
 });
+
+test('remaining grids: KYC, pending, reconciliation, tickets, permissions users take grid params', async () => {
+  const paths = [
+    '/api/kyc-requests?status=&sort=created_at&dir=desc&f_user=a',
+    '/api/pending-transactions?sort=amount&dir=desc&f_service=a',
+    '/api/reconciliation/runs?sort=date&dir=asc&f_open_items=clear',
+    '/api/tickets?sort=priority&dir=asc&f_status=open',
+  ];
+  for (const p of paths) {
+    // eslint-disable-next-line no-await-in-loop
+    const r = await A.get(p);
+    assert.equal(r.s, 200, `${p} -> ${JSON.stringify(r.b).slice(0, 120)}`);
+  }
+  const svc = await db('services').orderBy('id').first('id');
+  const perm = await A.get(`/api/service-permissions/services/${svc.id}/users?sort=effective&dir=desc&f_user=${TAG}`);
+  assert.equal(perm.s, 200);
+  assert.equal(perm.b.total, 3, 'column filter on the user column');
+  const blocked = await A.get(`/api/service-permissions/services/${svc.id}/users?f_user=${TAG}&f_effective=no`);
+  assert.ok(blocked.b.rows.every((r) => !r.effective));
+});

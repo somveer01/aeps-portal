@@ -3,6 +3,15 @@
 const db = require('../config/db');
 const permission = require('../services/servicePermission.service');
 const audit = require('../repositories/audit.repo');
+const { parseGrid, applyGridFilters, applyGridSortFirst } = require('../utils/gridQuery');
+
+// Sortable / filterable columns of the "By Service" users grid.
+const USERS_GRID = {
+  user: { sort: 'u.user_code', filter: "concat_ws(' ', u.user_code, u.full_name, u.mobile)" }, user_type: 'ut.name',
+  type_default: { sort: '(t.service_id is not null)', filter: "case when t.service_id is not null then 'allowed' else 'not allowed' end" },
+  override: { sort: 'o.allowed', filter: "case when o.allowed is null then 'default' when o.allowed then 'allow' else 'block' end" },
+  effective: { sort: 'coalesce(o.allowed, t.service_id is not null)', filter: "case when coalesce(o.allowed, t.service_id is not null) then 'yes allowed' else 'no blocked' end" },
+};
 
 const ids = (v) => (Array.isArray(v) ? v : [v]).map((x) => parseInt(x, 10)).filter(Number.isFinite);
 const meta = (req) => ({ ip: req.ip, userAgent: req.get('user-agent') });
@@ -59,12 +68,14 @@ async function serviceUsers(req, res, next) {
     if (userTypeId) base.where('u.user_type_id', userTypeId);
     if (status === 'allowed') base.whereRaw(effective);
     if (status === 'blocked') base.whereRaw(`not ${effective}`);
+    const grid = parseGrid(req.query, USERS_GRID);
+    applyGridFilters(base, grid);
 
     const countRow = await base.clone().count('u.id as c').first();
     const rows = await base.clone()
       .select('u.id', 'u.user_code', 'u.full_name as name', 'u.mobile', 'u.is_active', 'ut.name as user_type_name',
         db.raw('(t.service_id is not null) as type_default'), 'o.allowed as override', db.raw(`${effective} as effective`))
-      .orderBy('u.id').limit(pageSize).offset((page - 1) * pageSize);
+      .modify((qb) => applyGridSortFirst(qb, grid)).orderBy('u.id').limit(pageSize).offset((page - 1) * pageSize);
     return res.json({ service: svc, rows, total: Number(countRow.c), page, pageSize });
   } catch (err) { return next(err); }
 }
