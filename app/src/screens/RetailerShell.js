@@ -25,6 +25,7 @@ import FundTransferScreen from './FundTransferScreen';
 import FundTransferListScreen from './FundTransferListScreen';
 import ServiceReportScreen from './ServiceReportScreen';
 import FundRequestScreen from './FundRequestScreen';
+import CommissionPackageScreen from './CommissionPackageScreen';
 import KycScreen from './retailer/KycScreen';
 
 function initials(user) {
@@ -109,6 +110,7 @@ export default function RetailerShell({ user, onLogout }) {
     if (r === '/network/fund-transfer') return <FundTransferScreen network onDone={loadSummary} />;
     if (r === '/network/fund-transfers') return <FundTransferListScreen network />;
     if (r === '/network/report') return <ServiceReportScreen network />;
+    if (r === '/network/packages') return <CommissionPackageScreen />;
     if (r === '/network/fund-requests') return <FundRequestScreen mode="network" onDone={loadSummary} />;
     if (r === '/account-history') return <RetailerReportScreen key="accountHistory" kind="accountHistory" />;
     if (r === '/service-report') return <RetailerReportScreen key="serviceReport" kind="serviceReport" />;

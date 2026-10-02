@@ -29,6 +29,7 @@ const fundRequest = require('../controllers/fundRequest.controller');
 const kyc = require('../controllers/kyc.controller');
 const ops = require('../controllers/operations.controller');
 const servicePermission = require('../controllers/servicePermission.controller');
+const commissionPackage = require('../controllers/commissionPackage.controller');
 const { kycUpload } = require('../middleware/upload');
 // Multer errors (wrong type / too big) come back as a 400 with a clear message.
 const kycFile = (req, res, next) => kycUpload.single('image')(req, res, (e) => (e ? res.status(400).json({ error: e.code === 'LIMIT_FILE_SIZE' ? 'Photo must be 5 MB or smaller' : e.message, code: 'INVALID_FILE' }) : next()));
@@ -153,6 +154,7 @@ router.get('/admin-margin-report', requireAdmin, reports.adminMarginReport);
 
 // Commission Slab (read-only view of commission slots).
 router.get('/commission-slab', requireAdmin, commissionSlot.slab);
+router.get('/commission-packages', requireAdmin, commissionPackage.adminList); // every upline's packages, read-only
 
 // Aadhaar & PAN verification (sandbox KYC stubs).
 router.post('/verify/pan', requireAdmin, verify.pan);
@@ -232,6 +234,12 @@ router.get('/network/meta', requireManaged, network.requireNetwork, network.getM
 router.get('/network/users', requireManaged, network.requireNetwork, network.listUsers);
 router.post('/network/users', requireManaged, network.requireNetwork, network.createUser);
 router.put('/network/users/:id', requireManaged, network.requireNetwork, network.updateUser);
+// My Network → Commission Packages: re-share my own commission with my direct downline.
+router.get('/network/packages/meta', requireManaged, network.requireNetwork, commissionPackage.getMeta);
+router.get('/network/packages', requireManaged, network.requireNetwork, commissionPackage.list);
+router.post('/network/packages', requireManaged, network.requireNetwork, commissionPackage.create);
+router.put('/network/packages/:id', requireManaged, network.requireNetwork, commissionPackage.update);
+router.delete('/network/packages/:id', requireManaged, network.requireNetwork, commissionPackage.remove);
 router.get('/network/lookup', requireManaged, network.requireNetwork, network.lookup);
 router.post('/network/fund-transfer', requireManaged, network.requireNetwork, idempotency, network.fundTransfer);
 router.get('/network/fund-transfers', requireManaged, network.requireNetwork, network.listTransfers);

@@ -35,7 +35,7 @@ export default function MyCommissionSlabScreen() {
             { key: 'service', title: 'Service', width: 170, render: (r) => <View><Text style={td}>{r.service_name}</Text>{r.operator ? <Text style={reportStyles.sub}>{r.operator}</Text> : null}</View> },
             { key: 'commission_type', title: 'Commision Type', width: 140, render: (r) => <Text style={td}>{r.commission_type === 'amount' ? 'By Amount' : 'By Percentage'}</Text> },
             { key: 'range', title: 'Amount Range', width: 170, render: (r) => <Text style={td}>Rs {Number(r.min_amount).toFixed(2)} - {Number(r.max_amount).toFixed(2)}</Text> },
-            { key: 'value', title: 'Amount / %', width: 130, render: (r) => <Text style={td}>{r.commission_type === 'amount' ? `Rs ${Number(r.value).toFixed(2)}` : `${Number(r.value).toFixed(2)} %`}</Text> },
+            { key: 'value', title: 'Amount / %', width: 150, render: (r) => <View><Text style={td}>{r.commission_type === 'amount' ? `Rs ${Number(r.value).toFixed(2)}` : `${Number(r.value).toFixed(2)} %`}</Text>{r.package_name ? <Text style={reportStyles.sub}>Package: {r.package_name}</Text> : null}</View> },
             { key: 'plan', title: 'Plan', width: 140, render: (r) => <Text style={td}>{r.plan_name}</Text> },
             { key: 'txn_type', title: 'Type', width: 100, render: (r) => <Text style={{ fontSize: 13, fontWeight: '700', color: r.txn_type === 'debit' ? colors.danger : colors.success }}>{cap(r.txn_type)}</Text> },
           ]}

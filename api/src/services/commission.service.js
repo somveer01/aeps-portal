@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../config/db');
+const serviceGuard = require('./serviceGuard.service');
 
 /**
  * Commission engine. For a successful service transaction it pays:
@@ -9,6 +10,8 @@ const db = require('../config/db');
  *     user type + plan slab, but only slabs marked chain_type = 'chain'.
  * Upline shares are paid on top of the user's share (not cut from it). Each payout
  * writes a commission_ledger row (backs the GST/TDS/commission reports).
+ * Commission packages then let an upline move part of its own share to (or back from) its
+ * direct downline; see resolveShares. The admin's total never changes.
  *
  * Slab chain_type: 'self' = pays only on the slab owner's own transactions;
  * 'chain' = also pays when someone below them in the chain transacts.
@@ -150,6 +153,115 @@ async function distributeChainCommission({ trx, sourceUserId, serviceName, amoun
   return credits;
 }
 
+// ── Commission packages (an upline re-shares its own commission with its direct downline) ──
+
+/**
+ * The package item that sets `child`'s commission for a service: the child must hold an active
+ * package owned by its CURRENT parent and made for the child's user type. An operator / mode item
+ * beats the all-operators one, like slabs.
+ */
+async function packageItemFor({ trx = db, child, parentId, serviceId, operator = null, mode = null }) {
+  if (!child.commission_package_id || !parentId || !serviceId) return null;
+  const keys = [operator, mode].map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
+  return trx('commission_package_items as i')
+    .join('commission_packages as p', 'p.id', 'i.package_id')
+    .where({ 'p.id': child.commission_package_id, 'p.owner_user_id': parentId, 'p.user_type_id': child.user_type_id, 'p.is_active': true, 'i.service_id': serviceId })
+    .andWhere((w) => {
+      w.whereRaw("coalesce(trim(i.operator), '') = ''");
+      if (keys.length) w.orWhereRaw(`lower(trim(i.operator)) in (${keys.map(() => '?').join(',')})`, keys);
+    })
+    .orderByRaw("case when coalesce(trim(i.operator), '') <> '' then 0 else 1 end")
+    .first('i.commission_type', 'i.value', 'p.name as package_name');
+}
+
+/**
+ * Who earns how much credit commission on one successful transaction, after packages.
+ * nodes[0] = the user who transacted (their credit self slab, if any); nodes[1..] = the uplines
+ * with their chain slabs, walked and locked child → parent (same order as every transaction).
+ * Packages apply top-down: the child gets its package amount and its parent's share moves by
+ * the difference, so the admin pays the same total. A parent's share never drops below 0 —
+ * the child is capped instead. Blocked uplines earn nothing and their packages do not apply.
+ * Returns [{ user, level, active, slab, gross, note }]; `slab` is what the ledger records (the
+ * admin slab, the package item, or a flat amount once a package changed the share).
+ */
+async function resolveShares({ trx, sourceUserId, selfSlab = null, serviceName, amount, operator = null, mode = null }) {
+  const cols = ['id', 'parent_id', 'user_type_id', 'plan_id', 'wallet_balance', 'is_active', 'user_code', 'username', 'commission_package_id'];
+  const source = await trx('users').where({ id: sourceUserId }).first(cols);
+  if (!source) return [];
+  const grossOf = (slab) => (slab ? computeAmounts({ commissionType: slab.commission_type, value: slab.value, amount }).commission : 0);
+  const credit = selfSlab && (selfSlab.txn_type || 'credit') === 'credit' ? selfSlab : null;
+  const nodes = [{ user: source, level: 0, active: true, slab: credit, gross: grossOf(credit), note: null }];
+
+  const seen = new Set([sourceUserId]);
+  let parentId = source.parent_id;
+  for (let level = 1; parentId && level <= MAX_CHAIN_LEVELS; level += 1) {
+    if (seen.has(parentId)) break; // defensive: a bad cycle in old data must not loop
+    seen.add(parentId);
+    // eslint-disable-next-line no-await-in-loop
+    const p = await trx('users').where({ id: parentId }).forUpdate().first(cols);
+    if (!p) break;
+    parentId = p.parent_id;
+    const active = !!(p.is_active && p.user_type_id);
+    // eslint-disable-next-line no-await-in-loop
+    const slab = active ? await findSlab({
+      trx, userTypeId: p.user_type_id, planId: p.plan_id, userCode: p.user_code || p.username, operator, mode, serviceName, amount, chainOnly: true, creditOnly: true,
+    }) : null;
+    nodes.push({ user: p, level, active, slab, gross: grossOf(slab), note: null });
+  }
+
+  const svc = await serviceGuard.findService(serviceName, trx);
+  const code = (u) => u.user_code || u.username;
+  const addNote = (n, text) => { n.note = n.note ? `${n.note}; ${text}` : text; };
+  for (let i = nodes.length - 2; i >= 0; i -= 1) {
+    const child = nodes[i]; const parent = nodes[i + 1];
+    if (!parent.active) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const item = await packageItemFor({ trx, child: child.user, parentId: parent.user.id, serviceId: svc && svc.id, operator, mode });
+    if (!item) continue;
+    const want = grossOf({ commission_type: item.commission_type, value: item.value });
+    let give = want;
+    let parentShare = round2(parent.gross - (want - child.gross));
+    if (parentShare < 0) { give = round2(want + parentShare); parentShare = 0; }
+    child.slab = give === want ? { commission_type: item.commission_type, value: Number(item.value), txn_type: 'credit' } : { commission_type: 'amount', value: give, txn_type: 'credit' };
+    child.gross = give;
+    addNote(child, `package '${item.package_name}' by ${code(parent.user)}${give === want ? '' : ' (capped)'}`);
+    if (parentShare !== parent.gross) {
+      parent.slab = { commission_type: 'amount', value: parentShare, txn_type: 'credit' };
+      parent.gross = parentShare;
+      addNote(parent, `after package '${item.package_name}' to ${code(child.user)}`);
+    }
+  }
+  return nodes;
+}
+
+/** Pay the uplines (nodes[1..]) from resolveShares: ledger row, wallet credit, account history. */
+async function payUplines({ trx, nodes, serviceName, amount, serviceTransactionId }) {
+  if (!nodes.length) return [];
+  const source = nodes[0].user;
+  const sourceCode = source.user_code || source.username;
+  const credits = [];
+  for (const n of nodes.slice(1)) {
+    if (!n.active || !n.slab || n.gross <= 0) continue;
+    const before = Number(n.user.wallet_balance);
+    // eslint-disable-next-line no-await-in-loop
+    const comm = await recordServiceCommission({
+      trx, userId: n.user.id, userTypeId: n.user.user_type_id, slab: n.slab, serviceName, amount, wallet: { before }, level: n.level,
+      sourceUserId: source.id, serviceTransactionId, remark: `${serviceName} — chain commission from ${sourceCode} (level ${n.level})${n.note ? `, ${n.note}` : ''}`,
+    });
+    if (!comm || comm.net <= 0) continue;
+    // eslint-disable-next-line no-await-in-loop
+    await trx('users').where({ id: n.user.id }).update({ wallet_balance: comm.after, updated_at: trx.fn.now() });
+    // eslint-disable-next-line no-await-in-loop
+    await trx('account_transactions').insert({
+      user_id: n.user.id, service_name: `${serviceName} Commission`, type: 'credit', amount: comm.net,
+      before_balance: before, updated_balance: comm.after,
+      remark: `Chain commission from ${sourceCode} (level ${n.level}): ${comm.commission.toFixed(2)} (GST ${comm.gst.toFixed(2)}, TDS ${comm.tds.toFixed(2)})${n.note ? ` — ${n.note}` : ''}`,
+    });
+    credits.push({ userId: n.user.id, level: n.level, net: comm.net });
+  }
+  return credits;
+}
+
 /**
  * Record what the company keeps on one successful transaction:
  *   margin = provider commission + charges collected from the user − commission paid out.
@@ -171,5 +283,6 @@ async function recordAdminMargin({ trx, serviceTransactionId, userId, serviceNam
 
 module.exports = {
   computeAmounts, findSlab, recordServiceCommission, distributeChainCommission, recordAdminMargin,
+  packageItemFor, resolveShares, payUplines,
   DEFAULT_GST, DEFAULT_TDS, MAX_CHAIN_LEVELS,
 };

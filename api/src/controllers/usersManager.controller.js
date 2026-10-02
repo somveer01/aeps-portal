@@ -164,6 +164,8 @@ async function update(req, res, next) {
     }
     const fields = mapFields(b);
     if (forcedParent !== undefined) fields.parent_id = forcedParent;
+    // A commission package belongs to the old parent; a new parent starts from the admin default.
+    if (fields.parent_id !== undefined && fields.parent_id !== existing.parent_id) fields.commission_package_id = null;
     await repo.update(id, fields); // a user type change applies before the ticks are compared with its default
     if (b.serviceAccess !== undefined) await permission.setUserServices(id, arr(b.serviceAccess), req.user.id);
     return res.json({ row: await repo.findFull(id) });

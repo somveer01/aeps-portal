@@ -9,6 +9,7 @@ const reportsRepo = require('../repositories/reports.repo');
 const txnAuth = require('../services/txnAuth.service');
 const audit = require('../repositories/audit.repo');
 const { createUserWithCode, mapFields } = require('./usersManager.controller');
+const { checkAssignable } = require('./commissionPackage.controller');
 const db = require('../config/db');
 
 /**
@@ -78,12 +79,15 @@ async function createUser(req, res, next) {
     if (!type) return res.status(400).json({ error: `You can create: ${types.map((t) => t.name).join(', ')}`, code: 'INVALID_USER_TYPE' });
     const planId = intOrNull(b.planId);
     if (planId && !type.plans.some((p) => p.id === planId)) return res.status(400).json({ error: `Choose a plan made for ${type.name}`, code: 'INVALID_PLAN' });
+    const packageId = intOrNull(b.commissionPackageId);
+    const pkgErr = await checkAssignable(req.user.id, packageId, type.id);
+    if (pkgErr) return res.status(400).json(pkgErr);
 
     const passwordHash = await bcrypt.hash(String(b.password), 12);
     const id = await createUserWithCode((code) => ({
       ...userFields(b),
       username: code, user_code: code, password_hash: passwordHash, role: 'user',
-      user_type_id: type.id, plan_id: planId, parent_id: req.user.id, created_by: req.user.id,
+      user_type_id: type.id, plan_id: planId, parent_id: req.user.id, created_by: req.user.id, commission_package_id: packageId,
       wallet_balance: 0, kyc_status: 'pending', ekyc_status: 'pending',
     }));
     await audit.log({ userId: req.user.id, username: req.user.username, event: 'user_created', detail: { newUserId: id, parentId: req.user.id, via: 'network' }, ...meta(req) });
@@ -110,6 +114,19 @@ async function updateUser(req, res, next) {
         const type = (await repo.childTypes(req.user.userTypeId)).find((t) => t.id === target.user_type_id);
         if (planId && !(type && type.plans.some((p) => p.id === planId))) return res.status(400).json({ error: 'Choose a plan made for this user type', code: 'INVALID_PLAN' });
         patch.plan_id = planId;
+      }
+    }
+
+    // Commission package: only the direct parent gives one (its own package, made for this user's type).
+    if (b.commissionPackageId !== undefined) {
+      const packageId = intOrNull(b.commissionPackageId);
+      const target = await db('users').where({ id }).first('user_type_id', 'commission_package_id');
+      if (packageId !== target.commission_package_id) {
+        if (level !== 1) return res.status(400).json({ error: 'Only the direct parent can set a commission package', code: 'NOT_DIRECT_DOWNLINE' });
+        const pkgErr = await checkAssignable(req.user.id, packageId, target.user_type_id);
+        if (pkgErr) return res.status(400).json(pkgErr);
+        patch.commission_package_id = packageId;
+        await audit.log({ userId: req.user.id, username: req.user.username, event: 'commission_package_assigned', detail: { targetUserId: id, packageId }, ...meta(req) });
       }
     }
 

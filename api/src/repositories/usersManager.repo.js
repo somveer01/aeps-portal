@@ -12,7 +12,7 @@ const USERS_GRID = {
   parent: { sort: 'par.user_code', filter: "concat_ws(' ', par.user_code, par.full_name)" },
   created_by: { sort: 'cr.user_code', filter: "concat_ws(' ', coalesce(nullif(cr.user_code, ''), cr.username), cr.full_name)" },
   status: { sort: 'u.is_active', filter: "case when u.is_active then 'active' else 'inactive blocked' end" },
-  ekyc: 'u.ekyc_status', kyc: 'u.kyc_status',
+  ekyc: 'u.ekyc_status', kyc: 'u.kyc_status', package: 'cpk.name',
 };
 
 // Managed users = those with a user_type (retailers/distributors/etc.), not the admin.
@@ -24,6 +24,7 @@ function base() {
     .leftJoin('users as cr', 'cr.id', 'u.created_by')
     .leftJoin('states as st', 'st.id', 'u.state_id')
     .leftJoin('cities as ci', 'ci.id', 'u.city_id')
+    .leftJoin('commission_packages as cpk', 'cpk.id', 'u.commission_package_id')
     .whereNotNull('u.user_type_id');
 }
 
@@ -43,7 +44,7 @@ function joined() {
         left join user_type_services t on t.service_id = s.id and t.user_type_id = u.user_type_id
         left join user_service_overrides o on o.service_id = s.id and o.user_id = u.id
         where coalesce(o.allowed, t.service_id is not null)) as service_access`),
-      'u.module_access',
+      'u.module_access', 'u.commission_package_id', 'cpk.name as commission_package_name',
     );
 }
 

@@ -125,7 +125,21 @@ async function myCommissionSlab(req, res, next) {
     // Every slab of my type for services that are ON. Not limited by my own Service Permissions:
     // a distributor earns chain commission on its downline's transactions without using the service.
     const { rows, total } = await commissionSlotRepo.slab({ userTypeId: req.user.userTypeId, serviceId: null, activeServicesOnly: true, grid: parseGrid(req.query, commissionSlotRepo.GRID), page, pageSize });
-    return res.json({ rows, total, page, pageSize });
+    // A commission package from my direct parent replaces the admin rate on credit slabs
+    // (the engine still caps it at what my parent earns).
+    const me = await db('users').where({ id: req.user.id }).first('parent_id', 'user_type_id', 'commission_package_id');
+    const pkg = me && me.commission_package_id ? await db('commission_packages')
+      .where({ id: me.commission_package_id, owner_user_id: me.parent_id, user_type_id: me.user_type_id, is_active: true }).first('id', 'name') : null;
+    const items = pkg ? await db('commission_package_items').where({ package_id: pkg.id }).select('service_id', 'operator', 'commission_type', 'value') : [];
+    const op = (v) => String(v || '').trim().toLowerCase();
+    const out = rows.map((r) => {
+      if (!pkg || r.txn_type === 'debit' || String(r.specific_user || '').trim()) return r;
+      const mine = items.filter((i) => i.service_id === r.service_id);
+      const item = mine.find((i) => op(i.operator) && op(i.operator) === op(r.operator)) || mine.find((i) => !op(i.operator));
+      if (!item) return r;
+      return { ...r, package_name: pkg.name, default_commission_type: r.commission_type, default_value: r.value, commission_type: item.commission_type, value: item.value };
+    });
+    return res.json({ rows: out, total, page, pageSize, packageName: pkg ? pkg.name : null });
   } catch (err) { return next(err); }
 }
 

@@ -32,7 +32,7 @@ function Checkbox({ label, checked, onToggle }) {
 const EMPTY = {
   userTypeId: '', name: '', fatherHusbandName: '', dob: '', shopName: '', email: '', mobile: '',
   panNumber: '', aadharNumber: '', gender: '', planId: '', gstNumber: '', minBalance: '', password: '',
-  address: '', stateId: '', cityId: '', pincode: '', merchantId: '', parentId: '', assignedEmployeeId: '',
+  address: '', stateId: '', cityId: '', pincode: '', merchantId: '', parentId: '', assignedEmployeeId: '', commissionPackageId: '',
   serviceAccess: [], moduleAccess: [], kycStatus: 'pending', ekycStatus: 'pending', active: true,
 };
 
@@ -46,6 +46,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
   const [fUserType, setFUserType] = useState(''); const [fParent, setFParent] = useState(''); const [fAccount, setFAccount] = useState(''); const [fKyc, setFKyc] = useState('');
   const [applied, setApplied] = useState({ userTypeId: '', parentUser: '', accountStatus: '', kycStatus: '' });
 
+  const [packages, setPackages] = useState([]); // network: my commission packages
   const [typeDefaults, setTypeDefaults] = useState([]); // [{ userTypeId, serviceId }] from Service Permissions
   const [userTypes, setUserTypes] = useState([]); const [plans, setPlans] = useState([]); const [parents, setParents] = useState([]);
   const [states, setStates] = useState([]); const [cities, setCities] = useState([]); const [services, setServices] = useState([]); const [modules, setModules] = useState([]);
@@ -71,6 +72,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
     api.states().then((r) => setStates(r.states)).catch(() => {});
     if (network) {
       // Only the user types (and their plans) this user may create.
+      api.network.packages.list({ pageSize: 100 }).then((r) => setPackages(r.rows)).catch(() => {});
       api.network.meta().then((m) => {
         setMeId(m.userId);
         setUserTypes(m.childTypes.map(({ id, name }) => ({ id, name })));
@@ -126,7 +128,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
       aadharNumber: r.aadhar_number || '', gender: r.gender || '', planId: r.plan_id || '', gstNumber: r.gst_number || '',
       minBalance: r.min_balance != null ? String(r.min_balance) : '', password: '',
       address: r.address || '', stateId: r.state_id || '', cityId: r.city_id || '', pincode: r.pincode || '',
-      merchantId: r.merchant_id || '', parentId: r.parent_id || '', assignedEmployeeId: r.assigned_employee_id || '',
+      merchantId: r.merchant_id || '', parentId: r.parent_id || '', assignedEmployeeId: r.assigned_employee_id || '', commissionPackageId: r.commission_package_id || '',
       serviceAccess: r.service_access || [], moduleAccess: r.module_access || [],
       kycStatus: r.kyc_status, ekycStatus: r.ekyc_status, active: r.is_active,
     });
@@ -159,6 +161,8 @@ export default function UserManagerScreen({ network = false, onDone }) {
       pincode: f.pincode, merchantId: f.merchantId, parentId: f.parentId || null, assignedEmployeeId: f.assignedEmployeeId || null,
       serviceAccess: f.serviceAccess, moduleAccess: f.moduleAccess, isActive: f.active,
     };
+    // Network panel: my commission package for a user directly under me ('' = admin default).
+    if (network && (!editing || editing.parent_id === meId)) body.commissionPackageId = f.commissionPackageId || null;
     try {
       if (editing) { body.kycStatus = f.kycStatus; body.ekycStatus = f.ekycStatus; await usersApi.update(editing.id, body); }
       else { body.password = f.password; await usersApi.create(body); }
@@ -237,7 +241,15 @@ export default function UserManagerScreen({ network = false, onDone }) {
           </View>
 
           {network ? (
-            <Text style={styles.hint}>{editing ? `${editing.user_code} stays in your network.` : 'The new user is placed directly under you.'} Their KYC, service access and merchant ID are set by the admin.</Text>
+            <>
+              {!editing || editing.parent_id === meId ? (
+                <View style={styles.grid}>
+                  <View style={styles.field}><Select label="Commission Package" value={f.commissionPackageId} onChange={(v) => set('commissionPackageId', v)} searchable={false}
+                    options={[{ label: 'Admin default', value: '' }, ...packages.filter((p) => p.is_active && String(p.user_type_id) === String(f.userTypeId)).map((p) => ({ label: p.name, value: p.id }))]} /></View>
+                </View>
+              ) : null}
+              <Text style={styles.hint}>{editing ? `${editing.user_code} stays in your network.` : 'The new user is placed directly under you.'} A commission package (My Network → Commission Packages) sets what they earn out of your own share. Their KYC, service access and merchant ID are set by the admin.</Text>
+            </>
           ) : (
           <>
           <Text style={styles.section}>AEPS / Parent Details</Text>
@@ -347,6 +359,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
             { key: 'status', title: 'Status', width: 95, render: (row) => <Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /> },
             { key: 'ekyc', title: 'E-Kyc', width: 100, render: (row) => <KycBadge value={row.ekyc_status} /> },
             { key: 'kyc', title: 'Kyc', width: 100, render: (row) => <KycBadge value={row.kyc_status} /> },
+            { key: 'package', title: 'Package', width: 140, render: (row) => <Text style={styles.td}>{row.commission_package_name || 'Admin default'}</Text> },
             { key: 'action', title: 'Action', width: 140, sortable: false, filterable: false, render: (row) => (
               <View style={styles.actions}>
                 {/* In the network panel money moves only to users directly under you. */}

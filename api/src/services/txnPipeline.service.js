@@ -116,9 +116,22 @@ async function run({ user, service, operator = null, mode = null, target = null,
 async function settleSuccess(trx, c) {
   let finalBalance = c.balanceNow;
   let ownCommission = 0;
-  const comm = c.slab ? await commission.recordServiceCommission({
-    trx, userId: c.userId, userTypeId: c.userTypeId, slab: c.slab, serviceName: c.service, amount: c.amount,
-    wallet: c.chargeWallet || { before: c.balanceNow }, level: 0, sourceUserId: c.userId, serviceTransactionId: c.serviceTransactionId,
+  // A debit slab is a service charge, already taken from the wallet: just record it.
+  if (c.slab && c.slab.txn_type === 'debit') {
+    await commission.recordServiceCommission({
+      trx, userId: c.userId, userTypeId: c.userTypeId, slab: c.slab, serviceName: c.service, amount: c.amount,
+      wallet: c.chargeWallet || { before: c.balanceNow }, level: 0, sourceUserId: c.userId, serviceTransactionId: c.serviceTransactionId,
+    });
+  }
+  // Credit commission for the user and every upline, after commission packages.
+  const shares = await commission.resolveShares({
+    trx, sourceUserId: c.userId, selfSlab: c.slab, serviceName: c.service, amount: c.amount, operator: c.operator, mode: c.mode,
+  });
+  const own = shares[0];
+  const comm = own && own.slab && own.gross > 0 ? await commission.recordServiceCommission({
+    trx, userId: c.userId, userTypeId: c.userTypeId, slab: own.slab, serviceName: c.service, amount: c.amount,
+    wallet: { before: c.balanceNow }, level: 0, sourceUserId: c.userId, serviceTransactionId: c.serviceTransactionId,
+    remark: own.note ? `${c.service} — commission, ${own.note}` : null,
   }) : null;
   if (comm && comm.net > 0 && comm.walletTxnType === 'credit') {
     ownCommission = comm.net;
@@ -127,12 +140,10 @@ async function settleSuccess(trx, c) {
     await trx('account_transactions').insert({
       user_id: c.userId, service_name: `${c.service} Commission`, type: 'credit', amount: comm.net,
       before_balance: c.balanceNow, updated_balance: finalBalance,
-      remark: `Commission ${comm.commission.toFixed(2)} (GST ${comm.gst.toFixed(2)}, TDS ${comm.tds.toFixed(2)})`,
+      remark: `Commission ${comm.commission.toFixed(2)} (GST ${comm.gst.toFixed(2)}, TDS ${comm.tds.toFixed(2)})${own.note ? ` — ${own.note}` : ''}`,
     });
   }
-  const chain = await commission.distributeChainCommission({
-    trx, sourceUserId: c.userId, serviceName: c.service, amount: c.amount, operator: c.operator, mode: c.mode, serviceTransactionId: c.serviceTransactionId,
-  });
+  const chain = await commission.payUplines({ trx, nodes: shares, serviceName: c.service, amount: c.amount, serviceTransactionId: c.serviceTransactionId });
   const chainPaid = chain.reduce((s, x) => s + x.net, 0);
   await commission.recordAdminMargin({
     trx, serviceTransactionId: c.serviceTransactionId, userId: c.userId, serviceName: c.service, amount: c.amount,

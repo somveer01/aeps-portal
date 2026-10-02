@@ -350,6 +350,14 @@ export const api = {
       create: (body) => request('/api/network/fund-transfer', { method: 'POST', body, auth: true, idempotencyKey: idemKey() }),
     },
     serviceReport: (params = {}) => request(`/api/network/report?${qs(params)}`, { auth: true }),
+    // My commission packages (re-share my own commission with my direct downline).
+    packages: {
+      meta: () => request('/api/network/packages/meta', { auth: true }),
+      list: (params = {}) => request(`/api/network/packages?${qs(params)}`, { auth: true }),
+      create: (body) => request('/api/network/packages', { method: 'POST', body, auth: true }),
+      update: (id, body) => request(`/api/network/packages/${id}`, { method: 'PUT', body, auth: true }),
+      remove: (id, unassign = false) => request(`/api/network/packages/${id}${unassign ? '?unassign=1' : ''}`, { method: 'DELETE', auth: true }),
+    },
     // Fund requests from users I created (I approve them; approving moves money from my wallet).
     fundRequests: {
       list: (params = {}) => request(`/api/network/fund-requests?${qs(params)}`, { auth: true }),
