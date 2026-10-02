@@ -87,7 +87,7 @@ const env = {
     length: int(process.env.OTP_LENGTH, 6),
     ttlSeconds: int(process.env.OTP_TTL_SECONDS, 300),
     dailyLimit: int(process.env.OTP_DAILY_LIMIT, 5),
-    maxVerifyAttempts: int(process.env.OTP_MAX_VERIFY_ATTEMPTS, 5),
+    maxVerifyAttempts: int(process.env.OTP_MAX_VERIFY_ATTEMPTS, 3), // wrong OTPs allowed before the login starts over
   },
 
   // Per-account brute-force lockout for the password step.

@@ -27,8 +27,9 @@ export default function OtpScreen({ pending, onVerified, onCancel }) {
       onVerified(res); // { accessToken, user }
     } catch (e) {
       setError(e.message);
+      if (e.code === 'MISMATCH') setOtp(''); // stay here: "Incorrect OTP. N attempts left."
       if (['NO_OTP', 'EXPIRED', 'TOO_MANY_ATTEMPTS'].includes(e.code)) {
-        setTimeout(onCancel, 1200); // terminal states -> back to login
+        setTimeout(onCancel, 2000); // terminal states (incl. the last wrong attempt) -> back to login
       }
     } finally {
       setLoading(false);

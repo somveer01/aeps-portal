@@ -107,11 +107,11 @@ async function verifyOtp(req, res, next) {
         no_otp: ['No active OTP found. Please log in again.', 401],
         expired: ['OTP has expired. Please request a new one.', 401],
         too_many_attempts: ['Too many incorrect attempts. Please log in again.', 429],
-        mismatch: ['Incorrect OTP', 401],
+        mismatch: [`Incorrect OTP. ${result.attemptsLeft} attempt${result.attemptsLeft === 1 ? '' : 's'} left.`, 401],
       };
       const [msg, status] = map[result.reason] || ['OTP verification failed', 400];
-      await auditRepo.log({ userId, event: 'otp_failed', detail: { reason: result.reason }, ...meta });
-      return res.status(status).json({ error: msg, code: result.reason.toUpperCase() });
+      await auditRepo.log({ userId, event: 'otp_failed', detail: { reason: result.reason, attemptsLeft: result.attemptsLeft }, ...meta });
+      return res.status(status).json({ error: msg, code: result.reason.toUpperCase(), attemptsLeft: result.attemptsLeft });
     }
 
     const user = await userRepo.findById(userId);
