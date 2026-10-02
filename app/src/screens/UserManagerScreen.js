@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Card, Button, Alert, Select, DateField } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { gridParams } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 
 const PAGE_SIZE = 10;
@@ -56,17 +57,17 @@ export default function UserManagerScreen({ network = false, onDone }) {
   const [viewUser, setViewUser] = useState(null);
   const [toDelete, setToDelete] = useState(null); const [deleting, setDeleting] = useState(false);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const [sort, setSort] = useState(null); const [colFilters, setColFilters] = useState({}); // DataGrid
 
   const load = useCallback(async (opts = {}) => {
     setLoading(true); setError(null);
     try {
-      const res = await usersApi.list({ q: opts.q ?? q, ...applied, page: opts.page ?? page, pageSize: PAGE_SIZE });
+      const res = await usersApi.list({ q: opts.q ?? q, ...applied, ...gridParams(sort, colFilters), page: opts.page ?? page, pageSize: PAGE_SIZE });
       setRows(res.rows); setTotal(res.total); setPage(res.page);
     } catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, q, applied]);
+  }, [page, q, applied, sort, colFilters]);
 
   useEffect(() => {
-    load({ page: 1 });
     api.states().then((r) => setStates(r.states)).catch(() => {});
     if (network) {
       // Only the user types (and their plans) this user may create.
@@ -87,7 +88,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
     /* eslint-disable-next-line */
   }, []);
   useEffect(() => { const t = setTimeout(() => load({ page: 1, q }), 350); return () => clearTimeout(t); /* eslint-disable-next-line */ }, [q]);
-  useEffect(() => { load({ page: 1 }); /* eslint-disable-next-line */ }, [applied]);
+  useEffect(() => { load({ page: 1 }); /* eslint-disable-next-line */ }, [applied, sort, colFilters]);
   // load cities when selected state changes
   useEffect(() => {
     if (!f.stateId) { setCities([]); return; }
@@ -327,56 +328,36 @@ export default function UserManagerScreen({ network = false, onDone }) {
             <TextInput value={q} onChangeText={setQ} placeholder="Name, shop, mobile, id…" placeholderTextColor={colors.muted} style={styles.search} /></View>
         </View>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 1690, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text style={[styles.cell, styles.cNo, styles.thText]}>#</Text>
-              <Text style={[styles.cell, styles.cWide, styles.thText]}>Shop Name</Text>
-              <Text style={[styles.cell, styles.cWide, styles.thText]}>Name</Text>
-              <Text style={[styles.cell, styles.cMob, styles.thText]}>Mobile</Text>
-              <Text style={[styles.cell, styles.cId, styles.thText]}>User Id</Text>
-              <Text style={[styles.cell, styles.cType, styles.thText]}>User Type</Text>
-              <Text style={[styles.cell, styles.cEmail, styles.thText]}>Email Id</Text>
-              <Text style={[styles.cell, styles.cWallet, styles.thText]}>Wallet</Text>
-              <Text style={[styles.cell, styles.cPlan, styles.thText]}>Plan</Text>
-              <Text style={[styles.cell, styles.cDate, styles.thText]}>Join Date</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cParent, styles.thText]}>Parent Id</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cCreated, styles.thText]}>Created By</Text>
-              <Text style={[styles.cell, styles.cStatus, styles.thText]}>Status</Text>
-              <Text style={[styles.cell, styles.cKyc, styles.thText]}>E-Kyc</Text>
-              <Text style={[styles.cell, styles.cKyc, styles.thText]}>Kyc</Text>
-              <Text style={[styles.cell, styles.cAction, styles.thText]}>Action</Text>
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No users found.</Text></View>
-                : rows.map((row, i) => (
-                  <View key={row.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.cNo, styles.td]}>{from + i}</Text>
-                    <Text style={[styles.cell, styles.cWide, styles.td]}>{row.shop_name || '—'}</Text>
-                    <Text style={[styles.cell, styles.cWide, styles.td]}>{row.name}</Text>
-                    <Text style={[styles.cell, styles.cMob, styles.td]}>{row.mobile}</Text>
-                    <Text style={[styles.cell, styles.cId, styles.td]}>{row.user_code}</Text>
-                    <Text style={[styles.cell, styles.cType, styles.td]}>{row.user_type_name}</Text>
-                    <Text style={[styles.cell, styles.cEmail, styles.td]} numberOfLines={1}>{row.email || '—'}</Text>
-                    <Text style={[styles.cell, styles.cWallet, styles.td]}>{money(row.wallet_balance)}</Text>
-                    <Text style={[styles.cell, styles.cPlan, styles.td]}>{row.plan_name || '—'}</Text>
-                    <Text style={[styles.cell, styles.cDate, styles.td]}>{fmtDate(row.join_date)}</Text>
-                    <Text style={[styles.cell, styles.cParent, styles.td]}>{row.parent_code || '—'}</Text>
-                    <View style={[styles.cell, styles.cCreated]}><Text style={styles.td} numberOfLines={1}>{row.created_by_code || '—'}</Text>{row.created_by_name ? <Text style={styles.sub} numberOfLines={1}>{row.created_by_name}</Text> : null}</View>
-                    <View style={[styles.cell, styles.cStatus]}><Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
-                    <View style={[styles.cell, styles.cKyc]}><KycBadge value={row.ekyc_status} /></View>
-                    <View style={[styles.cell, styles.cKyc]}><KycBadge value={row.kyc_status} /></View>
-                    <View style={[styles.cell, styles.cAction, styles.actions]}>
-                      {/* In the network panel money moves only to users directly under you. */}
-                      {!network || row.parent_id === meId ? <Pressable onPress={() => openFund(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>💰</Text></Pressable> : null}
-                      <Pressable onPress={() => setViewUser(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>👁️</Text></Pressable>
-                      <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 15 }}>✏️</Text></Pressable>
-                      {!network ? <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 15 }}>🗑️</Text></Pressable> : null}
-                    </View>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading} emptyText="No users found."
+          sort={sort} onSort={setSort} filters={colFilters} onFilter={setColFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (row, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'shop_name', title: 'Shop Name', width: 140 },
+            { key: 'name', title: 'Name', width: 140 },
+            { key: 'mobile', title: 'Mobile', width: 120 },
+            { key: 'user_code', title: 'User Id', width: 110 },
+            { key: 'user_type', title: 'User Type', width: 140, render: (row) => <Text style={styles.td}>{row.user_type_name}</Text> },
+            { key: 'email', title: 'Email Id', width: 190, render: (row) => <Text style={styles.td} numberOfLines={1}>{row.email || '—'}</Text> },
+            { key: 'wallet', title: 'Wallet', width: 110, render: (row) => <Text style={styles.td}>{money(row.wallet_balance)}</Text> },
+            { key: 'plan', title: 'Plan', width: 140, render: (row) => <Text style={styles.td}>{row.plan_name || '—'}</Text> },
+            { key: 'join_date', title: 'Join Date', width: 125, render: (row) => <Text style={styles.td}>{fmtDate(row.join_date)}</Text> },
+            { key: 'parent', title: 'Parent Id', width: 115, render: (row) => <Text style={styles.td}>{row.parent_code || '—'}</Text> },
+            { key: 'created_by', title: 'Created By', width: 140, render: (row) => <View><Text style={styles.td} numberOfLines={1}>{row.created_by_code || '—'}</Text>{row.created_by_name ? <Text style={styles.sub} numberOfLines={1}>{row.created_by_name}</Text> : null}</View> },
+            { key: 'status', title: 'Status', width: 95, render: (row) => <Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /> },
+            { key: 'ekyc', title: 'E-Kyc', width: 100, render: (row) => <KycBadge value={row.ekyc_status} /> },
+            { key: 'kyc', title: 'Kyc', width: 100, render: (row) => <KycBadge value={row.kyc_status} /> },
+            { key: 'action', title: 'Action', width: 140, sortable: false, filterable: false, render: (row) => (
+              <View style={styles.actions}>
+                {/* In the network panel money moves only to users directly under you. */}
+                {!network || row.parent_id === meId ? <Pressable onPress={() => openFund(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>💰</Text></Pressable> : null}
+                <Pressable onPress={() => setViewUser(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>👁️</Text></Pressable>
+                <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 15 }}>✏️</Text></Pressable>
+                {!network ? <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 15 }}>🗑️</Text></Pressable> : null}
+              </View>
+            ) },
+          ]}
+        />
         <View style={styles.pagination}>
           <Text style={styles.entries}>Showing {from} to {to} of {total} entries</Text>
           <View style={styles.pager}>

@@ -1,6 +1,7 @@
 'use strict';
 
 const bcrypt = require('bcryptjs');
+const { parseGrid } = require('../utils/gridQuery');
 const repo = require('../repositories/usersManager.repo');
 const userTypeRepo = require('../repositories/userType.repo');
 const planRepo = require('../repositories/plan.repo');
@@ -25,6 +26,7 @@ async function list(req, res, next) {
       kycStatus: KYC.includes(req.query.kycStatus) ? req.query.kycStatus : '',
       accountStatus: ['active', 'inactive'].includes(req.query.accountStatus) ? req.query.accountStatus : '',
       parentUser: clean(req.query.parentUser),
+      grid: parseGrid(req.query, repo.USERS_GRID),
       page, pageSize,
     });
     return res.json({ rows, total, page, pageSize });

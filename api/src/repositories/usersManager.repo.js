@@ -2,9 +2,21 @@
 
 const db = require('../config/db');
 const { downlineIds } = require('./network.repo');
+const { applyGridFilters, applyGridSort, DATE_TEXT } = require('../utils/gridQuery');
+
+// Sortable / filterable Users Manager columns (keys = the app's DataGrid column keys).
+const USERS_GRID = {
+  shop_name: 'u.shop_name', name: 'u.full_name', mobile: 'u.mobile', user_code: 'u.user_code', user_type: 'ut.name',
+  email: 'u.email', wallet: 'u.wallet_balance', plan: 'p.name',
+  join_date: { sort: 'u.created_at', filter: DATE_TEXT('u.created_at') },
+  parent: { sort: 'par.user_code', filter: "concat_ws(' ', par.user_code, par.full_name)" },
+  created_by: { sort: 'cr.user_code', filter: "concat_ws(' ', coalesce(nullif(cr.user_code, ''), cr.username), cr.full_name)" },
+  status: { sort: 'u.is_active', filter: "case when u.is_active then 'active' else 'inactive blocked' end" },
+  ekyc: 'u.ekyc_status', kyc: 'u.kyc_status',
+};
 
 // Managed users = those with a user_type (retailers/distributors/etc.), not the admin.
-function joined() {
+function base() {
   return db('users as u')
     .leftJoin('user_types as ut', 'ut.id', 'u.user_type_id')
     .leftJoin('plans as p', 'p.id', 'u.plan_id')
@@ -12,7 +24,11 @@ function joined() {
     .leftJoin('users as cr', 'cr.id', 'u.created_by')
     .leftJoin('states as st', 'st.id', 'u.state_id')
     .leftJoin('cities as ci', 'ci.id', 'u.city_id')
-    .whereNotNull('u.user_type_id')
+    .whereNotNull('u.user_type_id');
+}
+
+function joined() {
+  return base()
     .select(
       'u.id', 'u.user_code', 'u.shop_name', 'u.full_name as name', 'u.mobile', 'u.email',
       'u.wallet_balance', 'u.is_active', 'u.kyc_status', 'u.ekyc_status', 'u.created_at as join_date',
@@ -32,8 +48,10 @@ function joined() {
 }
 
 module.exports = {
+  USERS_GRID,
   // downlineOf: limit to users below that user in the parent chain (distributor / MD panel).
-  async list({ q = '', userTypeId = null, kycStatus = '', accountStatus = '', parentUser = '', downlineOf = null, page = 1, pageSize = 10 } = {}) {
+  // grid = parseGrid(query, USERS_GRID): column sort + filters over all matching users.
+  async list({ q = '', userTypeId = null, kycStatus = '', accountStatus = '', parentUser = '', downlineOf = null, grid = null, page = 1, pageSize = 10 } = {}) {
     const filter = (qb) => {
       if (downlineOf) qb.whereIn('u.id', downlineIds(downlineOf));
       if (userTypeId) qb.where('u.user_type_id', userTypeId);
@@ -42,11 +60,12 @@ module.exports = {
       if (accountStatus === 'inactive') qb.where('u.is_active', false);
       if (parentUser) qb.andWhere((w) => w.whereILike('par.user_code', `%${parentUser}%`).orWhereILike('par.full_name', `%${parentUser}%`));
       if (q) qb.andWhere((w) => w.whereILike('u.full_name', `%${q}%`).orWhereILike('u.shop_name', `%${q}%`).orWhereILike('u.mobile', `%${q}%`).orWhereILike('u.email', `%${q}%`).orWhereILike('u.user_code', `%${q}%`));
+      applyGridFilters(qb, grid);
     };
-    const countRow = await db('users as u')
-      .leftJoin('users as par', 'par.id', 'u.parent_id')
-      .whereNotNull('u.user_type_id').where(filter).count('u.id as c').first();
-    const rows = await joined().where(filter).orderBy('u.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
+    const countRow = await base().where(filter).count('u.id as c').first();
+    const q2 = joined().where(filter);
+    applyGridSort(q2, grid, 'u.id', 'desc');
+    const rows = await q2.limit(pageSize).offset((page - 1) * pageSize);
     return { rows, total: Number(countRow.c) };
   },
   findFull(id) { return joined().where('u.id', id).first(); },

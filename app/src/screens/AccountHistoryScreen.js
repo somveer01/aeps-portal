@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, ScrollView } from 'react-native';
 import { Card, Button, Alert, Select, DateField } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { gridParams } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 
 const PAGE_SIZE = 10;
@@ -18,22 +19,22 @@ export default function AccountHistoryScreen() {
   const [userTypes, setUserTypes] = useState([]); const [users, setUsers] = useState([]); const [services, setServices] = useState([]);
   const [ff, setFf] = useState({ startDate: '', endDate: '', userTypeId: '', userId: '', service: '', type: '' });
   const [applied, setApplied] = useState({});
+  const [sort, setSort] = useState(null); const [colFilters, setColFilters] = useState({}); // DataGrid
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
 
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
-    try { const res = await api.reports.accountHistory({ ...applied, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
+    try { const res = await api.reports.accountHistory({ ...applied, ...gridParams(sort, colFilters), page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, applied]);
+  }, [page, applied, sort, colFilters]);
 
   useEffect(() => {
-    load(1);
     api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {});
     api.managedUsers.list({ pageSize: 100 }).then((r) => setUsers(r.rows)).catch(() => {});
     api.services.list({ pageSize: 100, active: true }).then((r) => setServices(r.rows)).catch(() => {});
     /* eslint-disable-next-line */
   }, []);
-  useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied]);
+  useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied, sort, colFilters]);
 
   const utOptions = [{ label: 'All', value: '' }, ...userTypes.map((u) => ({ label: u.name, value: u.id }))];
   const userOptions = [{ label: 'All', value: '' }, ...users.map((u) => ({ label: `${u.user_code} · ${u.name}`, value: u.id }))];
@@ -59,39 +60,21 @@ export default function AccountHistoryScreen() {
 
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 1200, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text style={[styles.cell, styles.cNo, styles.thText]}>#</Text>
-              <Text style={[styles.cell, styles.cSvc, styles.thText]}>Service Name</Text>
-              <Text style={[styles.cell, styles.cType, styles.thText]}>Type</Text>
-              <Text style={[styles.cell, styles.cRemark, styles.thText]}>Remark</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>Amount</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>Before Bal</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>Updated Bal</Text>
-              <Text style={[styles.cell, styles.cUser, styles.thText]}>Retailer Details</Text>
-              <Text style={[styles.cell, styles.cDate, styles.thText]}>Date</Text>
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No transactions found.</Text></View>
-                : rows.map((r, i) => (
-                  <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.cNo, styles.td]}>{from + i}</Text>
-                    <Text style={[styles.cell, styles.cSvc, styles.td]}>{r.service_name}</Text>
-                    <Text style={[styles.cell, styles.cType, { color: r.type === 'debit' ? colors.danger : colors.success, fontWeight: '700', fontSize: 13, textTransform: 'capitalize' }]}>{r.type}</Text>
-                    <Text style={[styles.cell, styles.cRemark, styles.td]} numberOfLines={3}>{r.remark || '—'}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{money(r.amount)}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{money(r.before_balance)}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{money(r.updated_balance)}</Text>
-                    <View style={[styles.cell, styles.cUser]}>
-                      <Text style={styles.td}>{r.user_name}</Text>
-                      <Text style={styles.sub}>{r.user_code} · {r.user_mobile}</Text>
-                    </View>
-                    <Text style={[styles.cell, styles.cDate, styles.td]}>{fmtDateTime(r.created_at)}</Text>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading} emptyText="No transactions found."
+          sort={sort} onSort={setSort} filters={colFilters} onFilter={setColFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'service_name', title: 'Service Name', width: 150 },
+            { key: 'type', title: 'Type', width: 100, render: (r) => <Text style={{ color: r.type === 'debit' ? colors.danger : colors.success, fontWeight: '700', fontSize: 13, textTransform: 'capitalize' }}>{r.type}</Text> },
+            { key: 'remark', title: 'Remark', flex: 1, minWidth: 240, render: (r) => <Text style={styles.td} numberOfLines={3}>{r.remark || '—'}</Text> },
+            { key: 'amount', title: 'Amount', width: 115, render: (r) => <Text style={styles.td}>{money(r.amount)}</Text> },
+            { key: 'before_balance', title: 'Before Bal', width: 120, render: (r) => <Text style={styles.td}>{money(r.before_balance)}</Text> },
+            { key: 'updated_balance', title: 'Updated Bal', width: 120, render: (r) => <Text style={styles.td}>{money(r.updated_balance)}</Text> },
+            { key: 'user', title: 'Retailer Details', width: 190, render: (r) => <View><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code} · {r.user_mobile}</Text></View> },
+            { key: 'created_at', title: 'Date', width: 165, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
     </View>

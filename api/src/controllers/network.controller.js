@@ -1,5 +1,6 @@
 'use strict';
 
+const { parseGrid } = require('../utils/gridQuery');
 const bcrypt = require('bcryptjs');
 const repo = require('../repositories/network.repo');
 const usersRepo = require('../repositories/usersManager.repo');
@@ -57,6 +58,7 @@ async function listUsers(req, res, next) {
     const { rows, total } = await usersRepo.list({
       q: clean(req.query.q), userTypeId: intOrNull(req.query.userTypeId), kycStatus: clean(req.query.kycStatus),
       accountStatus: clean(req.query.accountStatus), parentUser: clean(req.query.parentUser), downlineOf: req.user.id, ...f,
+      grid: parseGrid(req.query, usersRepo.USERS_GRID),
     });
     return res.json({ rows, total, ...f });
   } catch (err) { return next(err); }
@@ -178,7 +180,7 @@ async function report(req, res, next) {
       startDate: clean(req.query.startDate) || null, endDate: clean(req.query.endDate) || null,
       userTypeId: intOrNull(req.query.userTypeId), userId: intOrNull(req.query.userId),
       service: clean(req.query.service) || null, status: clean(req.query.status) || null,
-      downlineOf: req.user.id, ...f,
+      downlineOf: req.user.id, ...f, grid: parseGrid(req.query, reportsRepo.SERVICE_GRID),
     });
     return res.json({ rows, total, ...f });
   } catch (err) { return next(err); }

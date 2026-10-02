@@ -2,6 +2,7 @@
 
 const db = require('../config/db');
 const { downlineIds } = require('./network.repo');
+const { applyGridFilters, applyGridSort, DATE_TEXT } = require('../utils/gridQuery');
 
 // Common date + user filters (query aliased `x`, joined to users `u`).
 function applyCommon(qb, { startDate, endDate, userTypeId, userId }) {
@@ -12,11 +13,36 @@ function applyCommon(qb, { startDate, endDate, userTypeId, userId }) {
 }
 
 // joinsFn() returns the FROM+JOIN query (no select); cols are the select columns.
-async function paginate(joinsFn, cols, filterFn, { page = 1, pageSize = 10 }) {
-  const countRow = await joinsFn().where(filterFn).count('x.id as c').first();
-  const rows = await joinsFn().where(filterFn).select(...cols).orderBy('x.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
+// grid = parseGrid(query, <REPORT>_GRID): column sort + filters over the whole result.
+async function paginate(joinsFn, cols, filterFn, { page = 1, pageSize = 10, grid = null }) {
+  const where = (qb) => { qb.where(filterFn); applyGridFilters(qb, grid); };
+  const countRow = await joinsFn().where(where).count('x.id as c').first();
+  const q = joinsFn().where(where).select(...cols);
+  applyGridSort(q, grid, 'x.id', 'desc');
+  const rows = await q.limit(pageSize).offset((page - 1) * pageSize);
   return { rows, total: Number(countRow.c) };
 }
+
+// Sortable / filterable columns of each report grid (keys = the app's DataGrid column keys).
+const USER_TEXT = "concat_ws(' ', u.full_name, u.user_code, u.mobile, u.shop_name)";
+const DATE_COL = (col) => ({ sort: col, filter: DATE_TEXT(col) });
+const ACCOUNT_GRID = {
+  service_name: 'x.service_name', type: 'x.type', remark: 'x.remark', amount: 'x.amount',
+  before_balance: 'x.before_balance', updated_balance: 'x.updated_balance',
+  user: { sort: 'u.full_name', filter: USER_TEXT }, created_at: DATE_COL('x.created_at'),
+};
+const SERVICE_GRID = {
+  service: 'x.service', operator: 'x.operator', target: 'x.target', amount: 'x.amount', reference_id: 'x.reference_id',
+  status: 'x.status', response: 'x.response', user: { sort: 'u.full_name', filter: USER_TEXT }, created_at: DATE_COL('x.created_at'),
+};
+const FUND_REQUEST_GRID = {
+  bank: { sort: 'cb.bank_name', filter: "concat_ws(' ', cb.bank_name, cb.account_no)" },
+  deposit_date: { sort: 'x.deposit_date', filter: "to_char(x.deposit_date, 'DD Mon YYYY YYYY-MM-DD')" },
+  payment_mode: 'x.payment_mode', amount: 'x.amount', receipt_no: 'x.receipt_no', request_id: 'x.request_id', status: 'x.status',
+  remark: 'x.remark', admin_remark: 'x.admin_remark', user: { sort: 'u.full_name', filter: USER_TEXT }, outlet: 'u.shop_name',
+  approver: { sort: 'ap.user_code', filter: "concat_ws(' ', coalesce(nullif(ap.user_code, ''), ap.username), ap.full_name, case when ap.role = 'admin' or x.approver_id is null then 'admin' end)" },
+  created_at: DATE_COL('x.created_at'),
+};
 
 const USER_COLS = ['u.full_name as user_name', 'u.mobile as user_mobile', 'u.user_code', 'u.shop_name as outlet_name', 'ut.name as user_type_name'];
 const withUser = (table) => () => db(`${table} as x`)
@@ -30,6 +56,8 @@ const FR_COLS = ['x.*', ...USER_COLS, 'cb.bank_name', 'cb.account_no',
   db.raw("coalesce(nullif(ap.user_code, ''), ap.username) as approver_code"), 'ap.full_name as approver_name', 'ap.role as approver_role'];
 
 module.exports = {
+  ACCOUNT_GRID, SERVICE_GRID, FUND_REQUEST_GRID,
+
   accountTransactions(f) {
     return paginate(withUser('account_transactions'), ['x.*', ...USER_COLS],
       (qb) => { applyCommon(qb, f); if (f.service) qb.where('x.service_name', f.service); if (f.type) qb.where('x.type', f.type); }, f);

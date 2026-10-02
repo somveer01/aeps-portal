@@ -1,5 +1,6 @@
 'use strict';
 
+const { parseGrid } = require('../utils/gridQuery');
 const db = require('../config/db');
 const reportsRepo = require('../repositories/reports.repo');
 const audit = require('../repositories/audit.repo');
@@ -43,7 +44,7 @@ async function myMeta(req, res, next) {
 async function myList(req, res, next) {
   try {
     const f = listFilters(req);
-    const { rows, total } = await reportsRepo.fundRequests({ ...f, userTypeId: null, userId: null, ownerId: req.user.id });
+    const { rows, total } = await reportsRepo.fundRequests({ ...f, userTypeId: null, userId: null, ownerId: req.user.id, grid: parseGrid(req.query, reportsRepo.FUND_REQUEST_GRID) });
     return res.json({ rows, total, page: f.page, pageSize: f.pageSize });
   } catch (err) { return next(err); }
 }
@@ -61,7 +62,7 @@ async function myCreate(req, res, next) {
 async function networkList(req, res, next) {
   try {
     const f = listFilters(req);
-    const { rows, total } = await reportsRepo.fundRequests({ ...f, approverId: req.user.id });
+    const { rows, total } = await reportsRepo.fundRequests({ ...f, approverId: req.user.id, grid: parseGrid(req.query, reportsRepo.FUND_REQUEST_GRID) });
     return res.json({ rows, total, page: f.page, pageSize: f.pageSize });
   } catch (err) { return next(err); }
 }

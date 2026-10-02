@@ -1,5 +1,6 @@
 'use strict';
 
+const { parseGrid } = require('../utils/gridQuery');
 const repo = require('../repositories/reports.repo');
 
 const clean = (v) => String(v || '').trim();
@@ -18,17 +19,17 @@ function filters(req) {
 }
 
 async function accountHistory(req, res, next) {
-  try { const f = filters(req); const { rows, total } = await repo.accountTransactions(f); return res.json({ rows, total, page: f.page, pageSize: f.pageSize }); }
+  try { const f = { ...filters(req), grid: parseGrid(req.query, repo.ACCOUNT_GRID) }; const { rows, total } = await repo.accountTransactions(f); return res.json({ rows, total, page: f.page, pageSize: f.pageSize }); }
   catch (err) { return next(err); }
 }
 
 async function serviceReport(req, res, next) {
-  try { const f = filters(req); const { rows, total } = await repo.serviceTransactions(f); return res.json({ rows, total, page: f.page, pageSize: f.pageSize }); }
+  try { const f = { ...filters(req), grid: parseGrid(req.query, repo.SERVICE_GRID) }; const { rows, total } = await repo.serviceTransactions(f); return res.json({ rows, total, page: f.page, pageSize: f.pageSize }); }
   catch (err) { return next(err); }
 }
 
 async function fundRequests(req, res, next) {
-  try { const f = filters(req); const { rows, total } = await repo.fundRequests(f); return res.json({ rows, total, page: f.page, pageSize: f.pageSize }); }
+  try { const f = { ...filters(req), grid: parseGrid(req.query, repo.FUND_REQUEST_GRID) }; const { rows, total } = await repo.fundRequests(f); return res.json({ rows, total, page: f.page, pageSize: f.pageSize }); }
   catch (err) { return next(err); }
 }
 

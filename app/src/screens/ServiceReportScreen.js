@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ActivityIndicator, ScrollView } from 'react-native';
 import { Card, Button, Alert, Select, DateField, StatusBadge } from '../components/UI';
 import { api } from '../api/client';
+import DataGrid, { gridParams } from '../components/DataGrid';
 import { colors } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
 
@@ -22,15 +23,15 @@ export default function ServiceReportScreen({ network = false }) {
   const [ff, setFf] = useState({ startDate: '', endDate: '', userTypeId: '', userId: '', service: '', status: '' });
   const [applied, setApplied] = useState({});
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
+  const [sort, setSort] = useState(null); const [colFilters, setColFilters] = useState({}); // DataGrid
 
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
-    try { const res = await (network ? api.network.serviceReport : api.reports.serviceReport)({ ...applied, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
+    try { const res = await (network ? api.network.serviceReport : api.reports.serviceReport)({ ...applied, ...gridParams(sort, colFilters), page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
-  }, [page, applied]);
+  }, [page, applied, sort, colFilters]);
 
   useEffect(() => {
-    load(1);
     if (network) {
       // Filter options come from the downline itself (types and users below me).
       api.network.users.list({ pageSize: 100 }).then((r) => {
@@ -46,7 +47,7 @@ export default function ServiceReportScreen({ network = false }) {
     else api.services.list({ pageSize: 100, active: true }).then((r) => setServices(r.rows)).catch(() => {});
     /* eslint-disable-next-line */
   }, []);
-  useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied]);
+  useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied, sort, colFilters]);
 
   const utOptions = [{ label: 'All', value: '' }, ...userTypes.map((u) => ({ label: u.name, value: u.id }))];
   const userOptions = [{ label: 'All', value: '' }, ...users.map((u) => ({ label: `${u.user_code} · ${u.name}`, value: u.id }))];
@@ -72,38 +73,22 @@ export default function ServiceReportScreen({ network = false }) {
 
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ minWidth: 1250, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text style={[styles.cell, styles.cNo, styles.thText]}>#</Text>
-              <Text style={[styles.cell, styles.cSvc, styles.thText]}>Service</Text>
-              <Text style={[styles.cell, styles.cOp, styles.thText]}>Operator</Text>
-              <Text style={[styles.cell, styles.cTarget, styles.thText]}>Mobile / Account</Text>
-              <Text style={[styles.cell, styles.cAmt, styles.thText]}>Amount</Text>
-              <Text style={[styles.cell, styles.cRef, styles.thText]}>Reference Id</Text>
-              <Text style={[styles.cell, styles.cStatus, styles.thText]}>Status</Text>
-              <Text style={[styles.cell, styles.cResp, styles.thText]}>Response</Text>
-              <Text style={[styles.cell, styles.cUser, styles.thText]}>User</Text>
-              <Text style={[styles.cell, styles.cDate, styles.thText]}>Date</Text>
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>No records found.</Text></View>
-                : rows.map((r, i) => (
-                  <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.cNo, styles.td]}>{from + i}</Text>
-                    <Text style={[styles.cell, styles.cSvc, styles.td]}>{r.service}</Text>
-                    <Text style={[styles.cell, styles.cOp, styles.td]}>{r.operator || '—'}</Text>
-                    <Text style={[styles.cell, styles.cTarget, styles.td]}>{r.target || '—'}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{money(r.amount)}</Text>
-                    <Text style={[styles.cell, styles.cRef, styles.td]}>{r.reference_id || '—'}</Text>
-                    <View style={[styles.cell, styles.cStatus]}><StatusBadge label={r.status} tone={statusTone(r.status)} /></View>
-                    <Text style={[styles.cell, styles.cResp, styles.td]} numberOfLines={2}>{r.response || '—'}</Text>
-                    <View style={[styles.cell, styles.cUser]}><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code}</Text></View>
-                    <Text style={[styles.cell, styles.cDate, styles.td]}>{fmtDateTime(r.created_at)}</Text>
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading}
+          sort={sort} onSort={setSort} filters={colFilters} onFilter={setColFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'service', title: 'Service', width: 140 },
+            { key: 'operator', title: 'Operator', width: 130 },
+            { key: 'target', title: 'Mobile / Account', width: 150 },
+            { key: 'amount', title: 'Amount', width: 110, render: (r) => <Text style={styles.td}>{money(r.amount)}</Text> },
+            { key: 'reference_id', title: 'Reference Id', width: 150 },
+            { key: 'status', title: 'Status', width: 120, render: (r) => <StatusBadge label={r.status} tone={statusTone(r.status)} /> },
+            { key: 'response', title: 'Response', flex: 1, minWidth: 200, render: (r) => <Text style={styles.td} numberOfLines={2}>{r.response || '—'}</Text> },
+            { key: 'user', title: 'User', width: 170, render: (r) => <View><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code}</Text></View> },
+            { key: 'created_at', title: 'Date', width: 165, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
     </View>

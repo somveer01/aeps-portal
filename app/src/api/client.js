@@ -406,8 +406,8 @@ export const api = {
 
   // Users Manager (managed portal users)
   managedUsers: {
-    list: ({ q = '', userTypeId = '', parentUser = '', accountStatus = '', kycStatus = '', page = 1, pageSize = 10 } = {}) =>
-      request(`/api/users?q=${encodeURIComponent(q)}&userTypeId=${userTypeId}&parentUser=${encodeURIComponent(parentUser)}&accountStatus=${accountStatus}&kycStatus=${kycStatus}&page=${page}&pageSize=${pageSize}`, { auth: true }),
+    // params: q, userTypeId, parentUser, accountStatus, kycStatus, page, pageSize + DataGrid sort/dir/f_<col>.
+    list: (params = {}) => request(`/api/users?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     create: (body) => request('/api/users', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/users/${id}`, { method: 'PUT', body, auth: true }),
     fund: (id, body) => request(`/api/users/${id}/fund`, { method: 'POST', body, auth: true, idempotencyKey: idemKey() }),

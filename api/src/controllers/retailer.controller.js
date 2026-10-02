@@ -1,5 +1,6 @@
 'use strict';
 
+const { parseGrid } = require('../utils/gridQuery');
 const db = require('../config/db');
 const serviceGuard = require('../services/serviceGuard.service');
 const permission = require('../services/servicePermission.service');
@@ -101,10 +102,10 @@ async function operators(req, res, next) {
 }
 
 async function accountHistory(req, res, next) {
-  try { const f = ownerFilters(req); const r = await reportsRepo.accountTransactions(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
+  try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.ACCOUNT_GRID) }; const r = await reportsRepo.accountTransactions(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
 async function serviceReport(req, res, next) {
-  try { const f = ownerFilters(req); const r = await reportsRepo.serviceTransactions(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
+  try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.SERVICE_GRID) }; const r = await reportsRepo.serviceTransactions(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
 async function gstReport(req, res, next) {
   try { const f = ownerFilters(req); const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }

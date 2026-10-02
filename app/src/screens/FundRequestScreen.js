@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Modal, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { Card, Button, Alert, Select, DateField, StatusBadge } from '../components/UI';
 import { api, assetUrl } from '../api/client';
+import DataGrid, { gridParams } from '../components/DataGrid';
 import { pickImage } from '../api/imagePicker';
 import { colors, radius } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
@@ -35,16 +36,16 @@ export default function FundRequestScreen({ mode = 'admin', onDone }) {
   const [applied, setApplied] = useState({});
   const [act, setAct] = useState(null); const [actStatus, setActStatus] = useState('approved'); const [adminRemark, setAdminRemark] = useState(''); const [actPin, setActPin] = useState(''); const [acting, setActing] = useState(false); const [actError, setActError] = useState(null);
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
+  const [sort, setSort] = useState(null); const [colFilters, setColFilters] = useState({}); // DataGrid
 
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
-    try { const res = await listApi({ ...applied, page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
+    try { const res = await listApi({ ...applied, ...gridParams(sort, colFilters), page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
     /* eslint-disable-next-line */
-  }, [page, applied]);
+  }, [page, applied, sort, colFilters]);
 
   useEffect(() => {
-    load(1);
     if (isNetwork) {
       api.network.users.list({ pageSize: 100 }).then((r) => {
         setUsers(r.rows);
@@ -57,7 +58,7 @@ export default function FundRequestScreen({ mode = 'admin', onDone }) {
     }
     /* eslint-disable-next-line */
   }, []);
-  useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied]);
+  useEffect(() => { load(1); /* eslint-disable-next-line */ }, [applied, sort, colFilters]);
 
   const utOptions = [{ label: 'All', value: '' }, ...userTypes.map((u) => ({ label: u.name, value: u.id }))];
   const userOptions = [{ label: 'All', value: '' }, ...users.map((u) => ({ label: `${u.user_code} · ${u.name}`, value: u.id }))];
@@ -105,51 +106,35 @@ export default function FundRequestScreen({ mode = 'admin', onDone }) {
 
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: showUser ? 1760 : 1380, flexGrow: 1 }}>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.tr, styles.th]}>
-              <Text numberOfLines={1} style={[styles.cell, styles.cNo, styles.thText]}>#</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cBank, styles.thText]}>Bank Details</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cDate, styles.thText]}>Deposit Date</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cMode, styles.thText]}>Mode</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cAmt, styles.thText]}>Amount</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cUtr, styles.thText]}>UTR / Ref</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cReq, styles.thText]}>Request Id</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cStatus, styles.thText]}>Status</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cRemark, styles.thText]}>Remark</Text>
-              <Text numberOfLines={1} style={[styles.cell, styles.cRemark, styles.thText]}>Approver Remark</Text>
-              {showUser ? <Text numberOfLines={1} style={[styles.cell, styles.cUser, styles.thText]}>User</Text> : null}
-              {showUser ? <Text numberOfLines={1} style={[styles.cell, styles.cOutlet, styles.thText]}>Outlet</Text> : null}
-              {!isNetwork ? <Text numberOfLines={1} style={[styles.cell, styles.cAppr, styles.thText]}>Approver</Text> : null}
-              {showUser ? <Text numberOfLines={1} style={[styles.cell, styles.cAction, styles.thText]}>Action</Text> : null}
-            </View>
-            {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-              : rows.length === 0 ? <View style={styles.empty}><Text style={{ color: colors.muted }}>{isMine ? 'No requests yet. Tap + NEW REQUEST after you pay.' : 'No fund requests found.'}</Text></View>
-                : rows.map((r, i) => (
-                  <View key={r.id} style={[styles.tr, i % 2 ? styles.trAlt : null]}>
-                    <Text style={[styles.cell, styles.cNo, styles.td]}>{from + i}</Text>
-                    <View style={[styles.cell, styles.cBank]}><Text style={styles.td}>{r.bank_name || (r.approver_role === 'admin' ? '—' : `Paid to ${approverLabel(r)}`)}</Text><Text style={styles.sub}>{r.account_no || ''}</Text></View>
-                    <Text style={[styles.cell, styles.cDate, styles.td]}>{fmtDate(r.deposit_date)}</Text>
-                    <Text style={[styles.cell, styles.cMode, styles.td]}>{r.payment_mode || '—'}</Text>
-                    <Text style={[styles.cell, styles.cAmt, styles.td]}>{money(r.amount)}</Text>
-                    <View style={[styles.cell, styles.cUtr]}><Text style={styles.td}>{r.receipt_no || '—'}</Text>{r.receipt_img ? <Text style={styles.sub}>Proof attached</Text> : null}</View>
-                    <Text style={[styles.cell, styles.cReq, styles.td]}>{r.request_id}</Text>
-                    <View style={[styles.cell, styles.cStatus]}><StatusBadge label={r.status} tone={statusTone(r.status)} /></View>
-                    <Text style={[styles.cell, styles.cRemark, styles.td]} numberOfLines={2}>{r.remark || '—'}</Text>
-                    <Text style={[styles.cell, styles.cRemark, styles.td]} numberOfLines={2}>{r.admin_remark || '—'}</Text>
-                    {showUser ? <View style={[styles.cell, styles.cUser]}><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code} · {r.user_mobile}</Text></View> : null}
-                    {showUser ? <Text style={[styles.cell, styles.cOutlet, styles.td]}>{r.outlet_name || '—'}</Text> : null}
-                    {!isNetwork ? <View style={[styles.cell, styles.cAppr]}><Text style={styles.td}>{approverLabel(r)}</Text>{r.approver_role !== 'admin' && r.approver_name ? <Text style={styles.sub}>{r.approver_name}</Text> : null}</View> : null}
-                    {showUser ? (
-                      <View style={[styles.cell, styles.cAction]}>
-                        {canAct(r) ? <Pressable onPress={() => openAct(r)} style={styles.actBtn}><Text style={styles.actBtnText}>Review</Text></Pressable>
-                          : <Text style={styles.sub}>{r.status === 'pending' ? `With ${approverLabel(r)}` : '—'}</Text>}
-                      </View>
-                    ) : null}
-                  </View>
-                ))}
-          </View>
-        </ScrollView>
+        <DataGrid
+          rows={rows} loading={loading}
+          emptyText={isMine ? 'No requests yet. Tap + NEW REQUEST after you pay.' : 'No fund requests found.'}
+          sort={sort} onSort={setSort} filters={colFilters} onFilter={setColFilters}
+          columns={[
+            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
+            { key: 'bank', title: 'Bank Details', width: 190, render: (r) => <View><Text style={styles.td}>{r.bank_name || (r.approver_role === 'admin' ? '—' : `Paid to ${approverLabel(r)}`)}</Text><Text style={styles.sub}>{r.account_no || ''}</Text></View> },
+            { key: 'deposit_date', title: 'Deposit Date', width: 130, render: (r) => <Text style={styles.td}>{fmtDate(r.deposit_date)}</Text> },
+            { key: 'payment_mode', title: 'Mode', width: 100 },
+            { key: 'amount', title: 'Amount', width: 115, render: (r) => <Text style={styles.td}>{money(r.amount)}</Text> },
+            { key: 'receipt_no', title: 'UTR / Ref', width: 150, render: (r) => <View><Text style={styles.td}>{r.receipt_no || '—'}</Text>{r.receipt_img ? <Text style={styles.sub}>Proof attached</Text> : null}</View> },
+            { key: 'request_id', title: 'Request Id', width: 170 },
+            { key: 'status', title: 'Status', width: 115, render: (r) => <StatusBadge label={r.status} tone={statusTone(r.status)} /> },
+            { key: 'remark', title: 'Remark', width: 170, render: (r) => <Text style={styles.td} numberOfLines={2}>{r.remark || '—'}</Text> },
+            { key: 'admin_remark', title: 'Approver Remark', width: 170, render: (r) => <Text style={styles.td} numberOfLines={2}>{r.admin_remark || '—'}</Text> },
+            ...(showUser ? [
+              { key: 'user', title: 'User', width: 180, render: (r) => <View><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code} · {r.user_mobile}</Text></View> },
+              { key: 'outlet', title: 'Outlet', width: 150, render: (r) => <Text style={styles.td}>{r.outlet_name || '—'}</Text> },
+            ] : []),
+            ...(!isNetwork ? [
+              { key: 'approver', title: 'Approver', width: 150, render: (r) => <View><Text style={styles.td}>{approverLabel(r)}</Text>{r.approver_role !== 'admin' && r.approver_name ? <Text style={styles.sub}>{r.approver_name}</Text> : null}</View> },
+            ] : []),
+            ...(showUser ? [
+              { key: 'action', title: 'Action', width: 130, sortable: false, filterable: false, render: (r) => (canAct(r)
+                ? <Pressable onPress={() => openAct(r)} style={styles.actBtn}><Text style={styles.actBtnText}>Review</Text></Pressable>
+                : <Text style={styles.sub}>{r.status === 'pending' ? `With ${approverLabel(r)}` : '—'}</Text>) },
+            ] : []),
+          ]}
+        />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
 
