@@ -50,14 +50,22 @@ after(async () => {
 
 const newUser = (typeKey, extra = {}) => ({ name: 'Downline User', mobile: '9000000001', password: PIN, userTypeId: types[typeKey], ...extra });
 
-test('MD sees My Network menu and can only create the type directly below it', async () => {
+test('MD sees My Network menu and can create every type below it (Distributor and Retailer)', async () => {
   const t = await tok('MD');
   const menu = await api(BASE, t).get('/api/menu');
   assert.ok(JSON.stringify(menu.b).includes('/network/users'), 'network menu shown');
   const meta = await api(BASE, t).get('/api/network/meta');
-  assert.deepEqual(meta.b.childTypes.map((c) => c.id), [types.DIST]);
+  assert.deepEqual(meta.b.childTypes.map((c) => c.id), [types.DIST, types.RET], 'nearest type first');
 
-  const bad = await api(BASE, t).post('/api/network/users', newUser('RET'));
+  // A Retailer straight under the MD (skipping the Distributor level) is allowed.
+  const direct = await api(BASE, t).post('/api/network/users', newUser('RET'));
+  assert.equal(direct.s, 201, JSON.stringify(direct.b));
+  assert.equal((await db('users').where({ id: direct.b.row.id }).first('parent_id')).parent_id, users.MD.id);
+  await db('audit_log').where({ event: 'user_created' }).whereRaw("detail->>'newUserId' = ?", [String(direct.b.row.id)]).del();
+  await db('users').where({ id: direct.b.row.id }).del();
+
+  // Not its own type, and nothing outside the tree.
+  const bad = await api(BASE, t).post('/api/network/users', newUser('MD'));
   assert.equal(bad.s, 400);
   assert.equal(bad.b.code, 'INVALID_USER_TYPE');
 

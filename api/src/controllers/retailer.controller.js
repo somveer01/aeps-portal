@@ -6,6 +6,7 @@ const serviceGuard = require('../services/serviceGuard.service');
 const permission = require('../services/servicePermission.service');
 const reportsRepo = require('../repositories/reports.repo');
 const commissionSlotRepo = require('../repositories/commissionSlot.repo');
+const networkRepo = require('../repositories/network.repo');
 
 const clean = (v) => String(v || '').trim();
 
@@ -31,7 +32,7 @@ async function summary(req, res, next) {
       .first('u.wallet_balance', 'u.kyc_status', 'u.ekyc_status', 'u.full_name', 'u.shop_name', 'u.user_code', 'ut.name as user_type_name');
     const today = await db('account_transactions').where({ user_id: req.user.id })
       .whereRaw('created_at::date = CURRENT_DATE').count('id as c').sum('amount as amt').first();
-    const commToday = await db('commission_ledger').where({ user_id: req.user.id })
+    const commToday = await db('commission_ledger').where({ user_id: req.user.id, wallet_txn_type: 'credit' }) // earned, not service charges
       .whereRaw('created_at::date = CURRENT_DATE').sum('net_amount as amt').first();
     return res.json({
       balance: Number(u ? u.wallet_balance : 0),
@@ -113,8 +114,51 @@ async function gstReport(req, res, next) {
 async function tdsReport(req, res, next) {
   try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.COMMISSION_GRID) }; const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
+// Level filter from the query: 'own' = 0, 'downline' = anything below me, or a level number.
+function levelFilter(v) {
+  const s = clean(v).toLowerCase();
+  if (s === 'own') return { level: 0 };
+  if (s === 'downline') return { fromDownline: true };
+  return /^\d{1,2}$/.test(s) ? { level: parseInt(s, 10) } : {};
+}
+
+// GET /api/retailer/commission-report — what I earned (own + from my whole downline), with the
+// downline user, level and direct-child branch of every row, filters and totals. sourceUserId /
+// branchChildId must be in my own downline (branchChildId: a direct child).
 async function commissionReport(req, res, next) {
-  try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.COMMISSION_GRID) }; const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
+  try {
+    const me = req.user.id;
+    const sourceUserId = parseInt(req.query.sourceUserId, 10) || null;
+    const branchChildId = parseInt(req.query.branchChildId, 10) || null;
+    if (sourceUserId && sourceUserId !== me && !(await networkRepo.levelOf(me, sourceUserId))) return res.status(404).json({ error: 'User is not in your network', code: 'NOT_IN_NETWORK' });
+    if (branchChildId && (await networkRepo.levelOf(me, branchChildId)) !== 1) return res.status(404).json({ error: 'Not one of your direct users', code: 'NOT_IN_NETWORK' });
+    const f = {
+      ...ownerFilters(req), ...levelFilter(req.query.level), sourceUserId, branchChildId,
+      txnType: ['credit', 'debit'].includes(req.query.type) ? req.query.type : null, viaFor: me,
+      grid: parseGrid(req.query, reportsRepo.COMMISSION_GRID),
+    };
+    const r = await reportsRepo.commissionLedger(f);
+    return res.json({ ...r, page: f.page, pageSize: f.pageSize });
+  } catch (e) { return next(e); }
+}
+
+// GET /api/retailer/commission-summary?startDate&endDate — own vs downline commission, and how
+// much came through each direct child (empty for a retailer, who has no one below).
+async function commissionSummary(req, res, next) {
+  try {
+    const { startDate, endDate } = ownerFilters(req);
+    const q = db('commission_ledger').where({ user_id: req.user.id });
+    if (startDate) q.whereRaw('created_at::date >= ?', [startDate]);
+    if (endDate) q.whereRaw('created_at::date <= ?', [endDate]);
+    const t = await q.first(
+      db.raw("coalesce(sum(net_amount) filter (where wallet_txn_type = 'credit' and level = 0), 0) as own"),
+      db.raw("coalesce(sum(net_amount) filter (where wallet_txn_type = 'credit' and level > 0), 0) as from_downline"),
+      db.raw("count(*) filter (where wallet_txn_type = 'credit' and level > 0)::int as downline_txns"),
+      db.raw("coalesce(sum(net_amount) filter (where wallet_txn_type = 'debit'), 0) as charges"),
+    );
+    const byChild = await reportsRepo.commissionByChild(req.user.id, { startDate, endDate });
+    return res.json({ own: Number(t.own), fromDownline: Number(t.from_downline), downlineTxns: t.downline_txns, charges: Number(t.charges), byChild });
+  } catch (e) { return next(e); }
 }
 
 // GET /api/retailer/my-commission-slab  (read-only, this user's type, services that are ON)
@@ -143,4 +187,4 @@ async function myCommissionSlab(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { summary, serviceStats, catalogue, operators, accountHistory, serviceReport, gstReport, tdsReport, commissionReport, myCommissionSlab };
+module.exports = { summary, serviceStats, catalogue, operators, accountHistory, serviceReport, gstReport, tdsReport, commissionReport, commissionSummary, myCommissionSlab };

@@ -43,6 +43,21 @@ async function tdsReport(req, res, next) {
   catch (err) { return next(err); }
 }
 
+// GET /api/commission-report — every commission paid (own + chain), with level / source filters and totals.
+async function commissionReport(req, res, next) {
+  try {
+    const lv = clean(req.query.level).toLowerCase();
+    const f = {
+      ...filters(req), grid: parseGrid(req.query, repo.COMMISSION_GRID),
+      level: lv === 'own' ? 0 : (/^\d{1,2}$/.test(lv) ? parseInt(lv, 10) : undefined), fromDownline: lv === 'downline',
+      sourceUserId: req.query.sourceUserId ? parseInt(req.query.sourceUserId, 10) : null,
+      txnType: ['credit', 'debit'].includes(req.query.type) ? req.query.type : null,
+    };
+    const r = await repo.commissionLedger(f);
+    return res.json({ ...r, page: f.page, pageSize: f.pageSize });
+  } catch (err) { return next(err); }
+}
+
 // PUT /api/fund-requests/:id  { status: 'approved'|'rejected', adminRemark }
 // GET /api/admin-margin-report — what the company keeps per transaction, with totals.
 async function adminMarginReport(req, res, next) {
@@ -50,4 +65,4 @@ async function adminMarginReport(req, res, next) {
   catch (err) { return next(err); }
 }
 
-module.exports = { accountHistory, serviceReport, fundRequests, gstReport, tdsReport, adminMarginReport };
+module.exports = { accountHistory, serviceReport, fundRequests, gstReport, tdsReport, commissionReport, adminMarginReport };

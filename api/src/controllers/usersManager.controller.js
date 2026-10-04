@@ -9,6 +9,7 @@ const settingsRepo = require('../repositories/settings.repo');
 const audit = require('../repositories/audit.repo');
 const db = require('../config/db');
 const permission = require('../services/servicePermission.service');
+const networkRepo = require('../repositories/network.repo');
 
 const clean = (v) => String(v || '').trim();
 const KYC = ['pending', 'verified', 'rejected'];
@@ -92,19 +93,38 @@ function mapFields(b) {
   return out;
 }
 
-// A parent (upline) must be an existing managed user and cannot be the user itself.
-async function checkParent(parentId, selfId) {
+// The admin's id: the caller when the admin is acting, else the first admin account.
+async function adminIdOf(req) {
+  if (req.user.role === 'admin') return req.user.id;
+  const admin = await db('users').where({ role: 'admin' }).orderBy('id').first('id');
+  return admin ? admin.id : null;
+}
+
+// Can a user of `typeId` sit under `parent`? The admin can hold any type; a managed parent only
+// the types below its own type in the User Type tree (a Retailer under a Distributor or an SD).
+async function checkParentFits(typeId, parent) {
+  if (!parent || parent.role === 'admin' || !typeId) return null;
+  if (parent.user_type_id && (await networkRepo.isTypeBelow(parent.user_type_id, typeId))) return null;
+  const type = await userTypeRepo.findById(typeId);
+  const above = (await networkRepo.typesAbove(typeId)).map((t) => t.name);
+  return { error: `A ${type ? type.name : 'user'} can be placed under: ${['Admin', ...above].join(', ')}`, code: 'PARENT_TYPE_MISMATCH' };
+}
+
+// A parent (upline) must be the admin or a managed user, cannot be the user itself or anyone
+// below it, and must be allowed to hold a user of `typeId`.
+async function checkParent(parentId, selfId, typeId) {
   if (!parentId) return null;
   if (selfId && parentId === selfId) return { error: 'A user cannot be their own parent', code: 'INVALID_PARENT' };
-  let cur = await repo.findFull(parentId);
-  if (!cur) return { error: 'Parent user not found', code: 'INVALID_PARENT' };
+  const parent = await db('users').where({ id: parentId }).first('id', 'role', 'user_type_id', 'parent_id');
+  if (!parent || (parent.role !== 'admin' && !parent.user_type_id)) return { error: 'Parent user not found', code: 'INVALID_PARENT' };
   // Walk up the chain so a user can never become their own ancestor.
+  let cur = parent;
   for (let i = 0; selfId && cur && cur.parent_id && i < 50; i += 1) {
     if (cur.parent_id === selfId) return { error: 'This parent is already below the user in the chain', code: 'PARENT_CYCLE' };
     // eslint-disable-next-line no-await-in-loop
-    cur = await repo.findFull(cur.parent_id);
+    cur = await db('users').where({ id: cur.parent_id }).first('id', 'parent_id');
   }
-  return null;
+  return checkParentFits(typeId, parent);
 }
 
 // Top-level account types (no Parent Type, e.g. Super Distributor) always sit directly under
@@ -112,9 +132,53 @@ async function checkParent(parentId, selfId) {
 async function topLevelParent(userTypeId, req) {
   const type = userTypeId ? await userTypeRepo.findById(userTypeId) : null;
   if (!type || type.parent_type_id) return undefined;
-  if (req.user.role === 'admin') return req.user.id;
-  const admin = await db('users').where({ role: 'admin' }).orderBy('id').first('id');
-  return admin ? admin.id : null;
+  return adminIdOf(req);
+}
+
+// The type and parent a user would end up with: an empty parent means the admin.
+async function resolveTarget(req, existing, b) {
+  const typeId = b.userTypeId !== undefined && b.userTypeId !== '' ? intOrNull(b.userTypeId) : existing.user_type_id;
+  const forced = await topLevelParent(typeId, req);
+  let parentId = existing.parent_id;
+  if (forced !== undefined) parentId = forced;
+  else if (b.parentId !== undefined) parentId = intOrNull(b.parentId) || (await adminIdOf(req));
+  return { typeId, parentId };
+}
+
+// What moving `existing` to type `typeId` under `parentId` would do. Used by the update itself
+// and by the edit form's preview (GET /api/users/:id/change-impact).
+async function changeImpact(existing, typeId, parentId) {
+  const typeChanged = typeId !== existing.user_type_id;
+  const parentChanged = parentId !== existing.parent_id;
+  const parentError = typeChanged || parentChanged ? await checkParent(parentId, existing.id, typeId) : null;
+  const below = new Set((await networkRepo.typesBelow(typeId)).map((t) => t.id));
+
+  // Direct children whose type cannot stay under the new type (a Distributor turned Retailer).
+  const children = typeChanged
+    ? await db('users as u').leftJoin('user_types as ut', 'ut.id', 'u.user_type_id')
+      .where('u.parent_id', existing.id).whereNotNull('u.user_type_id').orderBy('u.id')
+      .select('u.id', 'u.user_code as code', 'u.full_name as name', 'u.user_type_id', 'ut.name as type')
+    : [];
+  let planCleared = false;
+  if (typeChanged && existing.plan_id) {
+    const plan = await db('plans').where({ id: existing.plan_id }).first('user_type_id');
+    planCleared = !plan || plan.user_type_id !== typeId;
+  }
+  // Packages this user gives its own downline that no longer fit below the new type.
+  const owned = typeChanged
+    ? await db('commission_packages').where({ owner_user_id: existing.id, is_active: true }).orderBy('id').select('id', 'name', 'user_type_id')
+    : [];
+  return {
+    typeChanged,
+    parentChanged,
+    fitsParent: !parentError,
+    parentError,
+    childrenMismatch: children.filter((c) => !below.has(c.user_type_id)),
+    planCleared,
+    packageCleared: (typeChanged || parentChanged) && !!existing.commission_package_id,
+    ownedPackagesDeactivated: owned.filter((p) => !below.has(p.user_type_id)).map(({ id, name }) => ({ id, name })),
+    signsOut: typeChanged,
+  };
 }
 
 async function create(req, res, next) {
@@ -128,15 +192,16 @@ async function create(req, res, next) {
     if (b.planId && !(await planRepo.findById(intOrNull(b.planId)))) return res.status(400).json({ error: 'Invalid plan', code: 'INVALID_PLAN' });
     if (String(b.password || '').length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters', code: 'WEAK_PASSWORD' });
 
+    // No parent picked = the admin, so every user is in a chain; a picked parent must fit the type.
     const forcedParent = await topLevelParent(userTypeId, req);
+    const parentId = forcedParent !== undefined ? forcedParent : (intOrNull(b.parentId) || (await adminIdOf(req)));
     if (forcedParent === undefined) {
-      const parentErr = await checkParent(intOrNull(b.parentId), null);
+      const parentErr = await checkParent(parentId, null, userTypeId);
       if (parentErr) return res.status(400).json(parentErr);
     }
 
     const passwordHash = await bcrypt.hash(String(b.password), 12);
-    const fields = mapFields(b);
-    if (forcedParent !== undefined) fields.parent_id = forcedParent;
+    const fields = { ...mapFields(b), parent_id: parentId };
     const id = await createUserWithCode((code) => ({
       username: code, user_code: code, password_hash: passwordHash, role: 'user',
       wallet_balance: 0, kyc_status: 'pending', ekyc_status: 'pending',
@@ -149,6 +214,9 @@ async function create(req, res, next) {
   } catch (err) { return next(err); }
 }
 
+// PUT /api/users/:id — profile edits, plus a change of account type (role) or parent:
+// the new type must fit under the parent, users below that no longer fit are moved
+// (moveChildrenTo), and plan / packages / session follow. All of it in one transaction.
 async function update(req, res, next) {
   try {
     const id = parseInt(req.params.id, 10);
@@ -157,18 +225,80 @@ async function update(req, res, next) {
     const b = req.body;
     if (b.mobile !== undefined && !/^\d{10}$/.test(clean(b.mobile))) return res.status(400).json({ error: 'Mobile must be 10 digits', code: 'INVALID_MOBILE' });
     if (b.userTypeId !== undefined && !(await userTypeRepo.findById(intOrNull(b.userTypeId)))) return res.status(400).json({ error: 'Invalid account type', code: 'INVALID_USER_TYPE' });
-    const forcedParent = await topLevelParent(b.userTypeId !== undefined ? intOrNull(b.userTypeId) : existing.user_type_id, req);
-    if (forcedParent === undefined && b.parentId !== undefined) {
-      const parentErr = await checkParent(intOrNull(b.parentId), id);
-      if (parentErr) return res.status(400).json(parentErr);
+
+    const { typeId, parentId } = await resolveTarget(req, existing, b);
+    const impact = await changeImpact(existing, typeId, parentId);
+    if (impact.parentError) return res.status(400).json(impact.parentError);
+
+    // Users below who cannot stay under the new type must go somewhere else in the same save.
+    let moveTo = null;
+    if (impact.childrenMismatch.length) {
+      if (b.moveChildrenTo === undefined || b.moveChildrenTo === null || b.moveChildrenTo === '') {
+        const type = await userTypeRepo.findById(typeId);
+        return res.status(409).json({
+          error: `${impact.childrenMismatch.length} user(s) below cannot stay under a ${type ? type.name : 'user of this type'}. Choose where to move them.`,
+          code: 'DOWNLINE_TYPE_MISMATCH',
+          children: impact.childrenMismatch.map(({ user_type_id, ...c }) => c), // eslint-disable-line camelcase, no-unused-vars
+        });
+      }
+      moveTo = b.moveChildrenTo === 'admin' ? await adminIdOf(req) : intOrNull(b.moveChildrenTo);
+      if (!moveTo || moveTo === id || (await networkRepo.levelOf(id, moveTo))) {
+        return res.status(400).json({ error: 'Move them to someone outside this user\'s own downline', code: 'PARENT_CYCLE' });
+      }
+      const target = await db('users').where({ id: moveTo }).first('id', 'role', 'user_type_id');
+      if (!target || (target.role !== 'admin' && !target.user_type_id)) return res.status(400).json({ error: 'User to move them to was not found', code: 'INVALID_PARENT' });
+      for (const c of impact.childrenMismatch) {
+        // eslint-disable-next-line no-await-in-loop
+        const fitErr = await checkParentFits(c.user_type_id, target);
+        if (fitErr) return res.status(400).json({ error: `${c.code}: ${fitErr.error}`, code: fitErr.code });
+      }
     }
+
     const fields = mapFields(b);
-    if (forcedParent !== undefined) fields.parent_id = forcedParent;
-    // A commission package belongs to the old parent; a new parent starts from the admin default.
-    if (fields.parent_id !== undefined && fields.parent_id !== existing.parent_id) fields.commission_package_id = null;
-    await repo.update(id, fields); // a user type change applies before the ticks are compared with its default
+    delete fields.parent_id;
+    if (impact.parentChanged) fields.parent_id = parentId;
+    if (impact.typeChanged) {
+      fields.user_type_id = typeId;
+      fields.token_epoch = db.raw('token_epoch + 1'); // signed out: the next login gets the new panel and menu
+      const planId = fields.plan_id !== undefined ? fields.plan_id : existing.plan_id;
+      const plan = planId ? await db('plans').where({ id: planId }).first('user_type_id') : null;
+      if (planId && (!plan || plan.user_type_id !== typeId)) fields.plan_id = null;
+    }
+    // A received package was made for the old type and given by the old parent.
+    if (impact.packageCleared) fields.commission_package_id = null;
+    const movedIds = moveTo ? impact.childrenMismatch.map((c) => c.id) : [];
+    const ownedIds = impact.ownedPackagesDeactivated.map((p) => p.id);
+
+    await db.transaction(async (trx) => {
+      await repo.update(id, fields, trx); // a user type change applies before the ticks are compared with its default
+      if (movedIds.length) await trx('users').whereIn('id', movedIds).update({ parent_id: moveTo, commission_package_id: null, updated_at: trx.fn.now() });
+      if (ownedIds.length) {
+        await trx('commission_packages').whereIn('id', ownedIds).update({ is_active: false, updated_at: trx.fn.now() });
+        await trx('users').whereIn('commission_package_id', ownedIds).update({ commission_package_id: null, updated_at: trx.fn.now() });
+      }
+    });
     if (b.serviceAccess !== undefined) await permission.setUserServices(id, arr(b.serviceAccess), req.user.id);
-    return res.json({ row: await repo.findFull(id) });
+
+    const who = { userId: req.user.id, username: req.user.username, ip: req.ip, userAgent: req.get('user-agent') };
+    if (impact.typeChanged) await audit.log({ ...who, event: 'user_type_changed', detail: { targetUserId: id, from: existing.user_type_id, to: typeId, packagesDeactivated: ownedIds } });
+    if (impact.parentChanged) await audit.log({ ...who, event: 'user_parent_changed', detail: { targetUserId: id, from: existing.parent_id, to: parentId } });
+    if (movedIds.length) await audit.log({ ...who, event: 'downline_moved', detail: { fromUserId: id, toUserId: moveTo, userIds: movedIds } });
+    return res.json({ row: await repo.findFull(id), moved: movedIds.length, packagesDeactivated: ownedIds.length });
+  } catch (err) { return next(err); }
+}
+
+// GET /api/users/:id/change-impact?userTypeId=&parentId= — preview of a type / parent change
+// (parentId '' = the admin; left out = unchanged).
+async function changeImpactPreview(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const existing = await repo.findFull(id);
+    if (!existing) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
+    const q = req.query;
+    if (q.userTypeId && !(await userTypeRepo.findById(intOrNull(q.userTypeId)))) return res.status(400).json({ error: 'Invalid account type', code: 'INVALID_USER_TYPE' });
+    const { typeId, parentId } = await resolveTarget(req, existing, { userTypeId: q.userTypeId, parentId: q.parentId });
+    const impact = await changeImpact(existing, typeId, parentId);
+    return res.json({ ...impact, userTypeId: typeId, parentId });
   } catch (err) { return next(err); }
 }
 
@@ -188,13 +318,32 @@ async function fund(req, res, next) {
   } catch (err) { return next(err); }
 }
 
+// Money / commission history a delete would wipe (most of these tables cascade on users).
+async function hasHistory(id) {
+  const checks = [
+    db('commission_ledger').where({ user_id: id }).orWhere({ source_user_id: id }).first('id'),
+    db('service_transactions').where({ user_id: id }).first('id'),
+    db('account_transactions').where({ user_id: id }).first('id'),
+    db('fund_requests').where({ user_id: id }).first('id'),
+    db('fund_transfers').where({ from_user_id: id }).orWhere({ to_user_id: id }).first('id'),
+  ];
+  return (await Promise.all(checks)).some(Boolean);
+}
+
+// DELETE /api/users/:id — only users with nobody below them and no history; others are deactivated.
 async function remove(req, res, next) {
   try {
     const id = parseInt(req.params.id, 10);
     if (!(await repo.findFull(id))) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
+    if (await db('users').where({ parent_id: id }).first('id')) {
+      return res.status(409).json({ error: 'This user has users under them. Move them to another parent first, or deactivate this user.', code: 'HAS_DOWNLINE' });
+    }
+    if (await hasHistory(id)) {
+      return res.status(409).json({ error: 'This user has transactions or commission history. Deactivate the user instead so the records stay.', code: 'HAS_HISTORY' });
+    }
     await db('users').where({ id }).del();
     return res.json({ ok: true });
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, create, update, fund, remove, moduleOptions, createUserWithCode, mapFields };
+module.exports = { list, create, update, changeImpactPreview, fund, remove, moduleOptions, createUserWithCode, mapFields };

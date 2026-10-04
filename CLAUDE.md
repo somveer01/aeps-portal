@@ -35,7 +35,9 @@ Windows/PowerShell note: `psql` lives at `C:\Program Files\PostgreSQL\17\bin\psq
 
 ### Tests & lint
 Backend tests use the **built-in `node --test`** runner (no extra deps): `cd api && npm test`
-(runs `test/commission.test.js` + `test/api.test.js`). `test/helper.js` boots the in-process app,
+(the file list is in `api/package.json`; add new `test/*.test.js` files there). They run on the dev DB and must
+also pass on a freshly migrated + seeded one (CI does that): create your own types/users, never rely on hand-made
+data. `test/helper.js` boots the in-process app,
 mints an admin token via `token.service.signAccess(user)`, and provides fetch helpers; tests restore
 any DB state they change. Lint: `cd api && npm run lint` (ESLint `.eslintrc.json`, eslint:recommended).
 For quick one-offs you can still write an ad-hoc in-process script to the scratchpad and `node` it.
@@ -55,6 +57,28 @@ For quick one-offs you can still write an ad-hoc in-process script to the scratc
 **Users table is dual-purpose:** `users` holds both the admin (role `admin`, `user_type_id` null) and **managed portal users** (retailers/distributors/employees — `user_type_id NOT NULL`, extended onboarding fields, `service_access`/`module_access` jsonb, `user_code` = settings `user_id_prefix` + seq, also the login username). Users Manager lists only managed users; wallet is adjusted via `POST /api/users/:id/fund`.
 
 **Reusable UI:** `app/src/components/UI.js` (`Button` incl. `navy` variant, `TextField` with eye toggle, `Select` searchable dropdown that opens a modal, `Alert`, `Card`), and `app/src/components/Icon.js` (inline-SVG icons keyed by the `menu_items.icon` name — add a `case` when introducing a new icon).
+
+## Hierarchy & commission rules
+
+- **Who may create whom** comes from the **User Type tree** (`user_types.parent_type_id`, edited in User Type Master):
+  a user may create every type *below* its own type at any depth (SD -> Distributor and Retailer, Distributor ->
+  Retailer, Retailer -> nothing). `network.repo.typesBelow/typesAbove/isTypeBelow` implement it; `canHaveDownline`
+  (menu + `/api/network/*` gate) uses the same rule. The seed builds SD -> D -> R on a fresh DB; an existing DB keeps its tree.
+- The creator becomes the **parent** (`parent_id`) and `created_by`. The admin form: no parent picked = the admin; a picked
+  parent must be of a type above the new user's type (`PARENT_TYPE_MISMATCH`); types with no parent type always sit under
+  the admin. `fund requests` are approved by `created_by` (unchanged).
+- **Changing a user's type or parent** (admin, `PUT /api/users/:id`, preview `GET /api/users/:id/change-impact`): the
+  new type must fit under the parent; direct children that no longer fit must be moved (`moveChildrenTo`, else
+  `409 DOWNLINE_TYPE_MISMATCH`); a foreign plan and the received commission package are cleared, owned packages that no
+  longer fit are switched off, the user is signed out (`token_epoch`), all in one transaction. Past ledger rows are never
+  rewritten. Users with users below or with money/commission history cannot be deleted (`HAS_DOWNLINE` / `HAS_HISTORY`) - deactivate them.
+- **Commission** (`commission.service.js`): the transacting user is paid its own slab; every upline up the `parent_id`
+  chain (depth 10) is paid from **its own type + plan `chain` slab**, so a retailer straight under an SD pays the SD only
+  (the skipped Distributor's share stays with the company as margin, by decision). An upline with no chain slab earns
+  nothing - the Commission Slots screen warns about it (`GET /commission-slots/chain-gaps`).
+- **Commission Report**: managed users `GET /api/retailer/commission-report` (own + whole downline, filters level /
+  downline user / direct child, totals, via-child column) and `/retailer/commission-summary` (per direct child); admin
+  `GET /api/commission-report`. Filters that name a user are checked against the caller's downline (404 otherwise).
 
 ## Deploy & rollback
 

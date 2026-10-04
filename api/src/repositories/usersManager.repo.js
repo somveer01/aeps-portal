@@ -34,7 +34,7 @@ function joined() {
       'u.id', 'u.user_code', 'u.shop_name', 'u.full_name as name', 'u.mobile', 'u.email',
       'u.wallet_balance', 'u.is_active', 'u.kyc_status', 'u.ekyc_status', 'u.created_at as join_date',
       'u.user_type_id', 'ut.name as user_type_name', 'u.plan_id', 'p.name as plan_name',
-      'u.parent_id', 'par.user_code as parent_code', 'par.full_name as parent_name',
+      'u.parent_id', 'par.user_code as parent_code', 'par.full_name as parent_name', 'par.role as parent_role',
       'u.created_by', db.raw("coalesce(nullif(cr.user_code, ''), cr.username) as created_by_code"), 'cr.full_name as created_by_name',
       'u.father_husband_name', db.raw("to_char(u.dob,'YYYY-MM-DD') as dob"), 'u.pan_number', 'u.aadhar_number',
       'u.gender', 'u.gst_number', 'u.min_balance', 'u.address', 'u.state_id', 'st.name as state_name',
@@ -78,11 +78,12 @@ module.exports = {
     if (d.module_access !== undefined) d.module_access = d.module_access ? JSON.stringify(d.module_access) : null;
     return db('users').insert(d).returning('id').then((r) => (typeof r[0] === 'object' ? r[0].id : r[0]));
   },
-  update(id, patch) {
+  // trx: run inside the caller's transaction (role change moves several rows together).
+  update(id, patch, trx = db) {
     const p = { ...patch, updated_at: db.fn.now() };
     if (p.service_access !== undefined) p.service_access = p.service_access ? JSON.stringify(p.service_access) : null;
     if (p.module_access !== undefined) p.module_access = p.module_access ? JSON.stringify(p.module_access) : null;
-    return db('users').where({ id }).update(p);
+    return trx('users').where({ id }).update(p);
   },
   // Atomically adjust wallet, refusing debits that would go negative.
   // Returns true if a row was updated, false otherwise (insufficient balance).

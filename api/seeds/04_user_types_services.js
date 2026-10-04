@@ -8,6 +8,11 @@ exports.seed = async function seed(knex) {
     await knex('user_types').insert(
       ['Whitelabel', 'Super Distributor', 'Distributor', 'Retailer', 'Employee'].map((name) => ({ name })),
     );
+    // The type tree is the create rule (Super Distributor -> Distributor -> Retailer): an SD may
+    // create Distributors and Retailers, a Distributor Retailers. Only on a fresh database.
+    const idOf = async (name) => (await knex('user_types').where({ name }).first('id')).id;
+    await knex('user_types').where({ name: 'Distributor' }).update({ parent_type_id: await idOf('Super Distributor') });
+    await knex('user_types').where({ name: 'Retailer' }).update({ parent_type_id: await idOf('Distributor') });
     // eslint-disable-next-line no-console
     console.log('Seeded user types.');
   } else {

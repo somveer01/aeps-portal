@@ -79,10 +79,18 @@ test('a top-level account type is always placed under the admin', async () => {
   assert.equal(u.s, 200);
   assert.equal(u.b.row.parent_id, admin.id, 'cannot be moved under another user');
 
-  // A type that has a Parent Type keeps the parent that was picked.
-  const m = await A.put(`/api/users/${c.b.row.id}`, { userTypeId: childType.id, parentId: other.id });
-  assert.equal(m.s, 200);
-  assert.equal(m.b.row.parent_id, other.id);
+  // A type that has a Parent Type keeps the parent that was picked, if that parent's type is above it.
+  const [top2] = await db('users').insert({
+    username: `${TAG}t2`, user_code: `${TAG}t2`, password_hash: 'x', mobile: '9000000003', full_name: 'Vis Top 2', role: 'user',
+    user_type_id: topType.id, wallet_balance: 0, kyc_status: 'verified', parent_id: admin.id,
+  }).returning(['id']);
+  created.push(top2.id);
+  const wrong = await A.put(`/api/users/${c.b.row.id}`, { userTypeId: childType.id, parentId: other.id });
+  assert.equal(wrong.s, 400, 'a Child cannot sit under another Child');
+  assert.equal(wrong.b.code, 'PARENT_TYPE_MISMATCH');
+  const m = await A.put(`/api/users/${c.b.row.id}`, { userTypeId: childType.id, parentId: top2.id });
+  assert.equal(m.s, 200, JSON.stringify(m.b));
+  assert.equal(m.b.row.parent_id, top2.id);
 });
 
 test('slot operator: dropdown choices, normalised, validated, cleared, audited', async () => {

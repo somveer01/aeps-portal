@@ -7,6 +7,7 @@ const userTypeRepo = require('../repositories/userType.repo');
 const serviceRepo = require('../repositories/service.repo');
 const planRepo = require('../repositories/plan.repo');
 const audit = require('../repositories/audit.repo');
+const networkRepo = require('../repositories/network.repo');
 
 const clean = (v) => String(v || '').trim();
 const COMMISSION_TYPES = ['percentage', 'amount'];
@@ -175,4 +176,30 @@ async function remove(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, slab, operatorChoices, create, update, remove };
+// GET /api/commission-slots/chain-gaps — user types that have types below them but no active
+// credit 'chain' slab for a service those types may use: they earn nothing from their downline
+// on it (the engine pays nothing, silently). Only a warning; the admin decides the rates.
+async function chainGaps(req, res, next) {
+  try {
+    const types = await db('user_types').where({ is_active: true }).orderBy('id').select('id', 'name');
+    const rows = [];
+    for (const t of types) {
+      // eslint-disable-next-line no-await-in-loop
+      const below = await networkRepo.typesBelow(t.id);
+      if (!below.length) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const services = await db('user_type_services as uts').join('services as s', 's.id', 'uts.service_id')
+        .whereIn('uts.user_type_id', below.map((b) => b.id)).where('s.is_active', true)
+        .distinct('s.id', 's.title').orderBy('s.title');
+      if (!services.length) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const paid = await db('commission_slots').where({ user_type_id: t.id, chain_type: 'chain', is_active: true })
+        .whereRaw("coalesce(txn_type, 'credit') = 'credit'").whereIn('service_id', services.map((x) => x.id)).distinct('service_id');
+      const has = new Set(paid.map((p) => p.service_id));
+      services.filter((x) => !has.has(x.id)).forEach((x) => rows.push({ userTypeId: t.id, userType: t.name, serviceId: x.id, service: x.title }));
+    }
+    return res.json({ rows });
+  } catch (err) { return next(err); }
+}
+
+module.exports = { list, slab, operatorChoices, chainGaps, create, update, remove };

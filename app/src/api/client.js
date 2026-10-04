@@ -59,15 +59,16 @@ async function request(path, { method = 'GET', body, auth = false, idempotencyKe
     throw new ApiError('Cannot reach server. Is the API running?', 0, 'NETWORK');
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(data.error || 'Request failed', res.status, data.code);
+  if (!res.ok) throw new ApiError(data.error || 'Request failed', res.status, data.code, data);
   return data;
 }
 
 export class ApiError extends Error {
-  constructor(message, status, code) {
+  constructor(message, status, code, data = {}) {
     super(message);
     this.status = status;
     this.code = code;
+    this.data = data; // the whole error body (e.g. the users listed with DOWNLINE_TYPE_MISMATCH)
   }
 }
 
@@ -225,6 +226,7 @@ export const api = {
     update: (id, body) => request(`/api/commission-slots/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/commission-slots/${id}`, { method: 'DELETE', auth: true }),
     operatorOptions: (serviceId) => request(`/api/commission-slots/operator-options?serviceId=${serviceId}`, { auth: true }),
+    chainGaps: () => request('/api/commission-slots/chain-gaps', { auth: true }),
   },
 
   // Banks master (for Company Bank dropdown)
@@ -254,6 +256,7 @@ export const api = {
     actFundRequest: (id, body) => request(`/api/fund-requests/${id}`, { method: 'PUT', body, auth: true, idempotencyKey: idemKey() }),
     gstReport: (params = {}) => request(`/api/gst-report?${qs(params)}`, { auth: true }),
     tdsReport: (params = {}) => request(`/api/tds-report?${qs(params)}`, { auth: true }),
+    commissionReport: (params = {}) => request(`/api/commission-report?${qs(params)}`, { auth: true }),
     adminMargin: (params = {}) => request(`/api/admin-margin-report?${qs(params)}`, { auth: true }),
   },
 
@@ -294,6 +297,7 @@ export const api = {
     gstReport: (params = {}) => request(`/api/retailer/gst-report?${qs(params)}`, { auth: true }),
     tdsReport: (params = {}) => request(`/api/retailer/tds-report?${qs(params)}`, { auth: true }),
     commissionReport: (params = {}) => request(`/api/retailer/commission-report?${qs(params)}`, { auth: true }),
+    commissionSummary: (params = {}) => request(`/api/retailer/commission-summary?${qs(params)}`, { auth: true }),
     myCommissionSlab: (params = {}) => request(`/api/retailer/my-commission-slab?${qs(params)}`, { auth: true }),
   },
   recharge: {
@@ -413,6 +417,8 @@ export const api = {
     list: (params = {}) => request(`/api/users?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     create: (body) => request('/api/users', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/users/${id}`, { method: 'PUT', body, auth: true }),
+    // Preview of a type / parent change: { fitsParent, parentError, childrenMismatch, planCleared, ... }.
+    changeImpact: (id, params = {}) => request(`/api/users/${id}/change-impact?${qs(params)}`, { auth: true }),
     fund: (id, body) => request(`/api/users/${id}/fund`, { method: 'POST', body, auth: true, idempotencyKey: idemKey() }),
     remove: (id) => request(`/api/users/${id}`, { method: 'DELETE', auth: true }),
   },

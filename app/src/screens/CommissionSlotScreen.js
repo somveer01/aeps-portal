@@ -35,7 +35,9 @@ export default function CommissionSlotScreen() {
   // Matrix tab (default): every slot laid out as service x user type, like Service Permissions.
   const [tab, setTab] = useState('matrix');
   const [allSlots, setAllSlots] = useState(null); const [allServices, setAllServices] = useState([]);
+  const [chainGaps, setChainGaps] = useState([]); // types with a downline but no chain slab for a service
   const loadMatrix = useCallback(async () => {
+    api.commissionSlots.chainGaps().then((r) => setChainGaps(r.rows)).catch(() => setChainGaps([]));
     try {
       const out = [];
       for (let p = 1; ; p += 1) {
@@ -200,6 +202,15 @@ export default function CommissionSlotScreen() {
         </View>
         <Button title="+ ADD NEW SLOT" onPress={() => openAdd()} style={{ paddingHorizontal: 20 }} />
       </View>
+      {chainGaps.length ? (
+        <View style={styles.gapBox}>
+          <Text style={styles.gapTitle}>Earns nothing from the downline (no active credit "Chain" slab)</Text>
+          {Object.entries(chainGaps.reduce((m, g) => ({ ...m, [g.userType]: [...(m[g.userType] || []), g.service] }), {})).map(([type, svcs]) => (
+            <Text key={type} style={styles.gapLine}><Text style={{ fontWeight: '800' }}>{type}</Text>: {svcs.join(', ')}</Text>
+          ))}
+          <Text style={styles.gapHint}>Add a slab with Chain Type = Chain for these, or leave it if they should earn nothing on that service.</Text>
+        </View>
+      ) : null}
       {tab === 'matrix' ? (
         <SlotMatrix slots={allSlots} services={allServices} userTypes={userTypes} error={error} onEdit={openEdit} onAdd={openAdd} />
       ) : (
@@ -307,6 +318,10 @@ function SlotMatrix({ slots, services, userTypes, error, onEdit, onAdd }) {
 }
 
 const styles = StyleSheet.create({
+  gapBox: { padding: 14, gap: 6, borderRadius: radius.md, borderWidth: 1, borderColor: '#fcd34d', backgroundColor: '#fffbeb' },
+  gapTitle: { fontWeight: '800', color: '#92400e', fontSize: 13.5 },
+  gapLine: { color: colors.text, fontSize: 13, lineHeight: 19 },
+  gapHint: { color: colors.muted, fontSize: 12, marginTop: 2 },
   tabs: { flexDirection: 'row', backgroundColor: '#e2e8f0', borderRadius: radius.md, padding: 3 },
   tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.sm },
   tabOn: { backgroundColor: '#fff' },

@@ -86,6 +86,8 @@ export default function UserManagerScreen({ network = false, onDone }) {
   const [fundUser, setFundUser] = useState(null); const [fundAmount, setFundAmount] = useState(''); const [fundType, setFundType] = useState('credit'); const [funding, setFunding] = useState(false); const [fundError, setFundError] = useState(null);
   const [viewUser, setViewUser] = useState(null);
   const [toDelete, setToDelete] = useState(null); const [deleting, setDeleting] = useState(false);
+  const [parentCands, setParentCands] = useState([]); // users whose type may hold the selected type
+  const [impact, setImpact] = useState(null); const [moveTo, setMoveTo] = useState('admin'); // type / parent change preview
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const [sort, setSort] = useState(null); const [colFilters, setColFilters] = useState({}); // DataGrid
 
@@ -149,7 +151,31 @@ export default function UserManagerScreen({ network = false, onDone }) {
     const filtered = plans.filter((p) => String(p.user_type_id) === String(f.userTypeId));
     return [{ label: '— None —', value: '' }, ...(filtered.length || network ? filtered : plans).map((p) => ({ label: p.name, value: p.id }))];
   }, [plans, f.userTypeId, network]);
-  const parentOptions = [{ label: '— Self / None —', value: '' }, ...parents.map((p) => ({ label: `${p.user_code} · ${p.name}`, value: p.id }))];
+  // Types above a type in the User Type tree (nearest first): users of these may be its parent.
+  const typesAbove = (typeId) => {
+    const out = []; const seen = new Set();
+    let t = userTypes.find((u) => String(u.id) === String(typeId));
+    while (t && t.parent_type_id && !seen.has(t.parent_type_id)) {
+      seen.add(t.parent_type_id); out.push(String(t.parent_type_id));
+      t = userTypes.find((u) => u.id === t.parent_type_id);
+    }
+    return out;
+  };
+  const parentOptions = [
+    { label: 'Admin (default)', value: '' },
+    ...parentCands.filter((p) => !editing || p.id !== editing.id).map((p) => ({ label: `${p.user_code} · ${p.name} (${p.user_type_name})`, value: p.id })),
+    // Keep an old parent visible even if its type no longer fits (the API asks for a valid one on save).
+    ...(editing && f.parentId && !parentCands.some((p) => String(p.id) === String(f.parentId)) && editing.parent_role !== 'admin'
+      ? [{ label: `${editing.parent_code || editing.parent_id} · ${editing.parent_name || ''} (current)`, value: f.parentId }] : []),
+  ];
+  // Where users below can go when a type change leaves them unfit: the admin, or anyone whose type may hold all of them.
+  const moveOptions = useMemo(() => {
+    const kids = impact?.childrenMismatch || [];
+    if (!kids.length) return [];
+    const fits = (u) => kids.every((c) => typesAbove(c.user_type_id).includes(String(u.user_type_id)));
+    return [{ label: 'Admin', value: 'admin' }, ...parents.filter((u) => u.id !== editing?.id && fits(u)).map((u) => ({ label: `${u.user_code} · ${u.name} (${u.user_type_name})`, value: u.id }))];
+    /* eslint-disable-next-line */
+  }, [impact, parents, userTypes, editing]);
   const employeeOptions = [{ label: '— None —', value: '' }, ...parents.filter((p) => p.user_type_name === 'Employee').map((p) => ({ label: `${p.user_code} · ${p.name}`, value: p.id }))];
 
   // Service Access starts from the user type's default (Modules → Service Permissions).
@@ -163,12 +189,34 @@ export default function UserManagerScreen({ network = false, onDone }) {
       aadharNumber: r.aadhar_number || '', gender: r.gender || '', planId: r.plan_id || '', gstNumber: r.gst_number || '',
       minBalance: r.min_balance != null ? String(r.min_balance) : '', password: '',
       address: r.address || '', stateId: r.state_id || '', cityId: r.city_id || '', pincode: r.pincode || '',
-      merchantId: r.merchant_id || '', parentId: r.parent_id || '', assignedEmployeeId: r.assigned_employee_id || '', commissionPackageId: r.commission_package_id || '',
+      merchantId: r.merchant_id || '', parentId: r.parent_role === 'admin' ? '' : (r.parent_id || ''), assignedEmployeeId: r.assigned_employee_id || '', commissionPackageId: r.commission_package_id || '',
       serviceAccess: r.service_access || [], moduleAccess: r.module_access || [],
       kycStatus: r.kyc_status, ekycStatus: r.ekyc_status, active: r.is_active,
     });
-    setFormError(null); setView('form');
+    setFormError(null); setImpact(null); setMoveTo('admin'); setView('form');
   };
+
+  // Admin form: parent choices = users of the types above the selected type.
+  useEffect(() => {
+    if (network || view !== 'form') return;
+    const ids = typesAbove(f.userTypeId);
+    if (!ids.length) { setParentCands([]); return; }
+    Promise.all(ids.map((id) => api.managedUsers.list({ userTypeId: id, pageSize: 100 }).then((r) => r.rows).catch(() => [])))
+      .then((lists) => setParentCands(lists.flat()));
+    /* eslint-disable-next-line */
+  }, [f.userTypeId, userTypes, view, network]);
+
+  // Editing: preview what a type / parent change does (users below, plan, packages, sign-out).
+  useEffect(() => {
+    if (network || !editing || view !== 'form') { setImpact(null); return undefined; }
+    const curParent = editing.parent_role === 'admin' || !editing.parent_id ? '' : String(editing.parent_id);
+    const changed = String(f.userTypeId) !== String(editing.user_type_id) || String(f.parentId || '') !== curParent;
+    if (!changed) { setImpact(null); return undefined; }
+    const t = setTimeout(() => {
+      api.managedUsers.changeImpact(editing.id, { userTypeId: f.userTypeId, parentId: f.parentId || 'admin' }).then(setImpact).catch(() => setImpact(null));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [f.userTypeId, f.parentId, editing, view, network]);
 
   const toggleInArray = (key, val) => setF((p) => {
     const list = p[key] || []; const has = list.some((x) => String(x) === String(val));
@@ -198,6 +246,8 @@ export default function UserManagerScreen({ network = false, onDone }) {
     };
     // Network panel: my commission package for a user directly under me ('' = admin default).
     if (network && (!editing || editing.parent_id === meId)) body.commissionPackageId = f.commissionPackageId || null;
+    // A type change that leaves users below unfit moves them in the same save.
+    if (!network && impact?.childrenMismatch?.length) body.moveChildrenTo = moveTo || 'admin';
     try {
       if (editing) { body.kycStatus = f.kycStatus; body.ekycStatus = f.ekycStatus; await usersApi.update(editing.id, body); }
       else { body.password = f.password; await usersApi.create(body); }
@@ -228,7 +278,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
   const confirmDelete = async () => {
     setDeleting(true);
     try { await api.managedUsers.remove(toDelete.id); setToDelete(null); await load({ page: rows.length === 1 && page > 1 ? page - 1 : page }); }
-    catch (e) { setError(e.message); } finally { setDeleting(false); }
+    catch (e) { setToDelete(null); setError(e.message); } finally { setDeleting(false); } // e.g. HAS_DOWNLINE / HAS_HISTORY: deactivate instead
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -296,10 +346,31 @@ export default function UserManagerScreen({ network = false, onDone }) {
                 <TextInput value="Admin (fixed)" editable={false} style={[styles.input, { color: colors.muted }]} />
               </View>
             ) : (
-              <View style={styles.field}><Select label="Parent Id" value={f.parentId} options={parentOptions} onChange={(v) => set('parentId', v)} placeholder="-- Self / None --" /></View>
+              <View style={styles.field}><Select label="Parent Id" value={f.parentId} options={parentOptions} onChange={(v) => set('parentId', v)} placeholder="Admin (default)" /></View>
             )}
             <View style={styles.field}><Select label="Assigned Employee" value={f.assignedEmployeeId} options={employeeOptions} onChange={(v) => set('assignedEmployeeId', v)} placeholder="-- None --" /></View>
           </View>
+          {!parentIsAdmin ? <Text style={styles.hint}>Only users of a type above {selectedTypeName || 'this type'} are listed. No parent = the admin.</Text> : null}
+
+          {impact ? (
+            <View style={styles.impactBox}>
+              <Text style={styles.impactTitle}>What this change does</Text>
+              {impact.parentError ? <Text style={styles.impactBad}>{impact.parentError.error}</Text> : null}
+              {impact.childrenMismatch.length ? (
+                <>
+                  <Text style={styles.impactLine}>
+                    {impact.childrenMismatch.length} user(s) below cannot stay under a {selectedTypeName}: {impact.childrenMismatch.map((c) => `${c.code} (${c.type})`).join(', ')}.
+                  </Text>
+                  <View style={[styles.field, { maxWidth: 420 }]}><Select label="Move these users to *" value={moveTo} options={moveOptions} onChange={setMoveTo} /></View>
+                </>
+              ) : null}
+              {impact.planCleared ? <Text style={styles.impactLine}>The plan is removed (it was made for the old type).</Text> : null}
+              {impact.packageCleared ? <Text style={styles.impactLine}>The commission package this user received is removed.</Text> : null}
+              {impact.ownedPackagesDeactivated.length ? <Text style={styles.impactLine}>Their own packages are switched off: {impact.ownedPackagesDeactivated.map((p) => p.name).join(', ')}.</Text> : null}
+              {impact.signsOut ? <Text style={styles.impactLine}>The user is signed out and gets the new panel at the next login.</Text> : null}
+              {!impact.parentError ? <Text style={styles.impactLine}>Past commission records stay as they are.</Text> : null}
+            </View>
+          ) : null}
 
           <View style={styles.sectionRow}>
             <Text style={styles.section}>Service Access</Text>
@@ -551,6 +622,10 @@ const styles = StyleSheet.create({
   detailLabel: { width: 130, color: colors.muted, fontSize: 13 },
   detailValue: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '600' },
   hint: { color: colors.muted, fontSize: 12.5, lineHeight: 18, marginTop: 14 },
+  impactBox: { marginTop: 14, padding: 14, gap: 8, borderRadius: radius.md, borderWidth: 1, borderColor: '#fcd34d', backgroundColor: '#fffbeb' },
+  impactTitle: { fontWeight: '800', color: colors.text, fontSize: 14 },
+  impactLine: { color: colors.text, fontSize: 13, lineHeight: 19 },
+  impactBad: { color: colors.danger, fontSize: 13, fontWeight: '700', lineHeight: 19 },
   empty: { padding: 30, alignItems: 'center' },
   pagination: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 14 },
   entries: { color: colors.muted, fontSize: 13 },

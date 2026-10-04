@@ -184,3 +184,43 @@ test('a slab for a specific user wins over the general slab', async () => {
   assert.equal(Number(slab.value), 2);
   await db('commission_slots').where({ id: slabs.Rspecial }).del();
 });
+
+// Hierarchy rule: a Retailer may sit straight under a Super Distributor (or the admin).
+test('retailer directly under the super distributor: SD earns its own chain slab only; the skipped Distributor share stays with the company', async () => {
+  await db('commission_slots').where({ id: slabs.MD }).update({ chain_type: 'chain', is_active: true });
+  await db('users').whereIn('id', [users.MD.id, users.D.id]).update({ is_active: true, plan_id: planId });
+  await mkUser('R2', 'Retailer', users.MD.id, 5000);
+  const own = computeAmounts({ commissionType: 'percentage', value: 2, amount: AMOUNT });
+  const md = computeAmounts({ commissionType: 'percentage', value: 1, amount: AMOUNT });
+  const dist = computeAmounts({ commissionType: 'amount', value: 5, amount: AMOUNT });
+
+  // Full chain R -> D -> MD first, for the margin comparison.
+  await pipeline.run({ user: { id: users.R.id }, service: svc.title, amount: AMOUNT, providerCall: ok });
+  const fullMargin = Number((await db('admin_margins').where({ service_transaction_id: await lastTxnId() }).first()).margin);
+
+  const dBefore = await balance(users.D.id); const mdBefore = await balance(users.MD.id);
+  const r = await pipeline.run({ user: { id: users.R2.id }, service: svc.title, amount: AMOUNT, providerCall: ok });
+  assert.equal(r.commission, own.net);
+  assert.equal(await balance(users.MD.id), Math.round((mdBefore + md.net) * 100) / 100, 'SD paid its own chain slab');
+  assert.equal(await balance(users.D.id), dBefore, 'a Distributor outside the chain earns nothing');
+  const txnId = (await db('service_transactions').where({ user_id: users.R2.id, status: 'success' }).orderBy('id', 'desc').first('id')).id;
+  const rows = await txnLedger(txnId);
+  const mdRow = rows.find((x) => x.user_id === users.MD.id);
+  assert.equal(mdRow.level, 1, 'the SD is the first upline');
+  assert.equal(mdRow.source_user_id, users.R2.id);
+  assert.equal(rows.length, 2, 'retailer + SD only');
+  const skipMargin = Number((await db('admin_margins').where({ service_transaction_id: txnId }).first()).margin);
+  assert.equal(Math.round((skipMargin - fullMargin) * 100) / 100, dist.net, 'the company keeps the Distributor share');
+});
+
+test('retailer directly under the admin: only the retailer is paid, the rest is margin', async () => {
+  const admin = await db('users').where({ role: 'admin' }).orderBy('id').first('id');
+  await mkUser('R3', 'Retailer', admin.id, 5000);
+  const own = computeAmounts({ commissionType: 'percentage', value: 2, amount: AMOUNT });
+  const r = await pipeline.run({ user: { id: users.R3.id }, service: svc.title, amount: AMOUNT, providerCall: ok });
+  assert.equal(r.commission, own.net);
+  const txnId = (await db('service_transactions').where({ user_id: users.R3.id, status: 'success' }).orderBy('id', 'desc').first('id')).id;
+  const rows = await txnLedger(txnId);
+  assert.equal(rows.length, 1, 'no upline row for the admin');
+  assert.equal(Number((await db('admin_margins').where({ service_transaction_id: txnId }).first()).commission_paid), own.net);
+});

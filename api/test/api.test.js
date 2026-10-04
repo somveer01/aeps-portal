@@ -127,23 +127,24 @@ test('audit log written for wallet adjust', async () => {
   assert.ok(row, 'admin_wallet_adjust audit row exists');
 });
 
-test('user creation records creator; parent validated (self, cycle)', async () => {
-  // A type with a Parent Type: top-level types are always placed under the admin (visibility.test.js).
-  // Own throwaway types, so the test also passes on a freshly seeded database (seeds set no parents).
+test('user creation records creator; parent validated (self, cycle, type)', async () => {
+  // Own throwaway type tree G -> P -> C (top-level types always sit under the admin, visibility.test.js).
   const tag = `chain${Date.now()}`;
   const idOf = (row) => (typeof row === 'object' ? row.id : row);
-  const [pRow] = await db('user_types').insert({ name: `${tag} P` }).returning('id');
+  const [gRow] = await db('user_types').insert({ name: `${tag} G` }).returning('id');
+  const [pRow] = await db('user_types').insert({ name: `${tag} P`, parent_type_id: idOf(gRow) }).returning('id');
   const [cRow] = await db('user_types').insert({ name: `${tag} C`, parent_type_id: idOf(pRow) }).returning('id');
-  const ut = { id: idOf(cRow) };
+  const pt = { id: idOf(pRow) }; const ut = { id: idOf(cRow) };
   const tok = signFor(await adminUser()); // earlier tests bump token_epoch, so mint a fresh token
-  const mk = (name, extra) => api(BASE, tok).post('/api/users', { name, mobile: '9000000099', userTypeId: ut.id, password: 'Test@1234', ...extra });
+  const mk = (name, extra, typeId = ut.id) => api(BASE, tok).post('/api/users', { name, mobile: '9000000099', userTypeId: typeId, password: 'Test@1234', ...extra });
   const created = [];
   try {
     // createdBy in the body must be ignored: the creator is always the caller.
-    const a = await mk('Chain Test A', { createdBy: 999999 });
+    const a = await mk('Chain Test A', { createdBy: 999999 }, pt.id);
     assert.equal(a.s, 201);
     created.push(a.b.row.id);
     assert.equal(a.b.row.created_by, admin.id);
+    assert.equal(a.b.row.parent_id, admin.id, 'no parent picked = the admin');
     assert.ok(a.b.row.created_by_name, 'creator name joined');
     assert.ok(await db('audit_log').where({ event: 'user_created', user_id: admin.id }).whereRaw("detail->>'newUserId' = ?", [String(a.b.row.id)]).first(), 'audit row written');
 
@@ -151,6 +152,12 @@ test('user creation records creator; parent validated (self, cycle)', async () =
     assert.equal(b.s, 201);
     created.push(b.b.row.id);
     assert.equal(b.b.row.parent_id, a.b.row.id);
+
+    // A C cannot sit under another C.
+    const wrong = await mk('Wrong Type', { parentId: b.b.row.id });
+    assert.equal(wrong.s, 400);
+    assert.equal(wrong.b.code, 'PARENT_TYPE_MISMATCH');
+    assert.match(wrong.b.error, /Admin/);
 
     assert.equal((await mk('Bad Parent', { parentId: 999999 })).s, 400);
     const self = await api(BASE, tok).put(`/api/users/${a.b.row.id}`, { parentId: a.b.row.id });
@@ -161,7 +168,7 @@ test('user creation records creator; parent validated (self, cycle)', async () =
   } finally {
     await db('audit_log').where({ event: 'user_created' }).whereRaw("detail->>'newUserId' = ANY(?)", [created.map(String)]).del();
     if (created.length) await db('users').whereIn('id', created).del();
-    await db('user_types').whereIn('id', [ut.id, idOf(pRow)]).del();
+    await db('user_types').whereIn('id', [ut.id, pt.id, idOf(gRow)]).del();
   }
 });
 

@@ -104,6 +104,7 @@ router.delete('/plans/:id', requireAdmin, plan.remove);
 // Modules → Commission Slots (admin CRUD; joins user type, service, plan).
 router.get('/commission-slots', requireAdmin, commissionSlot.list);
 router.get('/commission-slots/operator-options', requireAdmin, commissionSlot.operatorChoices);
+router.get('/commission-slots/chain-gaps', requireAdmin, commissionSlot.chainGaps);
 router.post('/commission-slots', requireAdmin, commissionSlot.create);
 router.put('/commission-slots/:id', requireAdmin, commissionSlot.update);
 router.delete('/commission-slots/:id', requireAdmin, commissionSlot.remove);
@@ -140,6 +141,7 @@ router.delete('/company-banks/:id', requireAdmin, companyBank.remove);
 router.get('/module-options', requireAdmin, usersManager.moduleOptions);
 router.get('/users', requireAdmin, usersManager.list);
 router.post('/users', requireAdmin, usersManager.create);
+router.get('/users/:id/change-impact', requireAdmin, usersManager.changeImpactPreview);
 router.put('/users/:id', requireAdmin, usersManager.update);
 router.post('/users/:id/fund', requireAdmin, idempotency, usersManager.fund);
 router.delete('/users/:id', requireAdmin, usersManager.remove);
@@ -151,6 +153,7 @@ router.get('/fund-requests', requireAdmin, reports.fundRequests);
 router.put('/fund-requests/:id', requireAdmin, idempotency, fundRequest.adminAct);
 router.get('/gst-report', requireAdmin, reports.gstReport);
 router.get('/tds-report', requireAdmin, reports.tdsReport);
+router.get('/commission-report', requireAdmin, reports.commissionReport);
 router.get('/admin-margin-report', requireAdmin, reports.adminMarginReport);
 
 // Commission Slab (read-only view of commission slots).
@@ -192,6 +195,7 @@ router.get('/retailer/service-report', requireManaged, retailer.serviceReport);
 router.get('/retailer/gst-report', requireManaged, retailer.gstReport);
 router.get('/retailer/tds-report', requireManaged, retailer.tdsReport);
 router.get('/retailer/commission-report', requireManaged, retailer.commissionReport);
+router.get('/retailer/commission-summary', requireManaged, retailer.commissionSummary);
 router.get('/retailer/my-commission-slab', requireManaged, retailer.myCommissionSlab);
 
 // Recharge

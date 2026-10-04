@@ -233,6 +233,8 @@ export default function DashboardScreen({ user, onLogout }) {
             <TaxReportScreen kind="gst" />
           ) : active.route === '/tds-report' ? (
             <TaxReportScreen kind="tds" />
+          ) : active.route === '/commission-report' ? (
+            <TaxReportScreen kind="commission" key="commission" />
           ) : active.route === '/pending-transactions' ? (
             <PendingTransactionsScreen />
           ) : active.route === '/reconciliation' ? (

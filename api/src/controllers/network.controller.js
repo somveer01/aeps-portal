@@ -242,7 +242,7 @@ async function summary(req, res, next) {
     const txMonth = await txnAgg("date_trunc('month', created_at) = date_trunc('month', CURRENT_DATE)");
 
     // My commission (what I earn out of my downline's business).
-    const commAgg = (whereRaw) => db('commission_ledger').where({ user_id: me })
+    const commAgg = (whereRaw) => db('commission_ledger').where({ user_id: me, wallet_txn_type: 'credit' }).where('level', '>', 0) // only from the downline
       .modify((q) => { if (whereRaw) q.whereRaw(whereRaw); }).sum('net_amount as amt').first();
     const commToday = await commAgg('created_at::date = CURRENT_DATE');
     const commMonth = await commAgg("date_trunc('month', created_at) = date_trunc('month', CURRENT_DATE)");
