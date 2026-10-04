@@ -14,7 +14,7 @@
     "seed:make": "knex seed:make",
     "assign-service-icons": "node scripts/assign-service-icons.js",
     "lint": "eslint src",
-    "test": "node --test --test-concurrency=1 test/commission.test.js test/api.test.js test/chain.test.js test/network.test.js test/fundRequest.test.js test/guard.test.js test/kyc.test.js test/pending.test.js test/visibility.test.js test/permission.test.js test/otp.test.js test/grid.test.js test/package.test.js"
+    "test": "node --test --test-concurrency=1 test/commission.test.js test/api.test.js test/chain.test.js test/network.test.js test/fundRequest.test.js test/guard.test.js test/kyc.test.js test/pending.test.js test/visibility.test.js test/permission.test.js test/otp.test.js test/grid.test.js test/package.test.js test/dashboard.test.js"
   },
   "keywords": [
     "aeps",

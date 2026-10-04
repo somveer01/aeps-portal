@@ -20,6 +20,7 @@ const payoutBank = require('../controllers/payoutBank.controller');
 const fundTransfer = require('../controllers/fundTransfer.controller');
 const verify = require('../controllers/verify.controller');
 const adminWallet = require('../controllers/adminWallet.controller');
+const dashboard = require('../controllers/dashboard.controller');
 const account = require('../controllers/account.controller');
 const retailer = require('../controllers/retailer.controller');
 const rsvc = require('../controllers/retailerServices.controller');
@@ -161,6 +162,7 @@ router.post('/verify/pan', requireAdmin, verify.pan);
 router.post('/verify/aadhaar', requireAdmin, verify.aadhaar);
 
 // Admin Wallet (admin tops up / adjusts their own wallet) + history.
+router.get('/admin/dashboard', requireAdmin, dashboard.adminSummary);
 router.get('/admin-wallet/balance', requireAdmin, adminWallet.balance);
 router.get('/admin-wallet', requireAdmin, adminWallet.list);
 router.post('/admin-wallet/add', requireAdmin, idempotency, adminWallet.add);
@@ -230,6 +232,7 @@ router.put('/tickets/:id', requireAdmin, ticket.adminUpdateStatus);
 router.post('/tickets/:id/reply', requireAdmin, ticket.adminReply);
 
 // Distributor / MD panel (own downline only).
+router.get('/network/summary', requireManaged, network.requireNetwork, network.summary);
 router.get('/network/meta', requireManaged, network.requireNetwork, network.getMeta);
 router.get('/network/users', requireManaged, network.requireNetwork, network.listUsers);
 router.post('/network/users', requireManaged, network.requireNetwork, network.createUser);

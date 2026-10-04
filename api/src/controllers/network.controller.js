@@ -203,4 +203,70 @@ async function report(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { requireNetwork, getMeta, listUsers, createUser, updateUser, lookup, fundTransfer, listTransfers, report };
+// GET /api/network/summary — downline business summary for a distributor / super distributor.
+async function summary(req, res, next) {
+  try {
+    const me = req.user.id;
+    // Whole downline (recursive over parent_id).
+    const dl = await db.raw(
+      `WITH RECURSIVE dl AS (
+         SELECT id FROM users WHERE parent_id = ?
+         UNION ALL
+         SELECT u.id FROM users u JOIN dl ON u.parent_id = dl.id)
+       SELECT id FROM dl`, [me],
+    );
+    const ids = dl.rows.map((r) => r.id);
+
+    // Downline user counts.
+    let users = { total: 0, active: 0, walletTotal: 0 };
+    let byType = [];
+    if (ids.length) {
+      users = await db('users').whereIn('id', ids).first(
+        db.raw('count(*)::int as total'),
+        db.raw('count(*) FILTER (WHERE is_active)::int as active'),
+        db.raw('COALESCE(sum(wallet_balance), 0) as "walletTotal"'),
+      );
+      byType = await db('users as u').whereIn('u.id', ids)
+        .join('user_types as ut', 'ut.id', 'u.user_type_id')
+        .groupBy('ut.name').orderBy('ut.name')
+        .select('ut.name', db.raw('count(*)::int as count'));
+    }
+
+    // Downline transaction volume.
+    const txnAgg = (whereRaw) => {
+      const q = db('service_transactions').whereIn('user_id', ids.length ? ids : [0]);
+      if (whereRaw) q.whereRaw(whereRaw);
+      return q.first(db.raw('count(*)::int as cnt'), db.raw('COALESCE(sum(amount), 0) as amt'));
+    };
+    const txToday = await txnAgg('created_at::date = CURRENT_DATE');
+    const txMonth = await txnAgg("date_trunc('month', created_at) = date_trunc('month', CURRENT_DATE)");
+
+    // My commission (what I earn out of my downline's business).
+    const commAgg = (whereRaw) => db('commission_ledger').where({ user_id: me })
+      .modify((q) => { if (whereRaw) q.whereRaw(whereRaw); }).sum('net_amount as amt').first();
+    const commToday = await commAgg('created_at::date = CURRENT_DATE');
+    const commMonth = await commAgg("date_trunc('month', created_at) = date_trunc('month', CURRENT_DATE)");
+
+    // Pending fund requests raised by my downline.
+    const fr = ids.length
+      ? await db('fund_requests').whereIn('user_id', ids).where({ status: 'pending' })
+        .first(db.raw('count(*)::int as cnt'), db.raw('COALESCE(sum(amount), 0) as amt'))
+      : { cnt: 0, amt: 0 };
+
+    return res.json({
+      downline: {
+        total: Number(users.total || 0),
+        active: Number(users.active || 0),
+        walletTotal: Number(users.walletTotal || 0),
+        byType,
+      },
+      txToday: { count: txToday.cnt, amount: Number(txToday.amt) },
+      txMonth: { count: txMonth.cnt, amount: Number(txMonth.amt) },
+      commissionToday: Number((commToday && commToday.amt) || 0),
+      commissionMonth: Number((commMonth && commMonth.amt) || 0),
+      fundRequests: { pending: Number(fr.cnt || 0), amount: Number(fr.amt || 0) },
+    });
+  } catch (err) { return next(err); }
+}
+
+module.exports = { requireNetwork, getMeta, listUsers, createUser, updateUser, lookup, fundTransfer, listTransfers, report, summary };
