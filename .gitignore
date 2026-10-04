@@ -12,3 +12,6 @@ api/uploads/
 .vscode/settings.json
 *.pem
 .claude/
+
+# deploy config (host + key path) - local only
+.deploy.env

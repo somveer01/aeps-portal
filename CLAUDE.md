@@ -56,6 +56,19 @@ For quick one-offs you can still write an ad-hoc in-process script to the scratc
 
 **Reusable UI:** `app/src/components/UI.js` (`Button` incl. `navy` variant, `TextField` with eye toggle, `Select` searchable dropdown that opens a modal, `Alert`, `Card`), and `app/src/components/Icon.js` (inline-SVG icons keyed by the `menu_items.icon` name — add a `case` when introducing a new icon).
 
+## Deploy & rollback
+
+Production is one EC2 box running Docker Compose (db, api, web); the server holds no git repo. CI (`.github/workflows/ci.yml`) runs lint + API tests on a fresh Postgres + a web build on every push/PR; it never deploys.
+
+```bash
+scripts/deploy.sh --dry-run        # plan + read-only checks (works offline too)
+scripts/deploy.sh                  # deploy origin/main: tests, drift check, backup, rebuild changed services, health check, auto-rollback
+scripts/deploy.sh rollback [sha]   # hot rollback (code only, ~15 s)
+scripts/deploy.sh status
+```
+
+Setup once: copy `.deploy.env.example` to `.deploy.env` (git-ignored) and set `DEPLOY_HOST` (changes on every EC2 stop/start) and `DEPLOY_KEY` (path to the .pem, kept outside the repo). The very first run needs `--from <sha currently on the server>`; after that the server keeps a `~/fintech/.deployed_sha` marker. `scripts/remote-deploy.sh` / `remote-rollback.sh` are uploaded and run on the server by the script. Rollback restores the old files and re-tags the saved images; migration/data changes stay in the DB (the pre-deploy dump is in `~/backups/`). `docker-compose.yml` is not deployed by the script (it warns when it changes).
+
 ## Conventions & gotchas
 
 - Module routes are `/modules/<x>`; top-level ones are `/<x>` (e.g. `/company-banks`). Match them in `DashboardScreen.js`'s route chain.

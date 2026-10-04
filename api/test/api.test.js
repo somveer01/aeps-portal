@@ -129,7 +129,12 @@ test('audit log written for wallet adjust', async () => {
 
 test('user creation records creator; parent validated (self, cycle)', async () => {
   // A type with a Parent Type: top-level types are always placed under the admin (visibility.test.js).
-  const ut = await db('user_types').whereNotNull('parent_type_id').orderBy('id').first('id');
+  // Own throwaway types, so the test also passes on a freshly seeded database (seeds set no parents).
+  const tag = `chain${Date.now()}`;
+  const idOf = (row) => (typeof row === 'object' ? row.id : row);
+  const [pRow] = await db('user_types').insert({ name: `${tag} P` }).returning('id');
+  const [cRow] = await db('user_types').insert({ name: `${tag} C`, parent_type_id: idOf(pRow) }).returning('id');
+  const ut = { id: idOf(cRow) };
   const tok = signFor(await adminUser()); // earlier tests bump token_epoch, so mint a fresh token
   const mk = (name, extra) => api(BASE, tok).post('/api/users', { name, mobile: '9000000099', userTypeId: ut.id, password: 'Test@1234', ...extra });
   const created = [];
@@ -156,6 +161,7 @@ test('user creation records creator; parent validated (self, cycle)', async () =
   } finally {
     await db('audit_log').where({ event: 'user_created' }).whereRaw("detail->>'newUserId' = ANY(?)", [created.map(String)]).del();
     if (created.length) await db('users').whereIn('id', created).del();
+    await db('user_types').whereIn('id', [ut.id, idOf(pRow)]).del();
   }
 });
 

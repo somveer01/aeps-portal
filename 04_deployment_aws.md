@@ -87,6 +87,7 @@ sudo systemctl restart caddy
 
 ## 8. Operations
 - **Update:** `git pull && docker compose up -d --build` (migrations auto-run on api start).
+- **Update from your PC (recommended once the server is running):** `scripts/deploy.sh` — see "Deploy & rollback" in CLAUDE.md. It uploads only the changed files, backs up the DB, rebuilds only what changed, health-checks and rolls back by itself if the site is not healthy. `scripts/deploy.sh rollback` undoes the last deploy in ~15 s.
 - **Logs:** `docker compose logs -f web|api|db`.
 - **DB backup:** `docker compose exec db pg_dump -U $PGUSER $PGDATABASE > backup_$(date +%F).sql`.
 - **DB restore:** `cat backup.sql | docker compose exec -T db psql -U $PGUSER -d $PGDATABASE`.

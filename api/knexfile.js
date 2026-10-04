@@ -14,6 +14,9 @@ const base = {
   migrations: {
     directory: './migrations',
     tableName: 'knex_migrations',
+    // A rolled-back deploy leaves its migrations recorded in the DB; do not refuse to start just
+    // because this (older) code does not have those files.
+    disableMigrationsListValidation: true,
   },
   seeds: {
     directory: './seeds',
