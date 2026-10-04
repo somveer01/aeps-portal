@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ActivityIndicator, ScrollView, Image,
 } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
+import { FioriPage, FioriHeader, FioriPanel, FioriToolbar, FioriSearch, FioriButton, FIORI } from '../components/Fiori';
 import { api, assetUrl } from '../api/client';
 import { pickImage } from '../api/imagePicker';
 import { colors, radius } from '../theme';
@@ -73,7 +74,13 @@ export default function ServiceMasterScreen() {
     api.serviceCategoryOptions().then((r) => setCategories(r.rows)).catch(() => {});
     /* eslint-disable-next-line */
   }, []);
-  useEffect(() => { const t = setTimeout(() => load({ page: 1, q }), 350); return () => clearTimeout(t); /* eslint-disable-next-line */ }, [q]);
+  const firstQ = useRef(true);
+  useEffect(() => {
+    if (firstQ.current) { firstQ.current = false; return undefined; } // skip on mount (avoids a second load → blink)
+    const t = setTimeout(() => load({ page: 1, q }), 350);
+    return () => clearTimeout(t);
+    /* eslint-disable-next-line */
+  }, [q]);
   useEffect(() => { load({ page: 1, categoryId: catFilter }); /* eslint-disable-next-line */ }, [catFilter]);
 
   const catOptions = categories.map((c) => ({ label: c.name, value: c.id }));
@@ -138,8 +145,8 @@ export default function ServiceMasterScreen() {
     return (
       <View style={{ gap: 16 }}>
         <View style={styles.formHeaderBar}>
-          <Text style={styles.formHeading}>{editing ? 'Edit Service' : 'Add New Service'}</Text>
-          <Button title="ALL SERVICES" onPress={() => setView('list')} style={{ paddingHorizontal: 18 }} />
+          <View style={{ flex: 1 }} />
+          <FioriButton title="← Back" variant="default" onPress={() => setView('list')} />
         </View>
         <Card>
           {formError ? <Alert type="error">{formError}</Alert> : null}
@@ -170,8 +177,8 @@ export default function ServiceMasterScreen() {
             </View>
           </View>
           <View style={styles.formActions}>
-            <Button title="Cancel" variant="ghost" onPress={() => setView('list')} style={{ minWidth: 120 }} />
-            <Button title={editing ? 'Save' : 'Create'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
+            <FioriButton title="Cancel" variant="transparent" onPress={() => setView('list')} />
+            <FioriButton title={saving ? 'Saving…' : editing ? 'Save' : 'Create'} onPress={save} disabled={saving} />
           </View>
         </Card>
       </View>
@@ -179,21 +186,12 @@ export default function ServiceMasterScreen() {
   }
 
   return (
-    <View style={{ gap: 16 }}>
-      <View style={styles.actionBar}><Button title="+ ADD NEW SERVICE" onPress={openAdd} style={{ paddingHorizontal: 20 }} /></View>
+    <FioriPage>
+      <FioriHeader count={total} unit="service" actions={<FioriButton title="Create" onPress={openAdd} />} />
 
-      <Card>
-        <View style={styles.cardHead}>
-          <Text style={styles.cardTitle}>View All Services</Text>
-          <View style={styles.filters}>
-            <View style={styles.catSelect}>
-              <Select value={catFilter} onChange={setCatFilter} options={catFilterOptions} placeholder="All categories" />
-            </View>
-            <View style={styles.searchWrap}>
-              <Text style={styles.searchLabel}>Search:</Text>
-              <TextInput value={q} onChangeText={setQ} placeholder="Service or category…" placeholderTextColor={colors.muted} style={styles.search} />
-            </View>
-          </View>
+      <FioriPanel>
+        <View style={[styles.catSelect, { marginBottom: 12 }]}>
+          <Select value={catFilter} onChange={setCatFilter} options={catFilterOptions} placeholder="All categories" />
         </View>
 
         {error ? <Alert type="error">{error}</Alert> : null}
@@ -245,7 +243,7 @@ export default function ServiceMasterScreen() {
             <Pressable disabled={page >= totalPages} onPress={() => load({ page: page + 1 })} style={[styles.pageBtn, page >= totalPages && styles.pageBtnDisabled]}><Text style={styles.pageBtnText}>Next</Text></Pressable>
           </View>
         </View>
-      </Card>
+      </FioriPanel>
 
       {/* Delete modal */}
       <Modal visible={!!toDelete} transparent animationType="fade" onRequestClose={() => setToDelete(null)}>
@@ -260,7 +258,7 @@ export default function ServiceMasterScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </FioriPage>
   );
 }
 
@@ -314,12 +312,12 @@ const styles = StyleSheet.create({
   iconPreview: { width: 44, height: 44, borderRadius: 8, backgroundColor: '#f1f5f9' },
   iconRemove: { paddingHorizontal: 8, paddingVertical: 8 },
   pagination: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 14 },
-  entries: { color: colors.muted, fontSize: 13 },
+  entries: { color: FIORI.label, fontSize: 13 },
   pager: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  pageBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#fff' },
+  pageBtn: { borderWidth: 1, borderColor: FIORI.line, borderRadius: 4, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#fff' },
   pageBtnDisabled: { opacity: 0.5 },
-  pageBtnText: { color: colors.text },
-  pageCurrent: { backgroundColor: colors.primary, borderColor: colors.primary },
+  pageBtnText: { color: FIORI.blue, fontWeight: '600' },
+  pageCurrent: { backgroundColor: FIORI.blue, borderColor: FIORI.blue },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   modalCard: { backgroundColor: '#fff', borderRadius: radius.md, padding: 22, width: '100%', maxWidth: 440, gap: 12 },
   modalCardWide: { backgroundColor: '#fff', borderRadius: radius.md, padding: 24, width: '100%', maxWidth: 640, maxHeight: '90%', gap: 14 },

@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
+import { FioriPage, FioriHeader, FioriPanel, FioriToolbar, FioriSearch, FioriButton, FioriPager } from '../components/Fiori';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
@@ -49,7 +50,13 @@ export default function UserTypeMasterScreen() {
 
   const loadAllTypes = () => api.userTypes.list({ pageSize: 100 }).then((r) => setAllTypes(r.rows)).catch(() => {});
   useEffect(() => { load({ page: 1 }); loadAllTypes(); /* eslint-disable-next-line */ }, []);
-  useEffect(() => { const t = setTimeout(() => load({ page: 1, q }), 350); return () => clearTimeout(t); /* eslint-disable-next-line */ }, [q]);
+  const firstQ = useRef(true);
+  useEffect(() => {
+    if (firstQ.current) { firstQ.current = false; return undefined; } // skip on mount (avoids a second load → blink)
+    const t = setTimeout(() => load({ page: 1, q }), 350);
+    return () => clearTimeout(t);
+    /* eslint-disable-next-line */
+  }, [q]);
 
   const openAdd = () => { setEditing(null); setName(''); setActive(true); setParentTypeId(''); setFormError(null); setView('form'); };
   const openEdit = (row) => { setEditing(row); setName(row.name); setActive(row.is_active); setParentTypeId(row.parent_type_id || ''); setFormError(null); setView('form'); };
@@ -91,8 +98,8 @@ export default function UserTypeMasterScreen() {
     return (
       <View style={{ gap: 16 }}>
         <View style={styles.formHeaderBar}>
-          <Text style={styles.formHeading}>{editing ? 'Edit User Type' : 'Add User Type'}</Text>
-          <Button title="ALL USER TYPES" onPress={() => setView('list')} style={{ paddingHorizontal: 18 }} />
+          <View style={{ flex: 1 }} />
+          <FioriButton title="← Back" variant="default" onPress={() => setView('list')} />
         </View>
         <Card>
           {formError ? <Alert type="error">{formError}</Alert> : null}
@@ -104,8 +111,8 @@ export default function UserTypeMasterScreen() {
           </View>
           <Text style={styles.hint}>Parent Type is the user type directly above this one (e.g. Retailer → Distributor). Users of the parent type get a My Network panel where they can create users of this type, send them balance and see their reports.</Text>
           <View style={styles.formActions}>
-            <Button title="Cancel" variant="ghost" onPress={() => setView('list')} style={{ minWidth: 120 }} />
-            <Button title={editing ? 'Save' : 'Create'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
+            <FioriButton title="Cancel" variant="transparent" onPress={() => setView('list')} />
+            <FioriButton title={saving ? 'Saving…' : editing ? 'Save' : 'Create'} onPress={save} disabled={saving} />
           </View>
         </Card>
       </View>
@@ -113,18 +120,10 @@ export default function UserTypeMasterScreen() {
   }
 
   return (
-    <View style={{ gap: 16 }}>
-      <View style={styles.actionBar}><Button title="+ ADD NEW" onPress={openAdd} style={{ paddingHorizontal: 20 }} /></View>
+    <FioriPage>
+      <FioriHeader count={total} unit="user type" actions={<FioriButton title="Create" onPress={openAdd} />} />
 
-      <Card>
-        <View style={styles.cardHead}>
-          <Text style={styles.cardTitle}>View All User Types</Text>
-          <View style={styles.searchWrap}>
-            <Text style={styles.searchLabel}>Search:</Text>
-            <TextInput value={q} onChangeText={setQ} placeholder="Search…" placeholderTextColor={colors.muted} style={styles.search} />
-          </View>
-        </View>
-
+      <FioriPanel>
         {error ? <Alert type="error">{error}</Alert> : null}
 
         <DataGrid
@@ -145,15 +144,8 @@ export default function UserTypeMasterScreen() {
           ]}
         />
 
-        <View style={styles.pagination}>
-          <Text style={styles.entries}>Showing {from} to {to} of {total} entries</Text>
-          <View style={styles.pager}>
-            <Pressable disabled={page <= 1} onPress={() => load({ page: page - 1 })} style={[styles.pageBtn, page <= 1 && styles.pageBtnDisabled]}><Text style={styles.pageBtnText}>Previous</Text></Pressable>
-            <View style={[styles.pageBtn, styles.pageCurrent]}><Text style={{ color: '#fff', fontWeight: '700' }}>{page}</Text></View>
-            <Pressable disabled={page >= totalPages} onPress={() => load({ page: page + 1 })} style={[styles.pageBtn, page >= totalPages && styles.pageBtnDisabled]}><Text style={styles.pageBtnText}>Next</Text></Pressable>
-          </View>
-        </View>
-      </Card>
+        <FioriPager from={from} to={to} total={total} page={page} totalPages={totalPages} onPage={(p) => load({ page: p })} />
+      </FioriPanel>
 
       <Modal visible={!!toDelete} transparent animationType="fade" onRequestClose={() => setToDelete(null)}>
         <View style={styles.modalBackdrop}>
@@ -167,7 +159,7 @@ export default function UserTypeMasterScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </FioriPage>
   );
 }
 

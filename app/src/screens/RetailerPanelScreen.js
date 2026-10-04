@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Linking, Platform } from 'react-native';
 import { Card, Button } from '../components/UI';
+import { FioriPage, FioriPanel, FioriButton, FIORI } from '../components/Fiori';
 import { colors, radius, shadows } from '../theme';
 
 // B2B + Online services the retailer panel offers (see 02_spect_retailer_document.md).
@@ -18,8 +19,8 @@ export default function RetailerPanelScreen() {
   const open = () => { Linking.openURL(retailerUrl()).catch(() => {}); };
 
   return (
-    <View style={{ gap: 16 }}>
-      <Card>
+    <FioriPage>
+      <FioriPanel>
         <View style={styles.head}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>B2B AePS Retailer Panel</Text>
@@ -28,32 +29,32 @@ export default function RetailerPanelScreen() {
               AEPS, DMT, recharge, BBPS, bookings and more, and to manage their wallet & commission.
             </Text>
           </View>
-          <Button title="Open Retailer Panel" onPress={open} />
+          <FioriButton title="Open Retailer Panel" onPress={open} />
         </View>
         <View style={styles.noteRow}>
           <Text style={styles.noteLabel}>Spec & build plan</Text>
           <Text style={styles.note}>02_spect_retailer_document.md (in the project root) — phased, step-by-step.</Text>
         </View>
-      </Card>
+      </FioriPanel>
 
-      <Card>
+      <FioriPanel>
         <Text style={styles.section}>B2B Services</Text>
         <View style={styles.grid}>
           {B2B.map((s) => (
             <View key={s} style={styles.chip}><Text style={styles.chipText}>{s}</Text></View>
           ))}
         </View>
-      </Card>
+      </FioriPanel>
 
-      <Card>
+      <FioriPanel>
         <Text style={styles.section}>Online Services</Text>
         <View style={styles.grid}>
           {ONLINE.map((s) => (
             <View key={s} style={[styles.chip, styles.chipAlt]}><Text style={styles.chipText}>{s}</Text></View>
           ))}
         </View>
-      </Card>
-    </View>
+      </FioriPanel>
+    </FioriPage>
   );
 }
 

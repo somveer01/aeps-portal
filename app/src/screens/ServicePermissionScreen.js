@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, ScrollView } from 'react-native';
 import { Card, Button, Alert, Select, StatusBadge } from '../components/UI';
+import { FioriPage, FioriPanel, FioriButton, FIORI } from '../components/Fiori';
 import { api } from '../api/client';
 import { colors, radius } from '../theme';
 import { Pager, reportStyles } from './AccountHistoryScreen';
@@ -20,22 +21,20 @@ export default function ServicePermissionScreen() {
   useEffect(() => { loadMatrix(); }, [loadMatrix]);
 
   return (
-    <View style={{ gap: 14 }}>
-      <View style={styles.topBar}>
-        <View style={styles.tabs}>
-          {[['types', 'By User Type'], ['service', 'By Service']].map(([k, label]) => (
-            <Pressable key={k} onPress={() => setTab(k)} style={[styles.tab, tab === k && styles.tabOn]}>
-              <Text style={[styles.tabText, tab === k && styles.tabTextOn]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
+    <FioriPage>
+      <View style={styles.tabs}>
+        {[['types', 'By User Type'], ['service', 'By Service']].map(([k, label]) => (
+          <Pressable key={k} onPress={() => setTab(k)} style={[styles.tab, tab === k && styles.tabOn]}>
+            <Text style={[styles.tabText, tab === k && styles.tabTextOn]}>{label}</Text>
+          </Pressable>
+        ))}
       </View>
       <Alert type="info">A user can use a service only when it is ON in Service Master and allowed here. A user-level Allow / Block (By Service) beats the user type default.</Alert>
       <Alert>{error}</Alert>
-      {!data ? <Card><ActivityIndicator color={colors.primary} /></Card>
+      {!data ? <FioriPanel><ActivityIndicator color={colors.primary} /></FioriPanel>
         : tab === 'types' ? <TypeMatrix data={data} setData={setData} onError={setError} />
           : <ServiceUsers services={data.services} userTypes={data.userTypes} />}
-    </View>
+    </FioriPage>
   );
 }
 
@@ -68,7 +67,7 @@ function TypeMatrix({ data, setData, onError }) {
   };
 
   return (
-    <Card>
+    <FioriPanel>
       <Text style={styles.sub}>Default for every user of a type. Tick = the type may use the service. Click a column or row title to switch all.</Text>
       <ScrollView horizontal>
         <View style={{ minWidth: 260 + userTypes.length * 130 }}>
@@ -96,7 +95,7 @@ function TypeMatrix({ data, setData, onError }) {
           ))}
         </View>
       </ScrollView>
-    </Card>
+    </FioriPanel>
   );
 }
 
@@ -140,7 +139,7 @@ function ServiceUsers({ services, userTypes }) {
   const to = Math.min(page * PAGE_SIZE, total);
 
   return (
-    <Card>
+    <FioriPanel>
       <View style={styles.grid}>
         <View style={styles.field}><Select label="Service" value={serviceId} options={services.map((s) => ({ label: s.is_active ? s.title : `${s.title} (OFF)`, value: s.id }))} onChange={setServiceId} /></View>
         <View style={styles.field}><Text style={styles.label}>Search</Text><TextInput value={q} onChangeText={setQ} placeholder="User ID / name / mobile" placeholderTextColor={colors.muted} style={styles.input} /></View>
@@ -151,9 +150,9 @@ function ServiceUsers({ services, userTypes }) {
       <View style={styles.bulkBar}>
         <Pressable onPress={() => setPicked(allPicked ? new Set() : new Set(rows.map((r) => r.id)))} style={styles.pickAll}><Tick checked={allPicked} /><Text style={styles.sub}>{allPicked ? 'Clear page' : 'Select page'}</Text></Pressable>
         <Text style={styles.sub}>{picked.size ? `${picked.size} selected` : 'Tick users, then:'}</Text>
-        <Button title="Allow" onPress={() => apply('allow')} disabled={!picked.size || busy} />
-        <Button title="Block" variant="navy" onPress={() => apply('block')} disabled={!picked.size || busy} />
-        <Button title="Use type default" variant="ghost" onPress={() => apply('default')} disabled={!picked.size || busy} />
+        <FioriButton title="Allow" onPress={() => apply('allow')} disabled={!picked.size || busy} />
+        <FioriButton title="Block" variant="default" onPress={() => apply('block')} disabled={!picked.size || busy} />
+        <FioriButton title="Use type default" variant="transparent" onPress={() => apply('default')} disabled={!picked.size || busy} />
       </View>
       <Alert type="success">{msg}</Alert>
       <Alert>{err}</Alert>
@@ -170,7 +169,7 @@ function ServiceUsers({ services, userTypes }) {
         ]}
       />
       <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
-    </Card>
+    </FioriPanel>
   );
 }
 
@@ -186,11 +185,11 @@ function Tick({ checked, onPress, disabled, light }) {
 const styles = StyleSheet.create({
   ...reportStyles,
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 },
-  tabs: { flexDirection: 'row', backgroundColor: '#e2e8f0', borderRadius: radius.md, padding: 3 },
-  tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.sm },
-  tabOn: { backgroundColor: '#fff' },
-  tabText: { color: colors.muted, fontWeight: '600', fontSize: 13.5 },
-  tabTextOn: { color: colors.primary },
+  tabs: { flexDirection: 'row', gap: 4, backgroundColor: '#fff', borderWidth: 1, borderColor: FIORI.line, borderRadius: 8, paddingHorizontal: 8, paddingTop: 6 },
+  tab: { paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 3, borderBottomColor: 'transparent' },
+  tabOn: { borderBottomColor: FIORI.blue },
+  tabText: { color: FIORI.label, fontWeight: '600', fontSize: 13.5 },
+  tabTextOn: { color: FIORI.blue },
   thHint: { color: 'rgba(255,255,255,0.75)', fontSize: 10, textAlign: 'center', marginTop: 2 },
   offText: { color: colors.danger, fontSize: 11, marginTop: 2 },
   cSvc: { width: 260 }, cType: { width: 130, alignItems: 'center' },

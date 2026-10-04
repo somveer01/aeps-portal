@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Card, Button, Alert } from '../components/UI';
+import { FioriPage, FioriHeader, FioriPanel, FioriToolbar, FioriSearch, FioriButton, FioriPager } from '../components/Fiori';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
@@ -55,8 +56,10 @@ export default function ServiceCategoryScreen() {
 
   useEffect(() => { load({ page: 1 }); /* eslint-disable-next-line */ }, []);
 
-  // debounced search
+  // debounced search (skips the mount run so data doesn't load twice → no blink)
+  const firstQ = useRef(true);
   useEffect(() => {
+    if (firstQ.current) { firstQ.current = false; return undefined; }
     const t = setTimeout(() => load({ page: 1, q }), 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line
@@ -106,8 +109,8 @@ export default function ServiceCategoryScreen() {
     return (
       <View style={{ gap: 16 }}>
         <View style={styles.formHeaderBar}>
-          <Text style={styles.formHeading}>{editing ? 'Edit Service Category' : 'Add Service Category'}</Text>
-          <Button title="ALL CATEGORIES" onPress={() => setView('list')} style={{ paddingHorizontal: 18 }} />
+          <View style={{ flex: 1 }} />
+          <FioriButton title="← Back" variant="default" onPress={() => setView('list')} />
         </View>
         <Card>
           {formError ? <Alert type="error">{formError}</Alert> : null}
@@ -117,8 +120,8 @@ export default function ServiceCategoryScreen() {
             <View style={[styles.field, styles.switchField]}><Text style={styles.label}>Active</Text><Switch value={active} onValueChange={setActive} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
           </View>
           <View style={styles.formActions}>
-            <Button title="Cancel" variant="ghost" onPress={() => setView('list')} style={{ minWidth: 120 }} />
-            <Button title={editing ? 'Save' : 'Create'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
+            <FioriButton title="Cancel" variant="transparent" onPress={() => setView('list')} />
+            <FioriButton title={saving ? 'Saving…' : editing ? 'Save' : 'Create'} onPress={save} disabled={saving} />
           </View>
         </Card>
       </View>
@@ -126,28 +129,10 @@ export default function ServiceCategoryScreen() {
   }
 
   return (
-    <View style={{ gap: 16 }}>
-      {/* Top action bar */}
-      <View style={styles.actionBar}>
-        <Button title="+ ADD NEW" onPress={openAdd} style={{ paddingHorizontal: 20 }} />
-      </View>
+    <FioriPage>
+      <FioriHeader count={total} unit="category" actions={<FioriButton title="Create" onPress={openAdd} />} />
 
-      <Card>
-        {/* Card header + search */}
-        <View style={styles.cardHead}>
-          <Text style={styles.cardTitle}>View All Service Categories</Text>
-          <View style={styles.searchWrap}>
-            <Text style={styles.searchLabel}>Search:</Text>
-            <TextInput
-              value={q}
-              onChangeText={setQ}
-              placeholder="Search…"
-              placeholderTextColor={colors.muted}
-              style={styles.search}
-            />
-          </View>
-        </View>
-
+      <FioriPanel>
         {error ? <Alert type="error">{error}</Alert> : null}
 
         {/* Table */}
@@ -168,20 +153,8 @@ export default function ServiceCategoryScreen() {
           ]}
         />
 
-        {/* Pagination */}
-        <View style={styles.pagination}>
-          <Text style={styles.entries}>Showing {from} to {to} of {total} entries</Text>
-          <View style={styles.pager}>
-            <Pressable disabled={page <= 1} onPress={() => load({ page: page - 1 })} style={[styles.pageBtn, page <= 1 && styles.pageBtnDisabled]}>
-              <Text style={styles.pageBtnText}>Previous</Text>
-            </Pressable>
-            <View style={[styles.pageBtn, styles.pageCurrent]}><Text style={{ color: '#fff', fontWeight: '700' }}>{page}</Text></View>
-            <Pressable disabled={page >= totalPages} onPress={() => load({ page: page + 1 })} style={[styles.pageBtn, page >= totalPages && styles.pageBtnDisabled]}>
-              <Text style={styles.pageBtnText}>Next</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Card>
+        <FioriPager from={from} to={to} total={total} page={page} totalPages={totalPages} onPage={(p) => load({ page: p })} />
+      </FioriPanel>
 
       {/* Delete confirm modal */}
       <Modal visible={!!toDelete} transparent animationType="fade" onRequestClose={() => setToDelete(null)}>
@@ -196,7 +169,7 @@ export default function ServiceCategoryScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </FioriPage>
   );
 }
 

@@ -49,6 +49,16 @@ function initials(user) {
   return s.toUpperCase();
 }
 
+// Title of the top-level module (group) that owns a given route, else null.
+function moduleOf(nodes, route) {
+  const has = (n) => n.route === route || (n.children || []).some(has);
+  for (const top of nodes || []) {
+    if (top.route === route) return null; // the route is itself a top-level item
+    if ((top.children || []).some(has)) return top.title;
+  }
+  return null;
+}
+
 export default function DashboardScreen({ user, onLogout }) {
   const { width } = useWindowDimensions();
   const isWide = width >= 860;
@@ -96,21 +106,33 @@ export default function DashboardScreen({ user, onLogout }) {
 
   const money = (v) => (v === null || v === undefined ? '₹0.00' : `₹${Number(v).toFixed(2)}`);
 
+  // Collapse / expand every menu group at once.
+  const allGroupIds = (nodes) => (nodes || []).flatMap((n) => (n.children?.length ? [n.id, ...allGroupIds(n.children)] : []));
+  const expandAll = () => { const e = {}; allGroupIds(menu).forEach((id) => { e[id] = true; }); setExpanded(e); };
+  const collapseAll = () => setExpanded({});
+
   const Sidebar = (
     <View style={[styles.sidebar, !isWide && styles.drawer]}>
-      {/* Profile card */}
+      {/* Profile: wallet band aligned with the topbar, then admin name */}
       <View style={styles.profile}>
-        <View style={styles.profileBanner} />
-        <View style={styles.avatarLg}><Text style={styles.avatarLgText}>{initials(user)}</Text></View>
-        <Text style={styles.profileName}>{user.fullName || user.username}</Text>
-        <Text style={styles.profileRole}>{user.role}</Text>
-        <View style={styles.balances}>
-          <Text style={styles.balanceLine}>Wallet Balance: <Text style={styles.balanceAmt}>{money(balance)}</Text></Text>
+        <View style={styles.walletCard}>
+          <Text style={styles.walletLabel}>WALLET BALANCE</Text>
+          <Text style={styles.walletAmt}>{money(balance)}</Text>
+        </View>
+        <View style={styles.profileInfo}>
+          <Text style={styles.profileName}>{user.fullName || user.username}</Text>
+          <Text style={styles.profileRole}>{user.role}</Text>
         </View>
       </View>
 
       <View style={styles.sideSearch}>
         <MenuSearch menu={menu} onSelect={onSearchSelect} variant="sidebar" />
+      </View>
+
+      <View style={styles.menuTools}>
+        <Pressable onPress={expandAll} hitSlop={6}><Text style={styles.menuToolText}>Expand all</Text></Pressable>
+        <Text style={styles.menuToolSep}>·</Text>
+        <Pressable onPress={collapseAll} hitSlop={6}><Text style={styles.menuToolText}>Collapse all</Text></Pressable>
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 8 }}>
@@ -142,6 +164,7 @@ export default function DashboardScreen({ user, onLogout }) {
             </Pressable>
           )}
           <Text style={styles.topbarBrand}>AEPS Portal</Text>
+          <View style={{ flex: 1 }} />
           {isWide && <MenuSearch menu={menu} onSelect={onSearchSelect} variant="topbar" style={styles.topSearch} />}
           <View style={{ flex: 1 }} />
           <Pressable style={styles.userChip} onPress={() => setUserMenu(true)}>
@@ -153,7 +176,10 @@ export default function DashboardScreen({ user, onLogout }) {
 
         {/* Content */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
-          <Text style={styles.h1}>{active.title}</Text>
+          <Text style={styles.h1} numberOfLines={1}>
+            {(() => { const m = moduleOf(menu, active.route); return m ? `${m}  ›  ` : ''; })()}
+            <Text style={styles.h1Screen}>{active.title}</Text>
+          </Text>
           {loading && <ActivityIndicator color={colors.primary} />}
           {error && <Text style={{ color: colors.danger }}>{error}</Text>}
 
@@ -277,20 +303,31 @@ function MenuNode({ node, active, expanded, onToggle, onSelect, depth = 0 }) {
   const hasChildren = node.children && node.children.length > 0;
   const isActive = active.route && active.route === node.route;
   const [hover, setHover] = useState(false);
+  const isTop = depth === 0;
+  const open = hasChildren && expanded[node.id];
   return (
     <View>
       <Pressable
         onHoverIn={() => setHover(true)} onHoverOut={() => setHover(false)}
         onPress={() => (hasChildren ? onToggle(node.id) : onSelect(node))}
-        style={[styles.link, { paddingLeft: 14 + depth * 14 }, isActive && styles.linkActive, hover && !isActive && styles.linkHover]}
+        style={[styles.link, isTop && styles.linkTop, isActive && styles.linkActive, hover && !isActive && styles.linkHover]}
       >
-        <Icon name={node.icon} color={isActive ? '#fff' : colors.primary} />
-        <Text style={[styles.linkText, isActive && { color: '#fff', fontWeight: '600' }]} numberOfLines={1}>{node.title}</Text>
-        {hasChildren && <Text style={[styles.caret, isActive && { color: '#fff' }]}>{expanded[node.id] ? '⌄' : '›'}</Text>}
+        {isActive && <View style={styles.activeBar} />}
+        <View style={[styles.iconChip, isActive && styles.iconChipActive, hover && !isActive && styles.iconChipHover]}>
+          <Icon name={node.icon} color={isActive ? '#fff' : colors.primary} />
+        </View>
+        <Text style={[styles.linkText, isTop && styles.linkTextTop, isActive && styles.linkTextActive]} numberOfLines={1}>{node.title}</Text>
+        {hasChildren && (
+          <Text style={[styles.caret, (open || isActive) && styles.caretOpen, isActive && { color: '#fff' }]}>⌄</Text>
+        )}
       </Pressable>
-      {hasChildren && expanded[node.id] && node.children.map((c) => (
-        <MenuNode key={c.id} node={c} active={active} expanded={expanded} onToggle={onToggle} onSelect={onSelect} depth={depth + 1} />
-      ))}
+      {open && (
+        <View style={isTop ? styles.childWrap : null}>
+          {node.children.map((c) => (
+            <MenuNode key={c.id} node={c} active={active} expanded={expanded} onToggle={onToggle} onSelect={onSelect} depth={depth + 1} />
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -330,29 +367,40 @@ const styles = StyleSheet.create({
   drawer: { position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 40, height: '100%', ...shadows.pop },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.5)', zIndex: 30 },
 
-  profile: { alignItems: 'center', paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
-  profileBanner: { height: 72, alignSelf: 'stretch', backgroundColor: colors.primary, boxShadow: `inset 0 -30px 40px ${colors.primaryDark}` },
-  avatarLg: { width: 86, height: 86, borderRadius: 43, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: -46, borderWidth: 4, borderColor: '#fff', ...shadows.card },
-  avatarLgText: { color: '#fff', fontWeight: '800', fontSize: 28 },
-  profileName: { fontWeight: '800', color: colors.text, marginTop: 10, fontSize: 15.5 },
-  profileRole: { color: colors.muted, fontSize: 11.5, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 1 },
-  balances: { marginTop: 12, alignItems: 'center', gap: 2, backgroundColor: colors.primarySoft, borderRadius: radius.md, paddingVertical: 8, paddingHorizontal: 16 },
-  balanceLine: { color: colors.muted, fontSize: 12, fontWeight: '600' },
-  balanceAmt: { color: colors.primary, fontWeight: '800', fontSize: 14 },
+  profile: { borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
+  // Blue wallet band: same height as the topbar so the two align into one header strip.
+  walletCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.primary, height: 48, paddingHorizontal: 16, ...shadows.card },
+  walletLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 10.5, fontWeight: '700', letterSpacing: 0.6 },
+  walletAmt: { color: '#fff', fontWeight: '800', fontSize: 17, letterSpacing: -0.2 },
+  profileInfo: { alignItems: 'center', paddingTop: 12, paddingBottom: 14, paddingHorizontal: 14 },
+  profileName: { fontWeight: '800', color: colors.text, fontSize: 15 },
+  profileRole: { color: colors.muted, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 1 },
 
   sideSearch: { paddingHorizontal: 12, paddingTop: 12, zIndex: 50 },
-  topSearch: { flex: 1, maxWidth: 420, marginLeft: 12 },
+  menuTools: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 2 },
+  menuToolText: { color: colors.primary, fontSize: 11.5, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  menuToolSep: { color: colors.muted, fontSize: 12 },
+  topSearch: { width: 420, maxWidth: '45%', marginHorizontal: 12 },
 
-  link: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingRight: 12, marginHorizontal: 10, marginVertical: 1, borderRadius: 10 },
-  linkActive: { backgroundColor: colors.secondary, ...shadows.sm },
+  link: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 8, paddingLeft: 10, paddingRight: 12, marginHorizontal: 10, marginVertical: 1.5, borderRadius: 12, position: 'relative' },
+  linkTop: { marginVertical: 2 },
+  linkActive: { backgroundColor: colors.secondary, ...shadows.card },
   linkHover: { backgroundColor: colors.primarySoft },
-  linkText: { color: colors.sidebarText, flex: 1, fontSize: 14, fontWeight: '500' },
-  caret: { color: colors.muted, fontSize: 16 },
+  linkText: { color: colors.sidebarText, flex: 1, fontSize: 13.5, fontWeight: '500' },
+  linkTextTop: { fontSize: 14, fontWeight: '600', color: colors.text },
+  linkTextActive: { color: '#fff', fontWeight: '700' },
+  activeBar: { position: 'absolute', left: -10, top: 9, bottom: 9, width: 3.5, borderRadius: 4, backgroundColor: colors.secondary },
+  iconChip: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primarySoft },
+  iconChipActive: { backgroundColor: 'rgba(255,255,255,0.22)' },
+  iconChipHover: { backgroundColor: '#ffffff' },
+  childWrap: { marginLeft: 25, borderLeftWidth: 1.5, borderLeftColor: colors.sidebarBorder, paddingLeft: 2, marginTop: 1, marginBottom: 5 },
+  caret: { color: colors.muted, fontSize: 15, transform: [{ rotate: '-90deg' }] },
+  caretOpen: { transform: [{ rotate: '0deg' }] },
 
   main: { flex: 1 },
 
   // Topbar (blue)
-  topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.topbarBg, paddingHorizontal: 18, paddingVertical: 12, minHeight: 58, zIndex: 10, ...shadows.card },
+  topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.topbarBg, paddingHorizontal: 18, paddingVertical: 0, height: 48, zIndex: 10, ...shadows.card },
   hamburger: { padding: 4 },
   topbarBrand: { color: '#fff', fontWeight: '800', fontSize: 17, letterSpacing: 0.3 },
   userChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 22, paddingVertical: 5, paddingHorizontal: 8, maxWidth: 200, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
@@ -367,8 +415,9 @@ const styles = StyleSheet.create({
   dropRole: { color: colors.muted, fontSize: 12, textTransform: 'capitalize' },
   dropItem: { padding: 12 },
 
-  content: { padding: 26, maxWidth: 1200, width: '100%', alignSelf: 'center' },
-  h1: { fontSize: 23, fontWeight: '800', marginBottom: 20, color: colors.text, letterSpacing: -0.2 },
+  content: { paddingHorizontal: 13, paddingVertical: 10, maxWidth: 1200, width: '100%', alignSelf: 'center' },
+  h1: { fontSize: 12, fontWeight: '800', marginBottom: 8, color: colors.text, letterSpacing: 0.1 },
+  h1Screen: { fontSize: 12, fontWeight: '800', color: colors.text },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: '#bfdbfe', borderLeftWidth: 4, borderLeftColor: colors.primary, borderRadius: radius.md, paddingVertical: 13, paddingHorizontal: 16, marginBottom: 18, ...shadows.sm },
   noticeIcon: { fontSize: 18 },
   noticeText: { flex: 1, color: colors.primaryDark, fontWeight: '600' },

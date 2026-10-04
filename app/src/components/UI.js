@@ -1,8 +1,9 @@
 // Small cross-platform UI kit: Button, TextField, Select, Alert, Card, Logo.
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet, Modal, ScrollView,
+  View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet, Modal, ScrollView, Platform,
 } from 'react-native';
+import { createPortal } from 'react-dom';
 import { colors, radius, shadows } from '../theme';
 
 /**
@@ -12,6 +13,9 @@ import { colors, radius, shadows } from '../theme';
 export function Select({ label, value, options = [], onChange, placeholder = 'Select…', searchable = true }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
+  const [box, setBox] = useState(null); // measured anchor rect (web overlay)
+  const anchorRef = useRef(null);
+  const web = Platform.OS === 'web';
   const selected = options.find((o) => String(o.value) === String(value));
   const filtered = useMemo(() => {
     if (!q) return options;
@@ -19,39 +23,61 @@ export function Select({ label, value, options = [], onChange, placeholder = 'Se
     return options.filter((o) => o.label.toLowerCase().includes(s));
   }, [q, options]);
 
-  return (
-    <View style={{ gap: 6 }}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <Pressable style={styles.selectBox} onPress={() => { setQ(''); setOpen(true); }}>
-        <Text style={{ color: selected ? colors.text : colors.muted, flex: 1 }} numberOfLines={1}>
-          {selected ? selected.label : placeholder}
-        </Text>
-        <Text style={{ color: colors.muted }}>▾</Text>
-      </Pressable>
+  // Measure the field so the list can render in a body portal (escapes every
+  // parent stacking context / overflow). Coords are divided by the page zoom
+  // because the portal is inside the zoomed document and gets re-scaled.
+  const measure = () => {
+    try {
+      const r = anchorRef.current.getBoundingClientRect();
+      let z = 1;
+      try { z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1; } catch (e) { z = 1; }
+      setBox({ left: r.left / z, top: r.bottom / z, width: r.width / z });
+    } catch (e) { setBox(null); }
+  };
+  const toggle = () => { setQ(''); if (!open && web) measure(); setOpen((o) => !o); };
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
-          <Pressable style={styles.selectSheet} onPress={(e) => e.stopPropagation?.()}>
-            {label ? <Text style={[styles.label, { marginBottom: 8 }]}>{label}</Text> : null}
-            {searchable ? (
-              <TextInput value={q} onChangeText={setQ} placeholder="Search…" placeholderTextColor={colors.muted} style={[styles.input, { marginBottom: 8 }]} autoFocus />
-            ) : null}
-            <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
-              {filtered.length === 0 ? (
-                <Text style={{ color: colors.muted, padding: 12 }}>No matches</Text>
-              ) : filtered.map((o) => {
-                const active = String(o.value) === String(value);
-                return (
-                  <Pressable key={String(o.value)} onPress={() => { onChange(o.value); setOpen(false); }}
-                    style={[styles.option, active && { backgroundColor: '#eff6ff' }]}>
-                    <Text style={{ color: active ? colors.primary : colors.text, fontWeight: active ? '700' : '400' }}>{o.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </Pressable>
+  const list = (
+    <View style={[styles.dropdown, web && box ? { position: 'fixed', left: box.left, top: box.top + 4, width: box.width } : null]}>
+      {/* search is available in every dropdown */}
+      <TextInput value={q} onChangeText={setQ} placeholder="Search…" placeholderTextColor={colors.muted}
+        style={styles.dropSearch} autoFocus />
+      <ScrollView style={{ maxHeight: 240 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+        {filtered.length === 0 ? (
+          <Text style={{ color: colors.muted, padding: 12 }}>No matches</Text>
+        ) : filtered.map((o) => {
+          const active = String(o.value) === String(value);
+          return (
+            <Pressable key={String(o.value)} onPress={() => { onChange(o.value); setOpen(false); }}
+              style={[styles.option, active && { backgroundColor: '#eff6ff' }]}>
+              <Text style={{ color: active ? colors.primary : colors.text, fontWeight: active ? '700' : '400' }}>{o.label}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+
+  const overlay = (
+    <>
+      {/* click-away catcher (full viewport, behind the list) */}
+      <Pressable style={styles.dropCatcher} onPress={() => setOpen(false)} />
+      {list}
+    </>
+  );
+
+  return (
+    <View style={{ gap: 6, zIndex: open ? 9999 : 1, position: 'relative' }}>
+      {label ? <Text style={styles.label}>{label}</Text> : null}
+      <View ref={anchorRef} style={{ position: 'relative' }}>
+        <Pressable style={[styles.selectBox, open && styles.selectBoxOpen]} onPress={toggle}>
+          <Text style={{ color: selected ? colors.text : colors.muted, flex: 1 }} numberOfLines={1}>
+            {selected ? selected.label : placeholder}
+          </Text>
+          <Text style={{ color: colors.muted, transform: [{ rotate: open ? '180deg' : '0deg' }] }}>▾</Text>
         </Pressable>
-      </Modal>
+
+        {open ? (web && typeof document !== 'undefined' ? createPortal(overlay, document.body) : overlay) : null}
+      </View>
     </View>
   );
 }
@@ -239,10 +265,15 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.text, outlineStyle: 'none' },
   inputFocused: { borderColor: colors.primary, backgroundColor: '#fff', boxShadow: `0 0 0 3px ${colors.ring}` },
   eye: { position: 'absolute', right: 8, top: 0, bottom: 0, width: 32, alignItems: 'center', justifyContent: 'center' },
-  selectBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, minHeight: 46 },
+  selectBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 8, minHeight: 38 },
+  selectBoxOpen: { borderColor: colors.primary },
   selectBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.55)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   selectSheet: { backgroundColor: '#fff', borderRadius: radius.lg, padding: 16, width: '100%', maxWidth: 420, ...shadows.pop },
-  option: { paddingVertical: 11, paddingHorizontal: 12, borderRadius: radius.sm },
+  // Inline dropdown (opens below the field, not a modal)
+  dropCatcher: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998 },
+  dropdown: { position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: 4, zIndex: 9999, elevation: 24, ...shadows.pop },
+  dropSearch: { backgroundColor: colors.surfaceAlt, borderBottomWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14, color: colors.text, outlineStyle: 'none', margin: 4, borderRadius: radius.sm },
+  option: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: radius.sm, marginHorizontal: 4 },
   calendar: { backgroundColor: '#fff', borderRadius: radius.lg, padding: 14, width: 300, ...shadows.pop },
   calHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   calTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
