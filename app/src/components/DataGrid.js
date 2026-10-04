@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { colors, radius } from '../theme';
 
 /**
@@ -11,14 +11,30 @@ import { colors, radius } from '../theme';
  * columns: [{ key, title, width | flex(+minWidth), sortable = true, filterable = true,
  *             render?: (row, index) => node, align?: 'right' }]
  * Use sortable/filterable: false for '#' and action columns, or columns the API cannot sort.
+ * Status / Action columns (key 'status' | 'action' | 'actions', or pin: true) are pinned to the RIGHT edge: they move to the
+ * end and stay put while the grid scrolls sideways (web, CSS sticky). pin: false opts a column out.
  * rowStyle?: (row, index) => style — e.g. highlight a stuck transaction. onRowPress?: (row) => void opens a row.
  */
 export default function DataGrid({
   columns, rows, loading, emptyText = 'No records found.', sort, onSort, filters = {}, onFilter,
   maxHeight = 560, rowKey = (r) => r.id, rowStyle, onRowPress,
 }) {
-  const minWidth = columns.reduce((a, c) => a + (c.width || c.minWidth || 120), 0);
+  const [headH, setHeadH] = useState(40);
+  // Pinned (right) columns always sit at the end, keeping their original order.
+  const pinned = columns.filter(isPinned);
+  const ordered = [...columns.filter((c) => !isPinned(c)), ...pinned];
+  const rightOf = {};
+  pinned.reduceRight((acc, c) => { rightOf[c.key] = acc; return acc + pinWidth(c); }, 0);
+  const firstPinned = pinned.length ? pinned[0].key : null;
+  const minWidth = ordered.reduce((a, c) => a + (isPinned(c) ? pinWidth(c) : (c.width || c.minWidth || 120)), 0);
   const anyFilter = Object.values(filters).some(Boolean);
+
+  // Sticky only works on web; elsewhere the columns simply sit at the end.
+  const pin = (c, bg, z, centre) => (WEB && isPinned(c) ? {
+    position: 'sticky', right: rightOf[c.key], zIndex: z, backgroundColor: bg, alignSelf: 'stretch',
+    width: pinWidth(c), ...(centre ? { justifyContent: 'center' } : null),
+    ...(c.key === firstPinned ? { boxShadow: '-6px 0 8px -6px rgba(15,23,42,0.22)' } : null),
+  } : null);
 
   const toggleSort = (c) => {
     if (!onSort || c.sortable === false) return;
@@ -27,53 +43,73 @@ export default function DataGrid({
     else onSort(null);
   };
 
+  const header = (
+    <View onLayout={(e) => setHeadH(e.nativeEvent.layout.height)} style={[styles.tr, styles.th, WEB && styles.stickyTop]}>
+      {ordered.map((c) => {
+        const can = onSort && c.sortable !== false;
+        const on = sort && sort.key === c.key;
+        return (
+          <Pressable key={c.key} onPress={() => toggleSort(c)} disabled={!can} style={[styles.cell, colStyle(c), styles.thCell, c.align === 'right' && styles.right, pin(c, colors.primary, 4, false)]}>
+            <Text style={styles.thText} numberOfLines={2}>{c.title}</Text>
+            {can ? <Text style={[styles.arrow, on && styles.arrowOn]}>{on ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</Text> : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  const filterRow = onFilter ? (
+    <View style={[styles.tr, styles.filterRow, WEB && styles.stickyTop, WEB && { top: headH }]}>
+      {ordered.map((c, i) => (
+        <View key={c.key} style={[styles.filterCell, colStyle(c), pin(c, '#f1f5f9', 4, true)]}>
+          {c.filterable !== false ? (
+            <FilterInput value={filters[c.key] || ''} onChange={(v) => onFilter({ ...filters, [c.key]: v })} />
+          ) : i === 0 && anyFilter ? (
+            <Pressable onPress={() => onFilter({})} hitSlop={6}><Text style={styles.clear} accessibilityLabel="Clear column filters">✕</Text></Pressable>
+          ) : null}
+        </View>
+      ))}
+    </View>
+  ) : null;
+
+  const body = loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
+    : !rows.length ? <View style={styles.empty}><Text style={{ color: colors.muted }}>{anyFilter ? 'No records match the column filters.' : emptyText}</Text></View>
+      : rows.map((r, i) => {
+        const extra = rowStyle ? rowStyle(r, i) : null;
+        const bg = StyleSheet.flatten([i % 2 ? styles.trAlt : null, extra]).backgroundColor || '#fff';
+        return (
+          <Row key={rowKey(r, i)} onPress={onRowPress ? () => onRowPress(r) : null} style={[styles.tr, i % 2 ? styles.trAlt : null, extra]}>
+            {ordered.map((c) => (
+              <View key={c.key} style={[styles.cell, colStyle(c), c.align === 'right' && styles.right, pin(c, bg, 2, true)]}>
+                {c.render ? c.render(r, i) : <Text style={styles.td} numberOfLines={3}>{r[c.key] == null || r[c.key] === '' ? '—' : String(r[c.key])}</Text>}
+              </View>
+            ))}
+          </Row>
+        );
+      });
+
+  // Web: ONE scroll box (both axes) so sticky header + pinned columns work together.
+  if (WEB) {
+    return (
+      <View style={{ overflow: 'auto', maxHeight: maxHeight + headH + (onFilter ? 48 : 0) }}>
+        <View style={{ minWidth, flexGrow: 1 }}>{header}{filterRow}{body}</View>
+      </View>
+    );
+  }
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth, flexGrow: 1 }}>
       <View style={{ flex: 1 }}>
-        <View style={[styles.tr, styles.th]}>
-          {columns.map((c) => {
-            const can = onSort && c.sortable !== false;
-            const on = sort && sort.key === c.key;
-            return (
-              <Pressable key={c.key} onPress={() => toggleSort(c)} disabled={!can} style={[styles.cell, colStyle(c), styles.thCell, c.align === 'right' && styles.right]}>
-                <Text style={styles.thText} numberOfLines={2}>{c.title}</Text>
-                {can ? <Text style={[styles.arrow, on && styles.arrowOn]}>{on ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</Text> : null}
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {onFilter ? (
-          <View style={[styles.tr, styles.filterRow]}>
-            {columns.map((c, i) => (
-              <View key={c.key} style={[styles.filterCell, colStyle(c)]}>
-                {c.filterable !== false ? (
-                  <FilterInput value={filters[c.key] || ''} onChange={(v) => onFilter({ ...filters, [c.key]: v })} />
-                ) : i === 0 && anyFilter ? (
-                  <Pressable onPress={() => onFilter({})} hitSlop={6}><Text style={styles.clear} accessibilityLabel="Clear column filters">✕</Text></Pressable>
-                ) : null}
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        <ScrollView style={{ maxHeight }} nestedScrollEnabled>
-          {loading ? <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
-            : !rows.length ? <View style={styles.empty}><Text style={{ color: colors.muted }}>{anyFilter ? 'No records match the column filters.' : emptyText}</Text></View>
-              : rows.map((r, i) => (
-                <Row key={rowKey(r, i)} onPress={onRowPress ? () => onRowPress(r) : null} style={[styles.tr, i % 2 ? styles.trAlt : null, rowStyle ? rowStyle(r, i) : null]}>
-                  {columns.map((c) => (
-                    <View key={c.key} style={[styles.cell, colStyle(c), c.align === 'right' && styles.right]}>
-                      {c.render ? c.render(r, i) : <Text style={styles.td} numberOfLines={3}>{r[c.key] == null || r[c.key] === '' ? '—' : String(r[c.key])}</Text>}
-                    </View>
-                  ))}
-                </Row>
-              ))}
-        </ScrollView>
+        {header}{filterRow}
+        <ScrollView style={{ maxHeight }} nestedScrollEnabled>{body}</ScrollView>
       </View>
     </ScrollView>
   );
 }
+
+const WEB = Platform.OS === 'web';
+const isPinned = (c) => (c.pin === undefined ? PIN_KEYS.includes(c.key) : !!c.pin);
+const PIN_KEYS = ['action', 'actions', 'status'];
+const pinWidth = (c) => c.width || c.minWidth || 120;
 
 // A clickable row when onRowPress is given, a plain one otherwise.
 const Row = ({ onPress, style, children }) => (onPress ? <Pressable onPress={onPress} style={style}>{children}</Pressable> : <View style={style}>{children}</View>);
@@ -92,7 +128,7 @@ function FilterInput({ value, onChange }) {
   return <TextInput value={text} onChangeText={change} placeholder="Filter…" placeholderTextColor="#94a3b8" style={styles.filterInput} />;
 }
 
-const colStyle = (c) => (c.width ? { width: c.width } : { flex: c.flex || 1, minWidth: c.minWidth || 120 });
+const colStyle = (c) => (c.width || isPinned(c) ? { width: pinWidth(c) } : { flex: c.flex || 1, minWidth: c.minWidth || 120 });
 
 /**
  * Grid state for a screen: const grid = useGrid(); pass grid.params to the list API, and
@@ -138,4 +174,5 @@ const styles = StyleSheet.create({
   cell: { paddingVertical: 12, paddingHorizontal: 9 },
   td: { color: colors.text, fontSize: 13 },
   empty: { padding: 34, alignItems: 'center' },
+  stickyTop: { position: 'sticky', top: 0, zIndex: 5 },
 });

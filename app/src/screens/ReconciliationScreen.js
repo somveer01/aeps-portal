@@ -114,8 +114,8 @@ function RunItems({ run, onBack }) {
             { key: 'user', title: 'User', width: ITEM_COLS[2], render: (r) => <View><Text style={styles.td} numberOfLines={1}>{r.user_name || '—'}</Text>{r.user_code ? <Text style={styles.sub}>{r.user_code}</Text> : null}</View> },
             { key: 'ours', title: 'Ours', width: ITEM_COLS[3], render: (r) => <Text style={styles.td}>{r.our_status ? `${r.our_status} · ${money(r.our_amount)}` : 'not recorded'}</Text> },
             { key: 'provider', title: 'Provider', width: ITEM_COLS[4], render: (r) => <Text style={styles.td}>{r.provider_status ? `${r.provider_status} · ${money(r.provider_amount)}` : 'not in report'}</Text> },
-            { key: 'state', title: 'State', width: ITEM_COLS[5], render: (r) => <StatusBadge label={r.state} tone={r.state === 'open' ? 'warning' : 'success'} /> },
-            { key: 'note', title: 'Note / action', width: ITEM_COLS[6], render: (r) => (r.state === 'open'
+            { key: 'state', title: 'State', pin: true, width: ITEM_COLS[5], render: (r) => <StatusBadge label={r.state} tone={r.state === 'open' ? 'warning' : 'success'} /> },
+            { key: 'note', title: 'Note / action', pin: true, width: ITEM_COLS[6], render: (r) => (r.state === 'open'
               ? <Pressable onPress={() => setResolve(r)} style={styles.btn}><Text style={styles.btnText}>Resolve</Text></Pressable>
               : <Text style={styles.td} numberOfLines={3}>{r.note || '—'}{r.resolved_by_name ? ` (${r.resolved_by_name})` : ''}</Text>) },
           ]}
