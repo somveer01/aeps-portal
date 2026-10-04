@@ -1,9 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { api } from './src/api/client';
 import { saveToken, clearToken, getThemeCache, setThemeCache } from './src/api/storage';
 import { colors, applyTheme } from './src/theme';
+
+// Web (desktop) only: render the whole app ~15% more compact, so 100% browser
+// zoom shows the density that used to need 85%. Chromium/Safari honour `zoom`.
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  document.documentElement.style.zoom = '0.85';
+}
 
 // Simple auth state machine: booting -> login -> otp -> app.
 // The theme is applied BEFORE any screen is required, so screen StyleSheets

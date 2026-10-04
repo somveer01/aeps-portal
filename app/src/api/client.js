@@ -268,6 +268,8 @@ export const api = {
   },
 
   // Admin Wallet (top up / adjust admin wallet + history)
+  adminDashboard: () => request('/api/admin/dashboard', { auth: true }),
+
   adminWallet: {
     balance: () => request('/api/admin-wallet/balance', { auth: true }),
     list: (params = {}) => request(`/api/admin-wallet?${qs(params)}`, { auth: true }),
@@ -338,6 +340,7 @@ export const api = {
   // admin managedUsers / fundTransfer / reports.serviceReport calls, so the admin
   // screens reuse them with a `network` prop.
   network: {
+    summary: () => request('/api/network/summary', { auth: true }),
     meta: () => request('/api/network/meta', { auth: true }),
     users: {
       list: (params = {}) => request(`/api/network/users?${qs(params)}`, { auth: true }),

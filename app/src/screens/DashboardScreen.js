@@ -72,6 +72,7 @@ export default function DashboardScreen({ user, onLogout }) {
   const [userMenu, setUserMenu] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [balance, setBalance] = useState(null);
+  const [dash, setDash] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -86,6 +87,7 @@ export default function DashboardScreen({ user, onLogout }) {
     // Active announcements shown as a banner on the dashboard.
     api.announcements.active().then((r) => setAnnouncements(r.rows || [])).catch(() => {});
     api.adminWallet.balance().then((r) => setBalance(r.balance)).catch(() => {});
+    api.adminDashboard().then(setDash).catch(() => {});
   }, []);
 
   // Revoke the token server-side (best-effort), then clear the local session.
@@ -255,19 +257,90 @@ export default function DashboardScreen({ user, onLogout }) {
             <>
               <NoticeBanner items={announcements} />
               <View style={styles.cards}>
-                <Stat label="Today's Transactions" value="0" />
-                <Stat label="Total Balance" value="₹0.00" />
-                <Stat label="Active Services" value="6" />
-                <Stat label="Pending KYC" value="0" />
+                <Stat label="Today's Commission" value={money(dash?.commission.today)} tone="success" />
+                <Stat label="Today's Transactions" value={String(dash?.transactions.today.count ?? 0)} sub={money(dash?.transactions.today.amount)} />
+                <Stat label="This Month Commission" value={money(dash?.commission.month)} tone="success" />
+                <Stat label="Total Users" value={String(dash?.users.total ?? 0)} sub={`${dash?.users.active ?? 0} active · ${dash?.users.inactive ?? 0} inactive`} />
+                <Stat label="Pending KYC" value={String(dash?.users.pendingKyc ?? 0)} tone="warning" />
+                <Stat label="Pending Fund Requests" value={String(dash?.fundRequests.pending ?? 0)} sub={money(dash?.fundRequests.amount)} tone="warning" />
+                <Stat label="Admin Wallet" value={money(dash?.adminWallet)} />
+                <Stat label="Users' Wallet Balance" value={money(dash?.users.walletTotal)} />
+                <Stat label="Active Services" value={`${dash?.services.active ?? 0} / ${dash?.services.total ?? 0}`} />
+                <Stat label="Total Transactions" value={String(dash?.transactions.total.count ?? 0)} sub={money(dash?.transactions.total.amount)} />
               </View>
+
+              <View style={styles.dashRow}>
+                <Card style={styles.dashCardSm}>
+                  <Text style={styles.cardTitle}>Users by Type</Text>
+                  {(dash?.users.byType || []).map((t) => (
+                    <View key={t.name} style={styles.rowLine}>
+                      <Text style={styles.rowKey}>{t.name}</Text>
+                      <Text style={styles.rowVal}>{t.count}</Text>
+                    </View>
+                  ))}
+                  {(!dash || dash.users.byType.length === 0) ? <Text style={styles.para}>No users yet.</Text> : null}
+                </Card>
+
+                <Card style={styles.dashCardLg}>
+                  <Text style={styles.cardTitle}>Recent Transactions</Text>
+                  {(dash?.recent || []).map((r) => (
+                    <View key={r.id} style={styles.rowLine}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.rowKey}>{r.service}</Text>
+                        <Text style={styles.rowSub}>{r.user_name} · {r.user_code}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={styles.rowVal}>{money(r.amount)}</Text>
+                        <Text style={styles.rowSub}>{new Date(r.created_at).toLocaleDateString()}</Text>
+                      </View>
+                    </View>
+                  ))}
+                  {(!dash || dash.recent.length === 0) ? <Text style={styles.para}>No transactions yet.</Text> : null}
+                </Card>
+              </View>
+
               <Card style={{ marginTop: 16 }}>
-                <Text style={styles.cardTitle}>Welcome, {user.fullName} 👋</Text>
-                <Text style={styles.para}>
-                  This is the AEPS Portal admin dashboard, built with React Native (web + Android +
-                  iOS). The menu on the left is loaded from the database — add or reorder rows in
-                  <Text style={styles.code}> menu_items</Text> and it updates here.
-                </Text>
+                <Text style={styles.cardTitle}>Last 7 Days — Transaction Volume</Text>
+                <View style={styles.chart}>
+                  {(dash?.trend7 || []).map((d) => {
+                    const max = Math.max(1, ...(dash.trend7.map((x) => x.amount)));
+                    const h = Math.round((d.amount / max) * 120) + 2;
+                    return (
+                      <View key={d.date} style={styles.chartCol}>
+                        <Text style={styles.chartVal} numberOfLines={1}>{d.amount ? money(d.amount) : ''}</Text>
+                        <View style={[styles.bar, { height: h }]} />
+                        <Text style={styles.chartLbl}>{new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' })}</Text>
+                        <Text style={styles.chartSub}>{d.count}</Text>
+                      </View>
+                    );
+                  })}
+                  {!dash ? <Text style={styles.para}>Loading…</Text> : null}
+                </View>
               </Card>
+
+              <View style={styles.dashRow}>
+                <Card style={styles.dashCardLg}>
+                  <Text style={styles.cardTitle}>Service-wise Earnings</Text>
+                  {(dash?.byService || []).map((s) => (
+                    <View key={s.service} style={styles.rowLine}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.rowKey}>{s.service}</Text>
+                        <Text style={styles.rowSub}>{s.cnt} txns · {money(s.amt)}</Text>
+                      </View>
+                      <Text style={styles.rowVal}>{money(s.commission)}</Text>
+                    </View>
+                  ))}
+                  {(!dash || dash.byService.length === 0) ? <Text style={styles.para}>No data yet.</Text> : null}
+                </Card>
+
+                <Card style={styles.dashCardSm}>
+                  <Text style={styles.cardTitle}>Action Items</Text>
+                  <ActionRow label="Fund Requests" count={dash?.actions.fundRequests} onPress={() => selForm({ title: 'Fund Requests', route: '/fund-requests' })} />
+                  <ActionRow label="KYC Requests" count={dash?.actions.kyc} onPress={() => selForm({ title: 'KYC Requests', route: '/kyc-requests' })} />
+                  <ActionRow label="Pending Transactions" count={dash?.actions.pendingTxns} onPress={() => selForm({ title: 'Pending Transactions', route: '/pending-transactions' })} />
+                  <ActionRow label="Support Tickets" count={dash?.actions.tickets} onPress={() => selForm({ title: 'Support Tickets', route: '/support-tickets' })} />
+                </Card>
+              </View>
             </>
           ) : (
             <Card>
@@ -350,11 +423,29 @@ function NoticeBanner({ items }) {
   );
 }
 
-function Stat({ label, value }) {
+function ActionRow({ label, count, onPress }) {
+  const n = count ?? 0;
+  const [hover, setHover] = useState(false);
   return (
-    <Card style={styles.stat}>
+    <Pressable onPress={onPress} onHoverIn={() => setHover(true)} onHoverOut={() => setHover(false)}
+      style={[styles.actionRow, hover && { backgroundColor: colors.primarySoft }]}>
+      <Text style={styles.actionLabel}>{label}</Text>
+      <View style={[styles.actionBadge, n > 0 ? styles.actionBadgeOn : styles.actionBadgeOff]}>
+        <Text style={[styles.actionBadgeText, n === 0 && { color: colors.muted }]}>{n}</Text>
+      </View>
+      <Text style={styles.actionChevron}>›</Text>
+    </Pressable>
+  );
+}
+
+function Stat({ label, value, sub, tone }) {
+  const toneColor = tone === 'success' ? colors.success : tone === 'warning' ? colors.warning : colors.text;
+  const topColor = tone === 'success' ? colors.success : tone === 'warning' ? colors.warning : colors.primary;
+  return (
+    <Card style={[styles.stat, { borderTopColor: topColor }]}>
       <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text style={[styles.statValue, { color: toneColor }]}>{value}</Text>
+      {sub ? <Text style={styles.statSub}>{sub}</Text> : null}
     </Card>
   );
 }
@@ -425,7 +516,32 @@ const styles = StyleSheet.create({
   cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   stat: { flexGrow: 1, minWidth: 200, gap: 6, borderTopWidth: 3, borderTopColor: colors.primary },
   statLabel: { color: colors.muted, fontSize: 12.5, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 },
-  statValue: { fontSize: 28, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
+  statValue: { fontSize: 26, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
+  statSub: { color: colors.muted, fontSize: 12, fontWeight: '600' },
+  dashRow: { flexDirection: 'row', gap: 16, flexWrap: 'wrap', marginTop: 16 },
+  dashCardSm: { flexGrow: 1, flexBasis: 280, gap: 2 },
+  dashCardLg: { flexGrow: 2, flexBasis: 380, gap: 2 },
+  rowLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
+  rowKey: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  rowVal: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  rowSub: { color: colors.muted, fontSize: 11.5, marginTop: 1 },
+
+  // 7-day bar chart
+  chart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, marginTop: 14, minHeight: 170, paddingTop: 8 },
+  chartCol: { flex: 1, alignItems: 'center', gap: 4 },
+  chartVal: { color: colors.muted, fontSize: 9.5, fontWeight: '700', height: 12 },
+  bar: { width: '70%', maxWidth: 46, backgroundColor: colors.primary, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
+  chartLbl: { color: colors.text, fontSize: 11.5, fontWeight: '700', marginTop: 2 },
+  chartSub: { color: colors.muted, fontSize: 10 },
+
+  // Action items
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, marginHorizontal: -8 },
+  actionLabel: { flex: 1, color: colors.text, fontSize: 13.5, fontWeight: '600' },
+  actionBadge: { minWidth: 26, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  actionBadgeOn: { backgroundColor: colors.danger },
+  actionBadgeOff: { backgroundColor: colors.sidebarBorder },
+  actionBadgeText: { color: '#fff', fontWeight: '800', fontSize: 12.5 },
+  actionChevron: { color: colors.muted, fontSize: 18, fontWeight: '700' },
   cardTitle: { fontSize: 17, fontWeight: '800', marginBottom: 10, color: colors.text },
   para: { color: colors.text, lineHeight: 21 },
   code: { fontFamily: 'monospace', backgroundColor: '#eef1f6', color: colors.text },

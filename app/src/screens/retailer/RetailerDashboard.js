@@ -16,10 +16,13 @@ export default function RetailerDashboard({ onOpen }) {
   const [summary, setSummary] = useState(null);
   const [stats, setStats] = useState([]);
   const [allowed, setAllowed] = useState(null); // routes of services that are on and allowed for me
+  const [net, setNet] = useState(null); // downline summary (only for distributor / super distributor)
   useEffect(() => {
     api.retailer.summary().then(setSummary).catch(() => {});
     api.retailer.catalogue().then((c) => setAllowed(new Set([...(c.b2b || []), ...(c.online || [])].map((t) => t.route)))).catch(() => setAllowed(new Set()));
     api.retailer.serviceStats().then((r) => setStats(r.rows || [])).catch(() => {});
+    // Network users (with downline) get an extra section; retailers get 403 → stays null.
+    api.network.summary().then(setNet).catch(() => setNet(null));
   }, []);
 
   const quick = QUICK.filter(([, , route]) => allowed && allowed.has(route));
@@ -34,6 +37,25 @@ export default function RetailerDashboard({ onOpen }) {
         <Stat label="Today's Transactions" value={String(summary?.today?.count ?? 0)} accent={colors.success} icon="report" />
         <Stat label="Commission Today" value={money(summary?.commissionToday)} accent="#d97706" icon="commission" />
       </View>
+
+      {net ? (
+        <Card>
+          <Text style={styles.section}>My Network</Text>
+          <View style={styles.cards}>
+            <Stat label="Downline Users" value={String(net.downline.total)} accent={colors.primary} icon="users" />
+            <Stat label="Active Downline" value={String(net.downline.active)} accent={colors.success} icon="users" />
+            <Stat label="Downline Txns Today" value={String(net.txToday.count)} accent="#7c3aed" icon="report" />
+            <Stat label="Network Commission (Month)" value={money(net.commissionMonth)} accent="#d97706" icon="commission" />
+          </View>
+          <View style={styles.netRows}>
+            <Text style={styles.netLine}>Downline volume — today: <Text style={styles.netVal}>{money(net.txToday.amount)}</Text> · month: <Text style={styles.netVal}>{money(net.txMonth.amount)}</Text></Text>
+            <Text style={styles.netLine}>Downline wallet: <Text style={styles.netVal}>{money(net.downline.walletTotal)}</Text> · Pending fund requests: <Text style={styles.netVal}>{net.fundRequests.pending}</Text> ({money(net.fundRequests.amount)})</Text>
+            {(net.downline.byType || []).length ? (
+              <Text style={styles.netLine}>By type: <Text style={styles.netVal}>{net.downline.byType.map((t) => `${t.name} ${t.count}`).join('  ·  ')}</Text></Text>
+            ) : null}
+          </View>
+        </Card>
+      ) : null}
 
       <Card>
         <Text style={styles.section}>Service Statics</Text>
@@ -103,6 +125,9 @@ const styles = StyleSheet.create({
   statIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   statValue: { fontSize: 26, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
   section: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: 12 },
+  netRows: { marginTop: 14, gap: 6 },
+  netLine: { color: colors.muted, fontSize: 13, fontWeight: '600' },
+  netVal: { color: colors.text, fontWeight: '800' },
   quick: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   quickTile: { width: 120, backgroundColor: colors.primarySoft, borderRadius: radius.md, alignItems: 'center', padding: 14, gap: 8, borderWidth: 1, borderColor: '#dbe6fb' },
   quickIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', ...shadows.sm },
