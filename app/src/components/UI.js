@@ -1,5 +1,5 @@
 // Small cross-platform UI kit: Button, TextField, Select, Alert, Card, Logo.
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet, Modal, ScrollView, Platform,
 } from 'react-native';
@@ -147,64 +147,178 @@ export function TextField({ label, value, onChangeText, secureTextEntry, placeho
   );
 }
 
-// Cross-platform date picker (custom calendar popover). value/onChange use 'YYYY-MM-DD'.
+// Cross-platform date picker. value/onChange use 'YYYY-MM-DD'.
+// Web: a popover right under the field (portal on document.body, like Select; flips above when there is no room).
+// Native: a centred modal. The header has a Month and a Year chooser besides the arrows.
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const parseISO = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+const CAL_W = 300; const CAL_H = 350; const YEAR_ROW = 40; const PANEL_H = 232;
 
-export function DateField({ label, value, onChange, placeholder = 'Select date' }) {
+export function DateField({ label, value, onChange, placeholder = 'Select date', minYear, maxYear }) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState('days'); // 'days' | 'months' | 'years'
+  const [pos, setPos] = useState(null); // web popover position
+  const anchorRef = useRef(null);
+  const yearsRef = useRef(null);
+  const web = Platform.OS === 'web' && typeof document !== 'undefined';
   const selected = parseISO(value);
   const [view, setView] = useState(() => (selected || new Date()));
   const y = view.getFullYear(); const m = view.getMonth();
+  const nowY = new Date().getFullYear();
+  const lo = Math.min(minYear != null ? minYear : nowY - 100, y); const hi = Math.max(maxYear != null ? maxYear : nowY + 10, y);
+  const years = []; for (let yr = lo; yr <= hi; yr += 1) years.push(yr);
   const firstWeekday = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m + 1, 0).getDate();
   const cells = [];
   for (let i = 0; i < firstWeekday; i += 1) cells.push(null);
   for (let d = 1; d <= daysInMonth; d += 1) cells.push(d);
   const todayISO = toISO(new Date());
+  const close = () => setOpen(false);
   const shiftMonth = (delta) => setView(new Date(y, m + delta, 1));
-  const pick = (d) => { onChange(toISO(new Date(y, m, d))); setOpen(false); };
+  const pick = (d) => { onChange(toISO(new Date(y, m, d))); close(); };
+
+  // Place the popover under the field (above it when there is no room). Coordinates are divided by the
+  // page zoom because the portal sits inside the zoomed document and is scaled again (see Select).
+  const measure = () => {
+    try {
+      const r = anchorRef.current.getBoundingClientRect();
+      let z = 1;
+      try { z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1; } catch (e) { z = 1; }
+      const vw = window.innerWidth / z; const vh = window.innerHeight / z;
+      const left = Math.max(8, Math.min(r.left / z, vw - CAL_W - 8));
+      const below = vh - r.bottom / z; const above = r.top / z;
+      const maxTop = Math.max(8, vh - CAL_H - 8);
+      // Under the field when it fits (or there is more room below); above it when only that fits;
+      // otherwise pinned inside the window so the whole calendar stays visible.
+      if (below >= CAL_H + 12 || below >= above) setPos({ left, top: Math.min(r.bottom / z + 4, maxTop) });
+      else if (above >= CAL_H + 12) setPos({ left, bottom: vh - r.top / z + 4 });
+      else setPos({ left, top: 8 });
+    } catch (e) { setPos(null); }
+  };
+  const openCal = () => { setView(selected || new Date()); setMode('days'); if (web) measure(); setOpen(true); };
+
+  // Web: Esc closes; the popover follows the field on scroll / resize.
+  useEffect(() => {
+    if (!open || !web) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const onMove = () => measure();
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onMove);
+    window.addEventListener('scroll', onMove, true);
+    return () => { document.removeEventListener('keydown', onKey); window.removeEventListener('resize', onMove); window.removeEventListener('scroll', onMove, true); };
+    /* eslint-disable-next-line */
+  }, [open, web]);
+
+  // Year chooser opens scrolled to the year being viewed.
+  useEffect(() => {
+    if (!open || mode !== 'years') return undefined;
+    const t = setTimeout(() => { try { yearsRef.current && yearsRef.current.scrollTo({ y: Math.max(0, (Math.floor((y - lo) / 4) - 2) * YEAR_ROW), animated: false }); } catch (e) { /* ignore */ } }, 0);
+    return () => clearTimeout(t);
+    /* eslint-disable-next-line */
+  }, [open, mode]);
+
+  const arrow = (delta) => () => { if (mode === 'days') shiftMonth(delta); else if (mode === 'months') setView(new Date(y + delta, m, 1)); };
+  const arrowsOff = mode === 'years';
+
+  const panel = (
+    <>
+      <View style={styles.calHeader}>
+        <Pressable onPress={arrow(-1)} disabled={arrowsOff} hitSlop={8} style={[styles.calNav, arrowsOff && { opacity: 0.3 }]}><Text style={styles.calNavText}>‹</Text></Pressable>
+        <View style={styles.calChips}>
+          <Pressable onPress={() => setMode(mode === 'months' ? 'days' : 'months')} style={[styles.calChip, mode === 'months' && styles.calChipOn]}>
+            <Text style={styles.calChipText}>{MONTHS[m]} ▾</Text>
+          </Pressable>
+          <Pressable onPress={() => setMode(mode === 'years' ? 'days' : 'years')} style={[styles.calChip, mode === 'years' && styles.calChipOn]}>
+            <Text style={styles.calChipText}>{y} ▾</Text>
+          </Pressable>
+        </View>
+        <Pressable onPress={arrow(1)} disabled={arrowsOff} hitSlop={8} style={[styles.calNav, arrowsOff && { opacity: 0.3 }]}><Text style={styles.calNavText}>›</Text></Pressable>
+      </View>
+
+      {mode === 'days' ? (
+        <>
+          <View style={styles.calRow}>
+            {WEEKDAYS.map((w) => <Text key={w} style={styles.calWeekday}>{w}</Text>)}
+          </View>
+          <View style={styles.calGrid}>
+            {cells.map((d, i) => {
+              if (d === null) return <View key={`e${i}`} style={styles.calCell} />;
+              const iso = toISO(new Date(y, m, d));
+              const isSel = iso === value; const isToday = iso === todayISO;
+              return (
+                <Pressable key={iso} style={[styles.calCell, styles.calDay, isSel && styles.calDaySel, !isSel && isToday && styles.calDayToday]} onPress={() => pick(d)}>
+                  <Text style={[styles.calDayText, isSel && { color: '#fff', fontWeight: '700' }]}>{d}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      ) : null}
+
+      {mode === 'months' ? (
+        <View style={styles.calMonthGrid}>
+          {MONTHS.map((name, i) => {
+            const isSel = !!selected && selected.getFullYear() === y && selected.getMonth() === i;
+            const isNow = new Date().getFullYear() === y && new Date().getMonth() === i;
+            return (
+              <Pressable key={name} style={[styles.calMonthCell, isSel && styles.calDaySel, !isSel && isNow && styles.calDayToday]} onPress={() => { setView(new Date(y, i, 1)); setMode('days'); }}>
+                <Text style={[styles.calDayText, isSel && { color: '#fff', fontWeight: '700' }]}>{name.slice(0, 3)}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {mode === 'years' ? (
+        <ScrollView ref={yearsRef} style={{ height: PANEL_H }} nestedScrollEnabled showsVerticalScrollIndicator>
+          <View style={styles.calYearGrid}>
+            {years.map((yr) => {
+              const isSel = !!selected && selected.getFullYear() === yr; const isNow = yr === nowY; const isView = yr === y;
+              return (
+                <Pressable key={yr} style={[styles.calYearCell, isView && !isSel && styles.calChipOn, isSel && styles.calDaySel, !isSel && isNow && styles.calDayToday]} onPress={() => { setView(new Date(yr, m, 1)); setMode('days'); }}>
+                  <Text style={[styles.calDayText, isSel && { color: '#fff', fontWeight: '700' }]}>{yr}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </ScrollView>
+      ) : null}
+
+      <View style={styles.calFooter}>
+        <Pressable onPress={() => { onChange(''); close(); }}><Text style={styles.calClear}>Clear</Text></Pressable>
+        <Pressable onPress={() => { onChange(todayISO); close(); }}><Text style={styles.calToday}>Today</Text></Pressable>
+      </View>
+    </>
+  );
+
+  const popover = (
+    <>
+      {/* click-away catcher (full viewport, behind the calendar) */}
+      <Pressable style={styles.dropCatcher} onPress={close} />
+      <View style={[styles.calendar, styles.calPopover, pos || { left: 20, top: 100 }]}>{panel}</View>
+    </>
+  );
 
   return (
-    <View style={{ gap: 6 }}>
+    <View style={{ gap: 6, zIndex: open ? 9999 : 1, position: 'relative' }}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <Pressable style={styles.selectBox} onPress={() => { setView(selected || new Date()); setOpen(true); }}>
-        <Text style={{ color: value ? colors.text : colors.muted, flex: 1 }}>{value || placeholder}</Text>
-        <Text style={{ color: colors.muted }}>📅</Text>
-      </Pressable>
-
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
-          <Pressable style={styles.calendar} onPress={(e) => e.stopPropagation?.()}>
-            <View style={styles.calHeader}>
-              <Pressable onPress={() => shiftMonth(-1)} hitSlop={8} style={styles.calNav}><Text style={styles.calNavText}>‹</Text></Pressable>
-              <Text style={styles.calTitle}>{MONTHS[m]} {y}</Text>
-              <Pressable onPress={() => shiftMonth(1)} hitSlop={8} style={styles.calNav}><Text style={styles.calNavText}>›</Text></Pressable>
-            </View>
-            <View style={styles.calRow}>
-              {WEEKDAYS.map((w) => <Text key={w} style={styles.calWeekday}>{w}</Text>)}
-            </View>
-            <View style={styles.calGrid}>
-              {cells.map((d, i) => {
-                if (d === null) return <View key={`e${i}`} style={styles.calCell} />;
-                const iso = toISO(new Date(y, m, d));
-                const isSel = iso === value; const isToday = iso === todayISO;
-                return (
-                  <Pressable key={iso} style={[styles.calCell, styles.calDay, isSel && styles.calDaySel, !isSel && isToday && styles.calDayToday]} onPress={() => pick(d)}>
-                    <Text style={[styles.calDayText, isSel && { color: '#fff', fontWeight: '700' }]}>{d}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <View style={styles.calFooter}>
-              <Pressable onPress={() => { onChange(''); setOpen(false); }}><Text style={styles.calClear}>Clear</Text></Pressable>
-              <Pressable onPress={() => { onChange(todayISO); setOpen(false); }}><Text style={styles.calToday}>Today</Text></Pressable>
-            </View>
-          </Pressable>
+      <View ref={anchorRef} style={{ position: 'relative' }}>
+        <Pressable style={[styles.selectBox, open && styles.selectBoxOpen]} onPress={() => (open ? close() : openCal())}>
+          <Text style={{ color: value ? colors.text : colors.muted, flex: 1 }}>{value || placeholder}</Text>
+          <Text style={{ color: colors.muted }}>📅</Text>
         </Pressable>
-      </Modal>
+        {open && web ? createPortal(popover, document.body) : null}
+      </View>
+
+      {!web ? (
+        <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
+          <Pressable style={styles.selectBackdrop} onPress={close}>
+            <Pressable style={styles.calendar} onPress={(e) => e.stopPropagation?.()}>{panel}</Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -290,6 +404,15 @@ const styles = StyleSheet.create({
   calFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border },
   calClear: { color: colors.muted, fontWeight: '600' },
   calToday: { color: colors.primary, fontWeight: '700' },
+  calPopover: { position: 'fixed', zIndex: 9999, borderWidth: 1, borderColor: colors.border },
+  calChips: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  calChip: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: '#f1f5f9' },
+  calChipOn: { backgroundColor: '#dbeafe' },
+  calChipText: { fontSize: 14, fontWeight: '700', color: colors.text },
+  calMonthGrid: { flexDirection: 'row', flexWrap: 'wrap', minHeight: PANEL_H },
+  calMonthCell: { width: '33.333%', height: PANEL_H / 4, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+  calYearGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calYearCell: { width: '25%', height: YEAR_ROW, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
   alert: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 11, paddingHorizontal: 13, borderRadius: radius.md, borderWidth: 1 },
   alertIcon: { fontSize: 14, fontWeight: '800', lineHeight: 18 },
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: 22, ...shadows.card },
