@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="hi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AEPS Portal - System Design</title>
+<style>
+  :root{--bg:#f5f7fb;--card:#fff;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--pri:#0ea5e9;--soft:#eef6ff}
+  @media (prefers-color-scheme: dark){:root{--bg:#0b1220;--card:#111a2e;--ink:#e6edf7;--mut:#94a3b8;--line:#223152;--soft:#0f2238}}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,Segoe UI,Arial,sans-serif}
+  header{padding:26px 28px 14px;background:var(--card);border-bottom:1px solid var(--line)}
+  h1{margin:0 0 6px;font-size:24px} .sub{color:var(--mut);max-width:900px}
+  nav{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:6px;padding:10px 28px;background:var(--card);border-bottom:1px solid var(--line)}
+  nav a{font-size:12.5px;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:5px 11px;background:var(--bg)}
+  nav a:hover{border-color:var(--pri);color:var(--pri)}
+  main{max-width:1180px;margin:0 auto;padding:8px 20px 60px}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:18px 0}
+  h2{margin:0 0 6px;font-size:19px} .intro{color:var(--mut);margin:0 0 14px}
+  figure{margin:14px 0} .diagram{overflow:auto;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center}
+  figcaption,.cap{color:var(--mut);font-size:12.5px;margin-top:6px}
+  .tw{overflow-x:auto;margin:14px 0}
+  table{border-collapse:collapse;width:100%;font-size:13.5px} th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--soft);font-size:12px;text-transform:uppercase;letter-spacing:.3px}
+  code{background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:0 5px;font:12.5px Consolas,monospace;word-break:break-word}
+  ul{padding-left:20px} li{margin:4px 0}
+  .pre-mermaid{display:none}
+</style></head><body>
+<header><h1>AEPS Portal - System Design</h1>
+<div class="sub">Abhi jaisa chal raha hai: UI -> Web server -> API -> Database, business engines, security, deployment aur known gaps. Sab kuch asli code, schema aur git history se liya gaya hai. Database ke poore tables: <code>docs/er-diagram.html</code>.</div></header>
+<nav><a href="#overview">Ek nazar mein (poora picture)</a><a href="#ui">Layer 1 - UI (app/)</a><a href="#edge">Layer 2 - Web server aur delivery</a><a href="#api">Layer 3 - API (api/)</a><a href="#engines">Business engines (API ke andar ka dimaag)</a><a href="#db">Layer 4 - Database (PostgreSQL 17)</a><a href="#external">Bahar ki services (adapters)</a><a href="#security">Security aur auth</a><a href="#deploy">Deployment aur operations</a><a href="#walkthrough">Ek poora udaharan: Retailer mobile recharge karta hai</a><a href="#limits">Abhi ki kamiyan (imaandari se)</a><a href="#timeline">Ab tak kya-kya banaya gaya</a></nav>
+<main>
+<section id="overview">
+<h2>1. Ek nazar mein (poora picture)</h2><p class="intro">AEPS / fintech portal ek monorepo hai: <code>app/</code> (UI, Expo React Native) aur <code>api/</code> (Node.js + Express + PostgreSQL). Ek hi UI code web, Android aur iOS teeno ke liye hai. Production par abhi web version AWS ke ek server par Docker se chal raha hai.</p>
+<figure><div class="diagram"><pre class="mermaid">flowchart TB
+  USERS["Log (users): Admin (company), Super Distributor, Distributor, Retailer"]
+  subgraph L1["LAYER 1 - UI (Expo React Native)"]
+    direction LR
+    W["Web build (browser)"]
+    M["Android / iOS (same code)"]
+  end
+  subgraph L2["LAYER 2 - Web server (nginx container, port 80)"]
+    N["Web bundle serve + /api, /uploads proxy"]
+  end
+  subgraph L3["LAYER 3 - API (Node + Express, port 3000)"]
+    direction LR
+    R["Routes (168)"] --&gt; C["Controllers (30)"] --&gt; SV["Services (14) + Repositories (24)"]
+  end
+  subgraph L4["LAYER 4 - Database (PostgreSQL 17 container)"]
+    T[("40 tables")]
+  end
+  subgraph EXT["Bahar ki services (abhi mock)"]
+    direction LR
+    P["Recharge / BBPS / AEPS provider"]
+    K["KYC: PAN / Aadhaar"]
+    SMS["SMS OTP"]
+  end
+  USERS --&gt; L1
+  W --&gt; N
+  N --&gt; R
+  SV --&gt; T
+  SV -.-&gt; P
+  SV -.-&gt; K
+  SV -.-&gt; SMS</pre></div><figcaption>Chaar layers: UI -&gt; Web server -&gt; API -&gt; Database. Dotted line = bahar ki service (abhi mock mode mein).</figcaption></figure>
+<div class="tw"><table><thead><tr><th>Cheez</th><th>Kitna</th><th>Kahan</th></tr></thead><tbody><tr><td>UI screens</td><td>53 (38 admin/shared + 15 retailer panel)</td><td>app/src/screens</td></tr><tr><td>UI api methods</td><td>~165 (31 groups + 20 flat)</td><td>app/src/api/client.js</td></tr><tr><td>API routes</td><td>168</td><td>api/src/routes/api.routes.js</td></tr><tr><td>Controllers / Repositories / Services</td><td>30 / 24 / 14</td><td>api/src/controllers, repositories, services</td></tr><tr><td>Database tables</td><td>40 (60 foreign keys)</td><td>PostgreSQL; schema api/migrations (39 files)</td></tr><tr><td>Tests</td><td>96 (16 files), CI par bhi chalte hain</td><td>api/test</td></tr><tr><td>Commits</td><td>35 (27 Sep - 5 Oct 2026)</td><td>git log</td></tr></tbody></table></div>
+</section>
+<section id="ui">
+<h2>2. Layer 1 - UI (app/)</h2><p class="intro">Expo ~57 + React 19 + react-native-web. Koi router library, Redux ya Context nahi hai: app ek chhoti state machine hai aur har screen apni state khud rakhti hai.</p>
+<figure><div class="diagram"><pre class="mermaid">flowchart TD
+  S["App start (index.js -&gt; App.js)"] --&gt; T["Theme: cache ya GET /api/settings/public"]
+  T --&gt; AT["applyTheme(): shared colors object badalta hai (screens se pehle)"]
+  AT --&gt; ME{"GET /api/me - token hai?"}
+  ME -- "nahi ya expire" --&gt; L["LoginScreen: username + password + captcha"]
+  L --&gt; O["OtpScreen: 6 digit OTP (3 galat try tak)"]
+  O --&gt; ST["token AsyncStorage mein save"]
+  ME -- "haan" --&gt; RO
+  ST --&gt; RO{"user.role"}
+  RO -- "admin" --&gt; D["DashboardScreen (admin panel)"]
+  RO -- "managed user" --&gt; RS["RetailerShell (retailer / Distributor / SD panel)"]
+  D --&gt; MN["GET /api/menu: sidebar server se aata hai"]
+  RS --&gt; MN
+  MN --&gt; RT["menu route -&gt; screen (if-chain, koi router library nahi)"]</pre></div><figcaption>App ka boot aur login flow</figcaption></figure>
+<div class="tw"><table><thead><tr><th>Hissa</th><th>Kaise kaam karta hai</th></tr></thead><tbody><tr><td>Do panel, ek app</td><td>Sirf ek client-side branch hai: <code>user.role === admin</code> to DashboardScreen, baaki sab RetailerShell. Distributor / SD ka alag panel nahi, unka "My Network" menu server se aata hai aur wahi admin screens <code>network</code> prop ke saath chalti hain.</td></tr><tr><td>Menu (database-driven)</td><td>Sidebar <code>menu_items</code> table se banta hai (GET /api/menu), role ke hisaab se server filter karta hai. Naya menu row = naya screen, UI code nahi badalna (agar screen pehle se hai).</td></tr><tr><td>Screen pattern</td><td>13 master screens: list &lt;-&gt; form toggle (in-page form, modal nahi), debounced search, optimistic status switch, pagination. Delete par confirm modal.</td></tr><tr><td>DataGrid (shared)</td><td>Header click = sort (asc, desc, off), har column ke neeche filter. Sorting/filtering server karta hai poore data par (?sort=&amp;dir=&amp;f_col=). Status aur Action columns right par pinned (web). 23 screens use karti hain.</td></tr><tr><td>API client</td><td>Ek <code>request()</code>: Bearer token, JSON, <code>ApiError</code> (status, code, poora body), <code>Idempotency-Key</code> paise wali calls par, multipart upload (image, KYC, banner).</td></tr><tr><td>Theme</td><td><code>theme.js</code> ka <code>colors</code> ek mutable object hai. Admin ka chuna primary/secondary color startup par lagta hai, isliye theme badalne par page reload hota hai.</td></tr><tr><td>Responsive</td><td>Width &gt;= 860 par fixed sidebar, uske neeche drawer. Web par poora app 85% zoom par (zyada dense dikhne ke liye).</td></tr><tr><td>Token</td><td>AsyncStorage (web par localStorage), keys <code>aeps.accessToken</code> aur <code>aeps.theme</code>. Logout par server token revoke karta hai.</td></tr></tbody></table></div>
+<div class="tw"><table><thead><tr><th>Shared component</th><th>Kaam</th></tr></thead><tbody><tr><td>UI.js</td><td>Select (searchable), Button, TextField, DateField, Alert, Card, StatusBadge, Logo</td></tr><tr><td>DataGrid.js</td><td>Grid + useGrid / useGridReload / gridParams</td></tr><tr><td>Fiori.js</td><td>SAP-Fiori jaise page/panel/toolbar/pager (5 screens mein)</td></tr><tr><td>Icon.js, MenuSearch.js, Receipt.js</td><td>SVG icons (menu icon naam se), menu search, transaction receipt modal</td></tr></tbody></table></div>
+<div class="tw"><table><thead><tr><th>Screens ka group</th><th>Kitni</th><th>Udaharan</th></tr></thead><tbody><tr><td>Auth</td><td>2</td><td>LoginScreen, OtpScreen</td></tr><tr><td>Shell</td><td>2</td><td>DashboardScreen, RetailerShell</td></tr><tr><td>Admin masters / CRUD</td><td>16</td><td>UserManager, ServiceMaster, CommissionSlot, CommissionPackage, PlanMaster, CompanyBank, UserTypeMaster</td></tr><tr><td>Reports / lists</td><td>9</td><td>TaxReport (GST/TDS/Commission), AdminMargin, AccountHistory, PendingTransactions, Reconciliation</td></tr><tr><td>Operations</td><td>6</td><td>FundRequest, FundTransfer, KycRequest, PanVerify, AadhaarVerify</td></tr><tr><td>Retailer panel</td><td>13 + 2 helpers</td><td>MobileRecharge, DthRecharge, BillPayment, Aeps, MoneyTransfer, Booking, MyCommissionSlab, Kyc</td></tr></tbody></table></div>
+</section>
+<section id="edge">
+<h2>3. Layer 2 - Web server aur delivery</h2><p class="intro">UI ka build (expo export --platform web) ek static bundle banta hai. Usse nginx container serve karta hai aur wahi API ke saamne proxy bhi hai, isliye browser ko sirf ek address (port 80) dikhta hai.</p>
+<ul><li><code>nginx</code>: <code>/</code> par SPA serve (try_files -&gt; index.html), <code>/api/</code> aur <code>/uploads/</code> ko <code>http://api:3000</code> par proxy, gzip on, upload limit 12 MB.</li><li>Same-origin: UI build mein API URL khali hai, to browser relative <code>/api</code> call karta hai. CORS tab bhi API par laga hai (CORS_ORIGINS allowlist).</li><li>Sirf <code>web</code> container bahar khula hai (port 80). <code>api</code> aur <code>db</code> sirf Docker ke andar ke network par hain.</li></ul>
+</section>
+<section id="api">
+<h2>4. Layer 3 - API (api/)</h2><p class="intro">Node 20 + Express 4 + Knex. Koi build step nahi. Har request ek hi raste se guzarti hai: middleware -&gt; route -&gt; controller -&gt; service/repository -&gt; database.</p>
+<figure><div class="diagram"><pre class="mermaid">flowchart TD
+  REQ["HTTP request"] --&gt; H["helmet + CORS allowlist"]
+  H --&gt; J["JSON parser (raw body HMAC ke liye)"]
+  J --&gt; RL["rate limit (sirf login/captcha/otp, 30 per 15 min)"]
+  RL --&gt; AU["requireAuth / Admin / Managed: user DB se load + token_epoch check"]
+  AU --&gt; ID["idempotency (paise wale POST)"]
+  ID --&gt; CT["Controller: validation"]
+  CT --&gt; SV["Service: business rule"]
+  SV --&gt; RP["Repository / Knex"]
+  RP --&gt; PG[("PostgreSQL")]</pre></div><figcaption>Ek request ka safar</figcaption></figure>
+<div class="tw"><table><thead><tr><th>Route area</th><th>Udaharan</th><th>Kaun call kar sakta hai</th></tr></thead><tbody><tr><td>Auth</td><td>GET /auth/captcha, POST /auth/login, /auth/verify-otp</td><td>public (rate-limited) / pending token</td></tr><tr><td>Session, menu, uploads</td><td>/me, /menu, /account/change-password, /uploads/image</td><td>koi bhi logged-in user</td></tr><tr><td>Admin masters</td><td>service-categories, user-types, services, plans, banks, company-banks, announcements, banners</td><td>sirf admin</td></tr><tr><td>Users manager</td><td>/users CRUD, /users/:id/change-impact, /users/:id/fund</td><td>sirf admin</td></tr><tr><td>Permissions aur commission</td><td>/service-permissions/*, /commission-slots (+chain-gaps), /commission-packages</td><td>sirf admin</td></tr><tr><td>Reports</td><td>/account-history, /gst-report, /tds-report, /commission-report, /admin-margin-report, /admin/dashboard</td><td>sirf admin</td></tr><tr><td>KYC aur operations</td><td>/kyc-requests, /verify/pan, /pending-transactions, /reconciliation/*</td><td>sirf admin</td></tr><tr><td>Retailer panel</td><td>/retailer/summary, /retailer/commission-report, /retailer/my-commission-slab</td><td>managed user (apna data)</td></tr><tr><td>Paid services</td><td>/recharge/*, /bbps/*, /aeps/*, /dmt/*, /move-to-bank, /booking/*</td><td>managed user; paise wale POST par idempotency</td></tr><tr><td>Network panel</td><td>/network/users, /network/packages, /network/fund-transfer, /network/report, /network/summary</td><td>managed + type ke neeche users ho (Distributor / SD)</td></tr><tr><td>Provider webhook</td><td>POST /provider-callback</td><td>public, HMAC signature zaroori</td></tr><tr><td>Health</td><td>GET /api/health -&gt; {ok, mode, adapters, version}</td><td>public</td></tr></tbody></table></div>
+<div class="tw"><table><thead><tr><th>Layer ke andar</th><th>Kya hai</th></tr></thead><tbody><tr><td>Controllers (30)</td><td>Input validation, error codes, response shape.</td></tr><tr><td>Repositories (24)</td><td>Knex queries (joins, filters). Server-side grid ke liye whitelisted sort/filter columns (<code>utils/gridQuery.js</code>), isliye user ka diya column naam SQL mein nahi jaata.</td></tr><tr><td>Services (14)</td><td>txnPipeline (paisa), commission, serviceGuard, servicePermission, fundRequest, reconciliation + jobs, otp, captcha, token, txnAuth, providers / sms / kyc adapters, menu.</td></tr><tr><td>Dhyan</td><td>Repository layer exclusive nahi hai: kuch controllers aur services seedha Knex bhi chalate hain.</td></tr></tbody></table></div>
+<div class="tw"><table><thead><tr><th>Background job</th><th>Kitni der mein</th><th>Kaam</th></tr></thead><tbody><tr><td>Status check</td><td>har 300 sec</td><td>Pending transactions (60 sec se purani, max 50) ka provider se status poochkar finalize</td></tr><tr><td>Daily reconciliation</td><td>roz 1 baje ke baad</td><td>Kal ke transactions ko provider report se milana; farak ko reconciliation_items mein daalna</td></tr></tbody></table><div class="cap">Dono Postgres advisory lock lete hain, isliye ek hi instance chalata hai.</div></div>
+</section>
+<section id="engines">
+<h2>5. Business engines (API ke andar ka dimaag)</h2>
+<p><b>A. Paise ka pipeline</b> (<code>txnPipeline.service.js</code>): har paid service (recharge, BBPS, AEPS, DMT, booking...) isi se guzarti hai. Sab kuch ek DB transaction mein hota hai.</p>
+<figure><div class="diagram"><pre class="mermaid">flowchart TD
+  A["POST /recharge/... (Idempotency-Key)"] --&gt; B["BEGIN + wallet row lock"]
+  B --&gt; G{"serviceGuard: KYC verified, service ON, permission, daily limit"}
+  G -- "fail" --&gt; X["error wapas"]
+  G -- "ok" --&gt; CH["service charge (debit slab) + balance check"]
+  CH --&gt; DB1["wallet debit + account_transactions"]
+  DB1 --&gt; PR["provider call (mock ya live)"]
+  PR -- "error" --&gt; RF["refund + failed row"]
+  PR -- "pending" --&gt; PD["pending row (paisa debit rahega)"]
+  PR -- "success" --&gt; OK["service_transactions = success"]
+  OK --&gt; CO["commission: user + saare uplines + packages"]
+  CO --&gt; LG["commission_ledger + wallet credit + admin_margins"]
+  PD --&gt; JB["status-check job / provider callback / reconciliation"]
+  JB --&gt; FN["finalize(): success -&gt; commission, failed -&gt; refund (ek hi baar)"]</pre></div><figcaption>Paise ka flow</figcaption></figure>
+<p><b>B. Hierarchy aur commission:</b> jo user banata hai wahi parent hai. Commission poori parent chain (10 level tak) mein baantta hai: transact karne wale ko apna slab, har upline ko uska apna "chain" slab.</p>
+<figure><div class="diagram"><pre class="mermaid">flowchart TD
+  AD["Admin (company)"] --&gt;|"bana sakta hai"| SD1["Super Distributor"]
+  AD --&gt; D1["Distributor"]
+  AD --&gt; R1["Retailer"]
+  SD1 --&gt; D2["Distributor"]
+  SD1 --&gt; R2["Retailer (seedha)"]
+  D2 --&gt; R3["Retailer"]</pre></div><figcaption>Kaun kise bana sakta hai (User Type tree se tay hota hai, User Type Master mein badal sakte hain)</figcaption></figure>
+<div class="tw"><table><thead><tr><th>Niyam</th><th>Kaise lagta hai</th></tr></thead><tbody><tr><td>Create rule</td><td>User apne type ke neeche ke saare types bana sakta hai (SD: D aur R, D: R, R: kuch nahi). Admin ke liye parent khali = admin; galat type ka parent = PARENT_TYPE_MISMATCH.</td></tr><tr><td>Commission slab</td><td><code>commission_slots</code>: user type + service + plan + amount range (+ operator, + specific user). Credit = commission milta hai, Debit = service charge katta hai. "self" = sirf apne txn par, "chain" = neeche walon ke txn par bhi.</td></tr><tr><td>Commission packages</td><td>Upline apne hisse mein se direct neeche walon ko alag rate de sakta hai. Admin ka total kharcha nahi badalta.</td></tr><tr><td>Skip level</td><td>Retailer seedha SD ke neeche ho to SD ko sirf apna chain slab milta hai; beech wale Distributor ka hissa company ke paas (margin) rehta hai.</td></tr><tr><td>Admin margin</td><td>margin = provider commission + charges - commission paid (har transaction par <code>admin_margins</code> mein).</td></tr><tr><td>Service permission</td><td>can = service ON aur (user override ya type default). Admin Service Permissions screen se type-wise aur user-wise control karta hai.</td></tr><tr><td>Role / parent badalna</td><td>Naya type parent ke neeche fit hona chahiye; neeche ke users fit na hon to shift karne padte hain; plan/package saaf, user logout, sab ek transaction mein; purani commission history nahi badalti.</td></tr><tr><td>Fund request</td><td>Jisne user banaya wahi approve karta hai: admin ka user = bank deposit se wallet credit, D/SD ka user = D/SD ke wallet se transfer.</td></tr></tbody></table></div>
+</section>
+<section id="db">
+<h2>6. Layer 4 - Database (PostgreSQL 17)</h2><p class="intro">40 tables, 60 foreign keys. Schema sirf Knex migrations se badalta hai (39 files, server start par apne aap chalti hain). Poora detailed diagram: <code>docs/er-diagram.html</code>.</p>
+<figure><div class="diagram"><pre class="mermaid">erDiagram
+  user_types ||--o{ users : "user_type_id"
+  users ||--o{ users : "parent_id (chain)"
+  user_types ||--o{ user_types : "parent_type_id (create rule)"
+  users ||--o{ service_transactions : "user_id"
+  service_transactions ||--o{ commission_ledger : "service_transaction_id"
+  users ||--o{ commission_ledger : "user_id (kamane wala)"
+  service_transactions ||--o{ admin_margins : "service_transaction_id"
+  services ||--o{ commission_slots : "service_id"
+  user_types ||--o{ commission_slots : "user_type_id"
+  users ||--o{ account_transactions : "user_id (wallet history)"
+  users ||--o{ fund_requests : "user_id"
+  services ||--o{ user_type_services : "service_id"
+  users ||--o{ commission_packages : "owner_user_id"</pre></div><figcaption>Sabse zaroori tables aur unke rishte</figcaption></figure>
+<div class="tw"><table><thead><tr><th>Area</th><th>Tables</th></tr></thead><tbody><tr><td>Users aur hierarchy</td><td>users (40 columns: admin + sab managed users), user_types, plans, user_type_services, user_service_overrides</td></tr><tr><td>Services aur master</td><td>services, service_categories, operators, menu_items, settings, banks, states, cities</td></tr><tr><td>Commission</td><td>commission_slots, commission_packages, commission_package_items, commission_ledger, admin_margins</td></tr><tr><td>Paisa</td><td>service_transactions, account_transactions, fund_requests, fund_transfers, company_banks, payout_banks, idempotency_keys, bookings, dmt_*</td></tr><tr><td>KYC, support, security</td><td>kyc_submissions, kyc_verifications, tickets, ticket_replies, audit_log, otp_requests, announcements, application_banners, reconciliation_runs, reconciliation_items</td></tr></tbody></table></div>
+<ul><li><code>users</code> ek hi table mein admin (role=admin, user_type_id null) aur saare managed users (user_type_id bhara) hain. <code>users.wallet_balance</code> chalta hua balance hai, <code>account_transactions</code> uska statement.</li><li><code>commission_ledger</code> mein har payout ek row: level 0 = transact karne wala, 1+ = upline; <code>source_user_id</code> = kisne transaction kiya.</li><li>Seeds (11 files) demo data daalte hain, sirf <code>RUN_SEED=true</code> par. Production par abhi RUN_SEED=false hai.</li></ul>
+</section>
+<section id="external">
+<h2>7. Bahar ki services (adapters)</h2><p class="intro">Har bahar ki cheez ek interface ke peeche hai. Mock ya live <code>APP_MODE</code> env se tay hota hai (default mock, kabhi is baat se nahi ki koi key set hai ya nahi).</p>
+<div class="tw"><table><thead><tr><th>Service</th><th>Mock (abhi)</th><th>Live</th></tr></thead><tbody><tr><td>Recharge / BBPS / AEPS / DMT provider</td><td>Credential ke bina chalta hai. Amount 1 = decline, 2 = pending phir success, 3 = pending phir failed (testing ke liye).</td><td>Abhi sirf stub: 503 PROVIDER_NOT_CONFIGURED. Asli licensed provider jodna baaki hai.</td></tr><tr><td>KYC (PAN / Aadhaar)</td><td>Sirf format check + simulated result</td><td>Stub: 503 KYC_NOT_CONFIGURED (NSDL / UIDAI jodna baaki)</td></tr><tr><td>SMS OTP</td><td>SMS_PROVIDER=dev: OTP console mein print</td><td>msg91 (MSG91_* keys chahiye)</td></tr><tr><td>Email</td><td>Koi adapter nahi hai</td><td>-</td></tr></tbody></table></div>
+</section>
+<section id="security">
+<h2>8. Security aur auth</h2>
+<figure><div class="diagram"><pre class="mermaid">sequenceDiagram
+  actor U as User
+  participant UI as App
+  participant API as API
+  participant DB as Database
+  U-&gt;&gt;UI: username + password + captcha
+  UI-&gt;&gt;API: POST /auth/login
+  API-&gt;&gt;DB: lockout check, bcrypt compare
+  API--&gt;&gt;UI: pending token (10 min)
+  UI-&gt;&gt;API: POST /auth/verify-otp (6 digit)
+  API--&gt;&gt;UI: access token (8 ghante)
+  UI-&gt;&gt;API: har request: Authorization Bearer
+  API-&gt;&gt;DB: user + token_epoch check (har baar)</pre></div><figcaption>Login: password + captcha -&gt; OTP -&gt; access token</figcaption></figure>
+<ul><li>Password bcrypt hash; captcha (5 min, ek baar); OTP bcrypt hash mein, 3 galat try, din mein 5 OTP; 5 galat login par 15 minute lock.</li><li>Token revoke ho sakta hai: <code>users.token_epoch</code> badalne par purane token turant bekaar (logout, password change, user block, role change).</li><li>Role har request par DB se aata hai, token ke andar ka bharosa nahi; guards: requireAdmin, requireManaged, requireNetwork.</li><li>Paise wale POST idempotent: wahi Idempotency-Key dobara aaye to purana jawab, double debit nahi.</li><li>Provider callback HMAC-SHA256 signature se verify (timing-safe compare); galat signature par paisa nahi chhua jaata.</li><li>KYC files private folder mein, random naam, chhote time ke signed link se. Upload limit 5 MB, sirf image types.</li><li>Har zaroori kaam <code>audit_log</code> mein (login, OTP fail, lock, wallet fund, user create, type/parent change, commission slot change...).</li><li>helmet, CORS allowlist, rate limit (sirf auth routes par), server-side whitelisted sort/filter.</li></ul>
+</section>
+<section id="deploy">
+<h2>9. Deployment aur operations</h2><p class="intro">Production: AWS EC2 (eu-north-1), ek server, Docker Compose (db, api, web). Server par git repo nahi hai; code files copy hoti hain.</p>
+<figure><div class="diagram"><pre class="mermaid">flowchart LR
+  DEV["Developer PC"] --&gt;|"git push"| GH["GitHub (private)"]
+  GH --&gt; CI["GitHub Actions: lint + 96 tests (nayi Postgres) + web build"]
+  DEV --&gt;|"scripts/deploy.sh (ssh + scp)"| EC2
+  subgraph EC2["AWS EC2 - Docker Compose"]
+    WEB["web: nginx :80"] --&gt; API2["api: Node :3000 (andar ka network)"]
+    API2 --&gt; DB2[("db: Postgres 17 + volume")]
+    API2 --&gt; UP[("uploads volume")]
+  end
+  USER["Users (browser)"] --&gt; WEB</pre></div><figcaption>Code se production tak</figcaption></figure>
+<div class="tw"><table><thead><tr><th>Cheez</th><th>Kaise</th></tr></thead><tbody><tr><td>CI</td><td><code>.github/workflows/ci.yml</code>: har push/PR par lint, 96 tests (fresh DB: migrate + seed) aur web export. Ye deploy nahi karta.</td></tr><tr><td>Deploy</td><td><code>scripts/deploy.sh</code>: tests -&gt; server ke files ka drift check -&gt; sirf badli files upload -&gt; DB backup -&gt; rollback image tags -&gt; sirf zaroori container rebuild -&gt; health check -&gt; fail par auto-rollback.</td></tr><tr><td>Rollback</td><td><code>scripts/deploy.sh rollback</code> ~15 sec mein purana code (images retag). Migration ka DB badlav wapas nahi hota (backup restore se hi).</td></tr><tr><td>Migrations</td><td>api container start par <code>knex migrate:latest</code> chalata hai.</td></tr><tr><td>Backup</td><td>Har deploy se pehle pg_dump server ke ~/backups mein.</td></tr></tbody></table></div>
+</section>
+<section id="walkthrough">
+<h2>10. Ek poora udaharan: Retailer mobile recharge karta hai</h2><p class="intro">Ek hi action teeno layers se kaise guzarta hai.</p>
+<figure><div class="diagram"><pre class="mermaid">sequenceDiagram
+  autonumber
+  actor U as Retailer
+  participant UI as Expo app
+  participant N as nginx
+  participant API as Express API
+  participant DB as PostgreSQL
+  participant PV as Provider (mock)
+  U-&gt;&gt;UI: number + amount, Recharge
+  UI-&gt;&gt;N: POST /api/recharge/...
+  N-&gt;&gt;API: proxy
+  API-&gt;&gt;DB: token + user check
+  API-&gt;&gt;DB: BEGIN, wallet lock
+  API-&gt;&gt;DB: guards + slab lookup
+  API-&gt;&gt;DB: wallet debit
+  API-&gt;&gt;PV: recharge(clientRef)
+  PV--&gt;&gt;API: success
+  API-&gt;&gt;DB: txn, commission ledger, margin
+  API-&gt;&gt;DB: COMMIT
+  API--&gt;&gt;UI: 200 + naya balance
+  UI--&gt;&gt;U: Receipt
+  Note over UI,DB: D / SD ko Commission Report mein neeche walon ki commission dikhti hai</pre></div><figcaption>Recharge ka end-to-end flow. Request ke saath Bearer token aur Idempotency-Key jaate hain; guards = KYC, service ON, permission, daily limit.</figcaption></figure>
+</section>
+<section id="limits">
+<h2>11. Abhi ki kamiyan (imaandari se)</h2><p class="intro">Ye cheezein code se confirm hui hain; inme se kuch real users se pehle theek karni zaroori hain.</p>
+<div class="tw"><table><thead><tr><th>Kamzori</th><th>Asar</th><th>Kab karna chahiye</th></tr></thead><tbody><tr><td>Live provider aur KYC adapters sirf stub hain</td><td>Asli recharge / AEPS / KYC abhi nahi chalte, sab mock</td><td>Real service shuru karne se pehle</td></tr><tr><td>Production par NODE_ENV=development (OTP 123456 chalta hai)</td><td>Koi bhi 123456 se login kar sakta hai agar password pata ho</td><td>Real users se pehle</td></tr><tr><td>Email adapter nahi</td><td>Email bhejne wala koi feature nahi</td><td>Zarurat padne par</td></tr><tr><td>Captcha store aur master-OTP counter process ki memory mein</td><td>Sirf ek API instance chal sakta hai</td><td>Scale karne se pehle</td></tr><tr><td>Rate limit sirf auth routes par</td><td>Baaki routes par brute force limit nahi</td><td>Real users se pehle</td></tr><tr><td>JWT_SECRET ka insecure default</td><td>Env na ho to bhi start ho jaata hai</td><td>Production mein env check lagana</td></tr><tr><td>/uploads server ke local volume mein</td><td>Dusre server par files nahi dikhengi</td><td>Scale karne se pehle (S3 / shared)</td></tr><tr><td>/api/health DB check nahi karta</td><td>DB gira ho tab bhi health ok dikh sakta hai</td><td>Chhota fix</td></tr><tr><td>Ek server, staging nahi, Elastic IP nahi</td><td>IP har restart par badalta hai; naya code seedha production par</td><td>Jaldi</td></tr><tr><td>Purani SSH key compromised maani gayi hai</td><td>Server access ka risk</td><td>Turant (key rotation)</td></tr><tr><td>UI mein router nahi, global state nahi</td><td>Browser URL screen ke hisaab se nahi badalta; DashboardScreen ka bada if-chain</td><td>Aage ke refactor mein</td></tr></tbody></table></div>
+</section>
+<section id="timeline">
+<h2>12. Ab tak kya-kya banaya gaya</h2>
+<div class="tw"><table><thead><tr><th>Tareekh</th><th>Kya bana</th></tr></thead><tbody><tr><td>27 Sep</td><td>Baseline: admin portal (login captcha + OTP, DB menu, masters, users manager, reports), retailer panel, mock providers</td></tr><tr><td>29 Sep</td><td>Parent chain + chain commission, admin margin, debit slabs, Distributor/MD network panel, fund requests, service guards (KYC, permission, limit), KYC upload + review, pending txns + callback + reconciliation</td></tr><tr><td>2 Oct</td><td>Service permissions (type + user), commission slots matrix + operator dropdown, service cards, OTP 3 tries, shared DataGrid (sort + filter + scroll, sab grids), commission packages</td></tr><tr><td>4 Oct</td><td>Admin menu regroup + Fiori blocks, pinned Status/Action columns, admin dashboard + My Network card, deploy.sh + CI + auto-rollback</td></tr><tr><td>5 Oct</td><td>Type-tree create rules, role/parent change handling, full-chain Commission Report (admin + D/SD), chain-gap warning</td></tr></tbody></table></div>
+</section>
+</main>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'neutral', securityLevel: 'loose', flowchart: { useMaxWidth: true, htmlLabels: true }, sequence: { useMaxWidth: true }, er: { useMaxWidth: true } });
+await mermaid.run({ querySelector: '.mermaid' });
+</script></body></html>

@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AEPS Portal - Database ER diagram</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;background:#f5f7fb;color:#0f172a}
+  header{padding:18px 24px;background:#fff;border-bottom:1px solid #e2e8f0}
+  h1{margin:0 0 4px;font-size:20px} .sub{color:#64748b;font-size:13px}
+  nav{display:flex;flex-wrap:wrap;gap:8px;padding:12px 24px;background:#fff;border-bottom:1px solid #e2e8f0;position:sticky;top:0;z-index:2}
+  nav button{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer}
+  nav button.on{background:#0ea5e9;border-color:#0ea5e9;color:#fff}
+  section{display:none;padding:18px 24px} section.on{display:block}
+  .blurb{color:#475569;margin:0 0 12px;font-size:14px}
+  .box{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;overflow:auto}
+  .legend{font-size:12px;color:#64748b;margin-top:10px}
+  .zoom{margin:0 0 10px;display:flex;gap:8px;align-items:center;font-size:13px}
+  .zoom button{border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 10px;cursor:pointer}
+</style></head><body>
+<header><h1>AEPS Portal - Database ER diagram</h1>
+<div class="sub">40 tables, 60 foreign keys, generated from the live schema. Crow's foot: || exactly one, |o zero or one, o{ zero or many. PK primary key, FK foreign key (line label = FK column).</div></header>
+<nav id="nav"></nav>
+<section id="s0"><h2>Users and hierarchy</h2><p class="blurb">Who exists, how they are arranged (parent chain) and what each type may use.</p>
+<div class="zoom">Zoom <button onclick="z(0,-0.15)">-</button><button onclick="z(0,0.15)">+</button><button onclick="z(0,0)">reset</button></div>
+<div class="box"><pre class="mermaid" id="m0">erDiagram
+  users {
+    int id PK
+    int user_type_id FK
+    int plan_id FK
+    int parent_id FK
+    int state_id FK
+    int city_id FK
+    int assigned_employee_id FK
+    int created_by FK
+    int commission_package_id FK
+    string username
+    string password_hash
+    string full_name
+    string mobile
+    string _plus_27_more_columns
+  }
+  user_types {
+    int id PK
+    int parent_type_id FK
+    string name
+    bool is_active
+    string _plus_2_more_columns
+  }
+  plans {
+    int id PK
+    int user_type_id FK
+    string name
+    bool is_active
+    string _plus_2_more_columns
+  }
+  user_type_services {
+    int user_type_id PK,FK
+    int service_id PK,FK
+    int updated_by FK
+    string _plus_1_more_columns
+  }
+  user_service_overrides {
+    int user_id PK,FK
+    int service_id PK,FK
+    int updated_by FK
+    bool allowed
+    string _plus_1_more_columns
+  }
+  commission_packages {
+    int id PK
+    int owner_user_id FK
+    int user_type_id FK
+    string name
+    bool is_active
+    string _plus_2_more_columns
+  }
+  user_types |o--o{ plans : "user_type_id"
+  user_types |o--o{ users : "user_type_id"
+  plans |o--o{ users : "plan_id"
+  users |o--o{ users : "parent_id"
+  users |o--o{ users : "assigned_employee_id"
+  users |o--o{ users : "created_by"
+  user_types |o--o{ user_types : "parent_type_id"
+  user_types |o--o{ user_type_services : "user_type_id"
+  users |o--o{ user_type_services : "updated_by"
+  users |o--o{ user_service_overrides : "user_id"
+  users |o--o{ user_service_overrides : "updated_by"
+  users |o--o{ commission_packages : "owner_user_id"
+  user_types |o--o{ commission_packages : "user_type_id"
+  commission_packages |o--o{ users : "commission_package_id"</pre></div>
+<div class="legend">Tables here: users, user_types, plans, user_type_services, user_service_overrides, commission_packages</div></section>
+<section id="s1"><h2>Services, menu and master data</h2><p class="blurb">What can be sold, the sidebar menu, operators and lookups.</p>
+<div class="zoom">Zoom <button onclick="z(1,-0.15)">-</button><button onclick="z(1,0.15)">+</button><button onclick="z(1,0)">reset</button></div>
+<div class="box"><pre class="mermaid" id="m1">erDiagram
+  service_categories {
+    int id PK
+    string name
+    bool is_active
+    string _plus_2_more_columns
+  }
+  services {
+    int id PK
+    int service_category_id FK
+    string title
+    string service_type
+    bool is_active
+    string icon
+    string provider_commission_type
+    decimal provider_commission_value
+    decimal daily_limit
+    string _plus_2_more_columns
+  }
+  operators {
+    int id PK
+    string service
+    string category
+    string name
+    string code
+    bool circle_required
+    bool is_active
+    string _plus_1_more_columns
+  }
+  menu_items {
+    int id PK
+    int parent_id FK
+    string title
+    string icon
+    string route
+    int sort_order
+    bool is_active
+    string scope
+    string _plus_1_more_columns
+  }
+  settings {
+    string key PK
+    text value
+    string _plus_1_more_columns
+  }
+  banks {
+    int id PK
+    string name
+    bool is_active
+    string _plus_1_more_columns
+  }
+  states {
+    int id PK
+    string name
+    bool is_active
+    string _plus_1_more_columns
+  }
+  cities {
+    int id PK
+    int state_id FK
+    string name
+    bool is_active
+    string _plus_1_more_columns
+  }
+  user_types {
+    int id PK
+    int parent_type_id FK
+    string name
+    bool is_active
+    string _plus_2_more_columns
+  }
+  menu_items |o--o{ menu_items : "parent_id"
+  states |o--o{ cities : "state_id"
+  service_categories |o--o{ services : "service_category_id"
+  user_types |o--o{ user_types : "parent_type_id"</pre></div>
+<div class="legend">Tables here: service_categories, services, operators, menu_items, settings, banks, states, cities, user_types</div></section>
+<section id="s2"><h2>Commission and margin</h2><p class="blurb">Slabs, packages, every commission payout (ledger) and what the company keeps.</p>
+<div class="zoom">Zoom <button onclick="z(2,-0.15)">-</button><button onclick="z(2,0.15)">+</button><button onclick="z(2,0)">reset</button></div>
+<div class="box"><pre class="mermaid" id="m2">erDiagram
+  commission_slots {
+    int id PK
+    int user_type_id FK
+    int service_id FK
+    int plan_id FK
+    string operator
+    string commission_type
+    decimal min_amount
+    decimal max_amount
+    decimal value
+    string chain_type
+    bool is_active
+    string specific_user
+    string _plus_3_more_columns
+  }
+  commission_packages {
+    int id PK
+    int owner_user_id FK
+    int user_type_id FK
+    string name
+    bool is_active
+    string _plus_2_more_columns
+  }
+  commission_package_items {
+    int id PK
+    int package_id FK
+    int service_id FK
+    string operator
+    string commission_type
+    decimal value
+  }
+  commission_ledger {
+    int id PK
+    int user_id FK
+    int source_user_id FK
+    int service_transaction_id FK
+    string service_name
+    string slot_type
+    decimal type_value
+    decimal type_value_amount
+    decimal gst_percent
+    decimal gst_amount
+    decimal tds_percent
+    decimal tds_amount
+    string _plus_8_more_columns
+  }
+  admin_margins {
+    int id PK
+    int service_transaction_id FK
+    int user_id FK
+    string service_name
+    decimal amount
+    decimal provider_commission
+    decimal charges_collected
+    decimal commission_paid
+    decimal margin
+    string _plus_1_more_columns
+  }
+  service_transactions {
+    int id PK
+    int user_id FK
+    string service
+    string operator
+    string target
+    decimal amount
+    string reference_id
+    string status
+    text response
+    string client_ref
+    decimal debit_amount
+    decimal service_charge
+    string _plus_7_more_columns
+  }
+  services {
+    int id PK
+    string title
+  }
+  plans {
+    int id PK
+    string name
+  }
+  user_types {
+    int id PK
+    string name
+  }
+  users {
+    int id PK
+    string full_name
+    string user_code
+  }
+  user_types |o--o{ plans : "user_type_id"
+  user_types |o--o{ commission_slots : "user_type_id"
+  services |o--o{ commission_slots : "service_id"
+  plans |o--o{ commission_slots : "plan_id"
+  user_types |o--o{ users : "user_type_id"
+  plans |o--o{ users : "plan_id"
+  users |o--o{ users : "parent_id"
+  users |o--o{ users : "assigned_employee_id"
+  users |o--o{ service_transactions : "user_id"
+  users |o--o{ commission_ledger : "user_id"
+  users |o--o{ users : "created_by"
+  users |o--o{ commission_ledger : "source_user_id"
+  service_transactions |o--o{ commission_ledger : "service_transaction_id"
+  service_transactions |o--o{ admin_margins : "service_transaction_id"
+  users |o--o{ admin_margins : "user_id"
+  user_types |o--o{ user_types : "parent_type_id"
+  users |o--o{ commission_packages : "owner_user_id"
+  user_types |o--o{ commission_packages : "user_type_id"
+  commission_packages |o--o{ commission_package_items : "package_id"
+  services |o--o{ commission_package_items : "service_id"
+  commission_packages |o--o{ users : "commission_package_id"</pre></div>
+<div class="legend">Tables here: commission_slots, commission_packages, commission_package_items, commission_ledger, admin_margins, service_transactions</div></section>
+<section id="s3"><h2>Money: wallet, transactions, funds</h2><p class="blurb">Wallet history, service transactions, fund requests/transfers, banks and bookings.</p>
+<div class="zoom">Zoom <button onclick="z(3,-0.15)">-</button><button onclick="z(3,0.15)">+</button><button onclick="z(3,0)">reset</button></div>
+<div class="box"><pre class="mermaid" id="m3">erDiagram
+  service_transactions {
+    int id PK
+    int user_id FK
+    string service
+    string operator
+    string target
+    decimal amount
+    string reference_id
+    string status
+    text response
+    string client_ref
+    decimal debit_amount
+    decimal service_charge
+    string _plus_7_more_columns
+  }
+  account_transactions {
+    int id PK
+    int user_id FK
+    string service_name
+    string type
+    text remark
+    decimal amount
+    decimal before_balance
+    decimal updated_balance
+    string _plus_1_more_columns
+  }
+  fund_requests {
+    int id PK
+    int user_id FK
+    int company_bank_id FK
+    int approver_id FK
+    int acted_by FK
+    date deposit_date
+    string payment_mode
+    decimal amount
+    string request_id
+    string receipt_no
+    string receipt_img
+    string status
+    string _plus_5_more_columns
+  }
+  fund_transfers {
+    int id PK
+    int from_user_id FK
+    int to_user_id FK
+    decimal amount
+    string transfer_type
+    text remark
+    decimal before_balance
+    decimal updated_balance
+    string status
+    string _plus_1_more_columns
+  }
+  company_banks {
+    int id PK
+    int bank_id FK
+    string bank_name
+    string account_holder
+    string account_no
+    string ifsc_code
+    bool is_active
+    string _plus_2_more_columns
+  }
+  payout_banks {
+    int id PK
+    int user_id FK
+    string bank_name
+    string account_no
+    string ifsc_code
+    string ac_holder
+    string passbook
+    string status
+    text remark
+    string _plus_2_more_columns
+  }
+  admin_wallet_transactions {
+    int id PK
+    int admin_id FK
+    decimal amount
+    string txn_type
+    text remark
+    decimal before_balance
+    decimal updated_balance
+    string _plus_1_more_columns
+  }
+  idempotency_keys {
+    int id PK
+    int user_id FK
+    string idem_key
+    string endpoint
+    int response_status
+    text response_body
+    string _plus_1_more_columns
+  }
+  bookings {
+    int id PK
+    int retailer_id FK
+    string type
+    string pnr
+    json pax
+    decimal amount
+    string status
+    string provider_ref
+    json detail
+    string _plus_1_more_columns
+  }
+  dmt_senders {
+    int id PK
+    int retailer_id FK
+    string mobile
+    string name
+    string kyc_status
+    decimal monthly_limit
+    decimal used_limit
+    string _plus_1_more_columns
+  }
+  dmt_beneficiaries {
+    int id PK
+    int sender_id FK
+    string name
+    string bank_name
+    string account_no
+    string ifsc
+    bool verified
+    string _plus_1_more_columns
+  }
+  users {
+    int id PK
+    string full_name
+    string user_code
+  }
+  users |o--o{ users : "parent_id"
+  users |o--o{ users : "assigned_employee_id"
+  users |o--o{ account_transactions : "user_id"
+  users |o--o{ service_transactions : "user_id"
+  users |o--o{ fund_requests : "user_id"
+  company_banks |o--o{ fund_requests : "company_bank_id"
+  users |o--o{ payout_banks : "user_id"
+  users |o--o{ fund_transfers : "from_user_id"
+  users |o--o{ fund_transfers : "to_user_id"
+  users |o--o{ admin_wallet_transactions : "admin_id"
+  users |o--o{ idempotency_keys : "user_id"
+  users |o--o{ dmt_senders : "retailer_id"
+  dmt_senders |o--o{ dmt_beneficiaries : "sender_id"
+  users |o--o{ bookings : "retailer_id"
+  users |o--o{ users : "created_by"
+  users |o--o{ fund_requests : "approver_id"
+  users |o--o{ fund_requests : "acted_by"</pre></div>
+<div class="legend">Tables here: service_transactions, account_transactions, fund_requests, fund_transfers, company_banks, payout_banks, admin_wallet_transactions, idempotency_keys, bookings, dmt_senders, dmt_beneficiaries</div></section>
+<section id="s4"><h2>KYC, support, audit and reconciliation</h2><p class="blurb">Verification, tickets, security trail, OTPs and daily reconciliation.</p>
+<div class="zoom">Zoom <button onclick="z(4,-0.15)">-</button><button onclick="z(4,0.15)">+</button><button onclick="z(4,0)">reset</button></div>
+<div class="box"><pre class="mermaid" id="m4">erDiagram
+  kyc_submissions {
+    int id PK
+    int user_id FK
+    int reviewed_by FK
+    string status
+    string aadhaar_last4
+    string pan_number
+    string bank_name
+    string account_holder
+    string account_no
+    string ifsc_code
+    string aadhaar_front
+    string aadhaar_back
+    string _plus_8_more_columns
+  }
+  kyc_verifications {
+    int id PK
+    int admin_id FK
+    string kind
+    string doc_number
+    string name
+    string status
+    string ref_id
+    text remark
+    string _plus_1_more_columns
+  }
+  tickets {
+    int id PK
+    int user_id FK
+    int department_id FK
+    string ticket_no
+    string subject
+    text description
+    string priority
+    string status
+    string _plus_2_more_columns
+  }
+  ticket_replies {
+    int id PK
+    int ticket_id FK
+    int sender_id FK
+    string sender_role
+    text message
+    string _plus_1_more_columns
+  }
+  ticket_departments {
+    int id PK
+    string name
+    bool is_active
+    string _plus_2_more_columns
+  }
+  audit_log {
+    bigint id PK
+    int user_id FK
+    string username
+    string event
+    string ip
+    string user_agent
+    json detail
+    string _plus_1_more_columns
+  }
+  otp_requests {
+    int id PK
+    int user_id FK
+    string otp_hash
+    string purpose
+    timestamp expires_at
+    int verify_attempts
+    timestamp consumed_at
+    string _plus_1_more_columns
+  }
+  announcements {
+    int id PK
+    int user_type_id FK
+    string title
+    text message
+    bool is_active
+    string _plus_2_more_columns
+  }
+  application_banners {
+    int id PK
+    string title
+    string image
+    string link
+    int sort_order
+    bool is_active
+    string type
+    date banner_date
+    string _plus_2_more_columns
+  }
+  reconciliation_runs {
+    int id PK
+    int run_by FK
+    date run_date
+    string status
+    int total
+    int matched
+    int mismatched
+    int auto_fixed
+    text error
+    timestamp started_at
+    timestamp finished_at
+  }
+  reconciliation_items {
+    int id PK
+    int run_id FK
+    int service_transaction_id FK
+    int resolved_by FK
+    string client_ref
+    string type
+    string our_status
+    string provider_status
+    decimal our_amount
+    decimal provider_amount
+    string state
+    text note
+    string _plus_2_more_columns
+  }
+  users {
+    int id PK
+    string full_name
+    string user_code
+  }
+  users |o--o{ otp_requests : "user_id"
+  users |o--o{ audit_log : "user_id"
+  users |o--o{ users : "parent_id"
+  users |o--o{ users : "assigned_employee_id"
+  users |o--o{ kyc_verifications : "admin_id"
+  users |o--o{ tickets : "user_id"
+  ticket_departments |o--o{ tickets : "department_id"
+  tickets |o--o{ ticket_replies : "ticket_id"
+  users |o--o{ ticket_replies : "sender_id"
+  users |o--o{ users : "created_by"
+  users |o--o{ kyc_submissions : "user_id"
+  users |o--o{ kyc_submissions : "reviewed_by"
+  users |o--o{ reconciliation_runs : "run_by"
+  reconciliation_runs |o--o{ reconciliation_items : "run_id"
+  users |o--o{ reconciliation_items : "resolved_by"</pre></div>
+<div class="legend">Tables here: kyc_submissions, kyc_verifications, tickets, ticket_replies, ticket_departments, audit_log, otp_requests, announcements, application_banners, reconciliation_runs, reconciliation_items</div></section>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: false, theme: 'neutral', er: { useMaxWidth: false, layoutDirection: 'LR' }, securityLevel: 'loose' });
+const titles = ["Users and hierarchy","Services, menu and master data","Commission and margin","Money: wallet, transactions, funds","KYC, support, audit and reconciliation"];
+const nav = document.getElementById('nav'); const scales = {};
+titles.forEach((t, i) => { const b = document.createElement('button'); b.textContent = (i + 1) + '. ' + t; b.onclick = () => show(i); b.id = 'b' + i; nav.appendChild(b); scales[i] = 1; });
+async function show(i) {
+  titles.forEach((_, j) => { document.getElementById('s' + j).classList.toggle('on', i === j); document.getElementById('b' + j).classList.toggle('on', i === j); });
+  const el = document.getElementById('m' + i);
+  if (!el.dataset.done) { el.dataset.done = '1'; await mermaid.run({ nodes: [el] }); }
+  history.replaceState(null, '', '#' + (i + 1));
+}
+window.z = (i, d) => { scales[i] = d === 0 ? 1 : Math.max(0.3, Math.min(2.5, scales[i] + d)); const svg = document.querySelector('#m' + i + ' svg'); if (svg) { svg.style.transformOrigin = '0 0'; svg.style.transform = 'scale(' + scales[i] + ')'; } };
+show(Math.max(0, parseInt(location.hash.slice(1), 10) - 1 || 0));
+</script></body></html>
