@@ -59,8 +59,15 @@ function Checkbox({ label, checked, onToggle }) {
     </Pressable>
   );
 }
+// The saved name parts; a row that was never split (older data) is split from its full name:
+// first word = first name, last word = last name, anything between = middle name.
+const nameParts = (r) => {
+  if (r.first_name || r.middle_name || r.last_name) return { firstName: r.first_name || '', middleName: r.middle_name || '', lastName: r.last_name || '' };
+  const p = String(r.name || '').trim().split(/\s+/).filter(Boolean);
+  return { firstName: p[0] || '', middleName: p.slice(1, -1).join(' '), lastName: p.length > 1 ? p[p.length - 1] : '' };
+};
 const EMPTY = {
-  userTypeId: '', name: '', fatherHusbandName: '', dob: '', shopName: '', email: '', mobile: '',
+  userTypeId: '', firstName: '', middleName: '', lastName: '', fatherHusbandName: '', dob: '', shopName: '', email: '', mobile: '',
   panNumber: '', aadharNumber: '', gender: '', planId: '', gstNumber: '', minBalance: '', password: '',
   address: '', stateId: '', cityId: '', pincode: '', merchantId: '', parentId: '', assignedEmployeeId: '', commissionPackageId: '',
   serviceAccess: [], moduleAccess: [], kycStatus: 'pending', ekycStatus: 'pending', active: true,
@@ -177,7 +184,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
   const openEdit = (r) => {
     setEditing(r);
     setF({
-      userTypeId: r.user_type_id, name: r.name || '', fatherHusbandName: r.father_husband_name || '', dob: r.dob || '',
+      userTypeId: r.user_type_id, ...nameParts(r), fatherHusbandName: r.father_husband_name || '', dob: r.dob || '',
       shopName: r.shop_name || '', email: r.email || '', mobile: r.mobile || '', panNumber: r.pan_number || '',
       aadharNumber: r.aadhar_number || '', gender: r.gender || '', planId: r.plan_id || '', gstNumber: r.gst_number || '',
       minBalance: r.min_balance != null ? String(r.min_balance) : '', password: '',
@@ -215,13 +222,15 @@ export default function UserManagerScreen({ network = false, onDone }) {
   const toggleAll = (key, allVals) => setF((p) => ({ ...p, [key]: (p[key] || []).length === allVals.length ? [] : [...allVals] }));
 
   const save = async () => {
-    if (f.name.trim().length < 2) { setFormError('Name is required.'); return; }
+    if (!f.firstName.trim()) { setFormError('First name is required.'); return; }
+    if (!f.lastName.trim()) { setFormError('Last name is required.'); return; }
     if (!/^\d{10}$/.test(f.mobile.trim())) { setFormError('Mobile must be 10 digits.'); return; }
     if (!f.userTypeId) { setFormError('Please select an account type.'); return; }
     if (!editing && f.password.length < 6) { setFormError('Password must be at least 6 characters.'); return; }
     setSaving(true); setFormError(null);
     const body = {
-      name: f.name, fatherHusbandName: f.fatherHusbandName, dob: f.dob, shopName: f.shopName, email: f.email, mobile: f.mobile,
+      firstName: f.firstName.trim(), middleName: f.middleName.trim(), lastName: f.lastName.trim(),
+      fatherHusbandName: f.fatherHusbandName, dob: f.dob, shopName: f.shopName, email: f.email, mobile: f.mobile,
       panNumber: f.panNumber, aadharNumber: f.aadharNumber, gender: f.gender, userTypeId: f.userTypeId, planId: f.planId || null,
       gstNumber: f.gstNumber, minBalance: f.minBalance || 0, address: f.address, stateId: f.stateId || null, cityId: f.cityId || null,
       pincode: f.pincode, merchantId: f.merchantId, parentId: f.parentId || null, assignedEmployeeId: f.assignedEmployeeId || null,
@@ -284,7 +293,9 @@ export default function UserManagerScreen({ network = false, onDone }) {
             ) : (
               <View style={styles.field}><Select label="Select Account Type *" value={f.userTypeId} options={utOptions} onChange={(v) => { set('userTypeId', v); set('planId', ''); if (!network) set('serviceAccess', defaultServices(v)); }} placeholder="-- Choose --" /></View>
             )}
-            <Field label="Name *" value={f.name} onChange={(v) => set('name', v)} placeholder="Full name" />
+            <Field label="First Name *" value={f.firstName} onChange={(v) => set('firstName', v)} placeholder="First name" maxLength={80} autoCap="words" />
+            <Field label="Middle Name" value={f.middleName} onChange={(v) => set('middleName', v)} placeholder="Middle name (optional)" maxLength={80} autoCap="words" />
+            <Field label="Last Name *" value={f.lastName} onChange={(v) => set('lastName', v)} placeholder="Last name" maxLength={80} autoCap="words" />
             <Field label="Father's / Husband Name" value={f.fatherHusbandName} onChange={(v) => set('fatherHusbandName', v)} placeholder="Name" />
             <View style={styles.field}><DateField label="DOB" value={f.dob} onChange={(v) => set('dob', v)} /></View>
             <Field label="Shop Name" value={f.shopName} onChange={(v) => set('shopName', v)} placeholder="Firm name" />

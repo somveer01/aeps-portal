@@ -8,7 +8,7 @@ const fundRepo = require('../repositories/fundTransfer.repo');
 const reportsRepo = require('../repositories/reports.repo');
 const txnAuth = require('../services/txnAuth.service');
 const audit = require('../repositories/audit.repo');
-const { createUserWithCode, mapFields } = require('./usersManager.controller');
+const { createUserWithCode, mapFields, nameError, prepareName } = require('./usersManager.controller');
 const { checkAssignable } = require('./commissionPackage.controller');
 const db = require('../config/db');
 
@@ -82,7 +82,8 @@ async function searchUsers(req, res, next) {
 async function createUser(req, res, next) {
   try {
     const b = req.body || {};
-    if (clean(b.name).length < 2) return res.status(400).json({ error: 'Name is required', code: 'INVALID_NAME' });
+    const nameErr = nameError(b);
+    if (nameErr) return res.status(400).json(nameErr);
     if (!/^\d{10}$/.test(clean(b.mobile))) return res.status(400).json({ error: 'Mobile must be 10 digits', code: 'INVALID_MOBILE' });
     if (b.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean(b.email))) return res.status(400).json({ error: 'Enter a valid email', code: 'INVALID_EMAIL' });
     if (String(b.password || '').length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters', code: 'WEAK_PASSWORD' });
@@ -115,7 +116,9 @@ async function updateUser(req, res, next) {
     const id = parseInt(req.params.id, 10);
     const level = await repo.levelOf(req.user.id, id);
     if (!level) return res.status(404).json({ error: 'User is not in your network', code: 'NOT_IN_NETWORK' });
-    const b = req.body || {};
+    const named = prepareName(req.body || {}, await usersRepo.findFull(id)); // name parts left out keep their saved value
+    if (named.error) return res.status(400).json(named.error);
+    const b = named.body;
     if (b.mobile !== undefined && !/^\d{10}$/.test(clean(b.mobile))) return res.status(400).json({ error: 'Mobile must be 10 digits', code: 'INVALID_MOBILE' });
     const patch = userFields(b);
 

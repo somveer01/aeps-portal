@@ -31,7 +31,7 @@ function base() {
 function joined() {
   return base()
     .select(
-      'u.id', 'u.user_code', 'u.shop_name', 'u.full_name as name', 'u.mobile', 'u.email',
+      'u.id', 'u.user_code', 'u.shop_name', 'u.full_name as name', 'u.first_name', 'u.middle_name', 'u.last_name', 'u.mobile', 'u.email',
       'u.wallet_balance', 'u.is_active', 'u.kyc_status', 'u.ekyc_status', 'u.created_at as join_date',
       'u.user_type_id', 'ut.name as user_type_name', 'u.plan_id', 'p.name as plan_name',
       'u.parent_id', 'par.user_code as parent_code', 'par.full_name as parent_name', 'par.role as parent_role',

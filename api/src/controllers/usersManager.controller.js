@@ -77,10 +77,57 @@ async function createUserWithCode(buildRow) {
   throw Object.assign(new Error('Could not allocate a unique user code'), { status: 409 });
 }
 
+// A user's name is three parts: firstName (required), middleName (optional), lastName (required). users.full_name is
+// the parts joined by single spaces and is what every report, search and list shows. An older client may still send
+// one `name`; it is split the way the migration split existing users (first word / last word / the rest = middle).
+const NAME_PART_MAX = 80;
+const NAME_KEYS = ['firstName', 'middleName', 'lastName'];
+function splitName(full) {
+  const parts = clean(full).split(/\s+/).filter(Boolean);
+  return { first: parts[0] || '', last: parts.length > 1 ? parts[parts.length - 1] : '', middle: parts.slice(1, -1).join(' ') };
+}
+function nameParts(b) {
+  if (NAME_KEYS.some((k) => b[k] !== undefined)) return { first: clean(b.firstName), middle: clean(b.middleName), last: clean(b.lastName), split: true };
+  if (b.name !== undefined) return { ...splitName(b.name), split: false };
+  return null;
+}
+function nameFields(b) {
+  const n = nameParts(b);
+  if (!n) return {};
+  return { first_name: n.first || null, middle_name: n.middle || null, last_name: n.last || null, full_name: [n.first, n.middle, n.last].filter(Boolean).join(' ') };
+}
+// null when fine. Three-part names need a first and a last name; the old single `name` needs 2 characters.
+function nameError(b) {
+  const n = nameParts(b);
+  if (!n) return { error: 'Name is required', code: 'INVALID_NAME' };
+  if ([n.first, n.middle, n.last].some((p) => p.length > NAME_PART_MAX)) return { error: `Each name part can be at most ${NAME_PART_MAX} characters`, code: 'INVALID_NAME' };
+  if (n.split) {
+    if (!n.first) return { error: 'First name is required', code: 'INVALID_NAME' };
+    if (!n.last) return { error: 'Last name is required', code: 'INVALID_NAME' };
+    return null;
+  }
+  return [n.first, n.middle, n.last].filter(Boolean).join(' ').length < 2 ? { error: 'Name is required', code: 'INVALID_NAME' } : null;
+}
+// For an edit: a part left out of the request keeps its saved value (so sending only lastName never wipes the
+// others), then the name is validated. Returns { body, error }.
+function prepareName(b, existing) {
+  let body = b;
+  if (NAME_KEYS.some((k) => b[k] !== undefined)) {
+    const hasParts = existing.first_name || existing.middle_name || existing.last_name;
+    const s = splitName(existing.name);
+    const saved = hasParts
+      ? { firstName: existing.first_name, middleName: existing.middle_name, lastName: existing.last_name }
+      : { firstName: s.first, middleName: s.middle, lastName: s.last };
+    body = { ...b };
+    NAME_KEYS.forEach((k) => { if (body[k] === undefined) body[k] = saved[k] || ''; });
+  }
+  return { body, error: nameParts(body) ? nameError(body) : null };
+}
+
 // Shared field mapping from request body -> db columns (for create & update).
 function mapFields(b) {
   const out = {};
-  if (b.name !== undefined) out.full_name = clean(b.name);
+  Object.assign(out, nameFields(b));
   if (b.shopName !== undefined) out.shop_name = clean(b.shopName) || null;
   if (b.fatherHusbandName !== undefined) out.father_husband_name = clean(b.fatherHusbandName) || null;
   if (b.dob !== undefined) out.dob = clean(b.dob) || null;
@@ -198,7 +245,8 @@ async function changeImpact(existing, typeId, parentId) {
 async function create(req, res, next) {
   try {
     const b = req.body;
-    if (clean(b.name).length < 2) return res.status(400).json({ error: 'Name is required', code: 'INVALID_NAME' });
+    const nameErr = nameError(b);
+    if (nameErr) return res.status(400).json(nameErr);
     if (!/^\d{10}$/.test(clean(b.mobile))) return res.status(400).json({ error: 'Mobile must be 10 digits', code: 'INVALID_MOBILE' });
     if (b.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean(b.email))) return res.status(400).json({ error: 'Enter a valid email', code: 'INVALID_EMAIL' });
     const userTypeId = intOrNull(b.userTypeId);
@@ -236,7 +284,9 @@ async function update(req, res, next) {
     const id = parseInt(req.params.id, 10);
     const existing = await repo.findFull(id);
     if (!existing) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
-    const b = req.body;
+    const named = prepareName(req.body, existing); // name parts left out keep their saved value
+    if (named.error) return res.status(400).json(named.error);
+    const b = named.body;
     if (b.mobile !== undefined && !/^\d{10}$/.test(clean(b.mobile))) return res.status(400).json({ error: 'Mobile must be 10 digits', code: 'INVALID_MOBILE' });
     if (b.userTypeId !== undefined && !(await userTypeRepo.findById(intOrNull(b.userTypeId)))) return res.status(400).json({ error: 'Invalid account type', code: 'INVALID_USER_TYPE' });
 
@@ -360,4 +410,4 @@ async function remove(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, search, create, update, changeImpactPreview, fund, remove, moduleOptions, createUserWithCode, mapFields };
+module.exports = { list, search, create, update, changeImpactPreview, fund, remove, moduleOptions, createUserWithCode, mapFields, nameError, prepareName };
