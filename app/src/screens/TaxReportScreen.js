@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { Card, Button, Alert, Select, DateField } from '../components/UI';
+import UserPicker from '../components/UserPicker';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors } from '../theme';
@@ -65,7 +66,7 @@ export default function TaxReportScreen({ kind = 'gst' }) {
           <Fld label="Start Date *"><DateField value={ff.startDate} onChange={(v) => set('startDate', v)} /></Fld>
           <Fld label="End Date *"><DateField value={ff.endDate} onChange={(v) => set('endDate', v)} /></Fld>
           <Fld label="User Type *"><Select value={ff.userTypeId} options={utOptions} onChange={(v) => set('userTypeId', v)} placeholder="-- Choose --" /></Fld>
-          <Fld label="User Id"><Select value={ff.userId} options={userOptions} onChange={(v) => set('userId', v)} placeholder="-- Choose --" /></Fld>
+          <Fld label="User Id"><UserPicker value={ff.userId} onChange={(v) => set('userId', v)} placeholder="All users" /></Fld>
           <Fld label="Service"><Select value={ff.service} options={svcOptions} onChange={(v) => set('service', v)} placeholder="All" /></Fld>
           {isComm ? <Fld label="Level"><Select value={ff.level} options={LEVEL_OPTIONS} onChange={(v) => set('level', v)} searchable={false} /></Fld> : null}
           <View style={[styles.field, { justifyContent: 'flex-end' }]}><Button title="Search" onPress={() => setApplied({ ...ff })} /></View>

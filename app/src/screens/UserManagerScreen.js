@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Card, Button, Alert, Select, DateField } from '../components/UI';
+import UserPicker from '../components/UserPicker';
 import { api } from '../api/client';
 import DataGrid, { gridParams } from '../components/DataGrid';
 import { colors, radius } from '../theme';
@@ -77,7 +78,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
 
   const [packages, setPackages] = useState([]); // network: my commission packages
   const [typeDefaults, setTypeDefaults] = useState([]); // [{ userTypeId, serviceId }] from Service Permissions
-  const [userTypes, setUserTypes] = useState([]); const [plans, setPlans] = useState([]); const [parents, setParents] = useState([]);
+  const [userTypes, setUserTypes] = useState([]); const [plans, setPlans] = useState([]);
   const [states, setStates] = useState([]); const [cities, setCities] = useState([]); const [services, setServices] = useState([]); const [modules, setModules] = useState([]);
   const [view, setView] = useState('list'); const [editing, setEditing] = useState(null);
   const [f, setF] = useState(EMPTY);
@@ -86,7 +87,6 @@ export default function UserManagerScreen({ network = false, onDone }) {
   const [fundUser, setFundUser] = useState(null); const [fundAmount, setFundAmount] = useState(''); const [fundType, setFundType] = useState('credit'); const [funding, setFunding] = useState(false); const [fundError, setFundError] = useState(null);
   const [viewUser, setViewUser] = useState(null);
   const [toDelete, setToDelete] = useState(null); const [deleting, setDeleting] = useState(false);
-  const [parentCands, setParentCands] = useState([]); // users whose type may hold the selected type
   const [impact, setImpact] = useState(null); const [moveTo, setMoveTo] = useState('admin'); // type / parent change preview
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const [sort, setSort] = useState(null); const [colFilters, setColFilters] = useState({}); // DataGrid
@@ -114,7 +114,6 @@ export default function UserManagerScreen({ network = false, onDone }) {
     }
     api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {});
     api.plans.list({ pageSize: 100 }).then((r) => setPlans(r.rows)).catch(() => {});
-    api.managedUsers.list({ pageSize: 100 }).then((r) => setParents(r.rows)).catch(() => {});
     api.services.list({ pageSize: 100, active: true }).then((r) => setServices(r.rows)).catch(() => {});
     api.servicePermissions.matrix().then((m) => setTypeDefaults(m.allowed)).catch(() => {});
     api.moduleOptions().then((r) => setModules(r.modules)).catch(() => {});
@@ -161,22 +160,16 @@ export default function UserManagerScreen({ network = false, onDone }) {
     }
     return out;
   };
-  const parentOptions = [
-    { label: 'Admin (default)', value: '' },
-    ...parentCands.filter((p) => !editing || p.id !== editing.id).map((p) => ({ label: `${p.user_code} · ${p.name} (${p.user_type_name})`, value: p.id })),
-    // Keep an old parent visible even if its type no longer fits (the API asks for a valid one on save).
-    ...(editing && f.parentId && !parentCands.some((p) => String(p.id) === String(f.parentId)) && editing.parent_role !== 'admin'
-      ? [{ label: `${editing.parent_code || editing.parent_id} · ${editing.parent_name || ''} (current)`, value: f.parentId }] : []),
-  ];
-  // Where users below can go when a type change leaves them unfit: the admin, or anyone whose type may hold all of them.
-  const moveOptions = useMemo(() => {
+  // Where users below can go when a type change leaves them unfit: the admin (empty), or a user of a type that
+  // sits above ALL of them. The parent picker lists users of the types above the selected type.
+  const moveTypes = useMemo(() => {
     const kids = impact?.childrenMismatch || [];
     if (!kids.length) return [];
-    const fits = (u) => kids.every((c) => typesAbove(c.user_type_id).includes(String(u.user_type_id)));
-    return [{ label: 'Admin', value: 'admin' }, ...parents.filter((u) => u.id !== editing?.id && fits(u)).map((u) => ({ label: `${u.user_code} · ${u.name} (${u.user_type_name})`, value: u.id }))];
+    const lists = kids.map((c) => typesAbove(c.user_type_id));
+    return lists[0].filter((t) => lists.every((l) => l.includes(t)));
     /* eslint-disable-next-line */
-  }, [impact, parents, userTypes, editing]);
-  const employeeOptions = [{ label: '— None —', value: '' }, ...parents.filter((p) => p.user_type_name === 'Employee').map((p) => ({ label: `${p.user_code} · ${p.name}`, value: p.id }))];
+  }, [impact, userTypes]);
+  const employeeTypeId = (userTypes.find((t) => String(t.name || '').toLowerCase() === 'employee') || {}).id;
 
   // Service Access starts from the user type's default (Modules → Service Permissions).
   const defaultServices = (typeId) => typeDefaults.filter((a) => String(a.userTypeId) === String(typeId)).map((a) => a.serviceId);
@@ -195,16 +188,6 @@ export default function UserManagerScreen({ network = false, onDone }) {
     });
     setFormError(null); setImpact(null); setMoveTo('admin'); setView('form');
   };
-
-  // Admin form: parent choices = users of the types above the selected type.
-  useEffect(() => {
-    if (network || view !== 'form') return;
-    const ids = typesAbove(f.userTypeId);
-    if (!ids.length) { setParentCands([]); return; }
-    Promise.all(ids.map((id) => api.managedUsers.list({ userTypeId: id, pageSize: 100 }).then((r) => r.rows).catch(() => [])))
-      .then((lists) => setParentCands(lists.flat()));
-    /* eslint-disable-next-line */
-  }, [f.userTypeId, userTypes, view, network]);
 
   // Editing: preview what a type / parent change does (users below, plan, packages, sign-out).
   useEffect(() => {
@@ -253,7 +236,6 @@ export default function UserManagerScreen({ network = false, onDone }) {
       else { body.password = f.password; await usersApi.create(body); }
       setView('list'); await load({ page: editing ? page : 1 });
       if (network) loadFilterTypes();
-      else api.managedUsers.list({ pageSize: 100 }).then((r) => setParents(r.rows)).catch(() => {});
     } catch (e) { setFormError(e.message); } finally { setSaving(false); }
   };
   const toggleStatus = async (row) => {
@@ -346,9 +328,9 @@ export default function UserManagerScreen({ network = false, onDone }) {
                 <TextInput value="Admin (fixed)" editable={false} style={[styles.input, { color: colors.muted }]} />
               </View>
             ) : (
-              <View style={styles.field}><Select label="Parent Id" value={f.parentId} options={parentOptions} onChange={(v) => set('parentId', v)} placeholder="Admin (default)" /></View>
+              <View style={styles.field}><UserPicker label="Parent Id" mode="admin" userTypeId={typesAbove(f.userTypeId)} disabled={!f.userTypeId} value={f.parentId} onChange={(v) => set('parentId', v)} placeholder="Admin (default)" /></View>
             )}
-            <View style={styles.field}><Select label="Assigned Employee" value={f.assignedEmployeeId} options={employeeOptions} onChange={(v) => set('assignedEmployeeId', v)} placeholder="-- None --" /></View>
+            <View style={styles.field}><UserPicker label="Assigned Employee" mode="admin" userTypeId={employeeTypeId} disabled={!employeeTypeId} value={f.assignedEmployeeId} onChange={(v) => set('assignedEmployeeId', v)} placeholder="-- None --" /></View>
           </View>
           {!parentIsAdmin ? <Text style={styles.hint}>Only users of a type above {selectedTypeName || 'this type'} are listed. No parent = the admin.</Text> : null}
 
@@ -361,7 +343,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
                   <Text style={styles.impactLine}>
                     {impact.childrenMismatch.length} user(s) below cannot stay under a {selectedTypeName}: {impact.childrenMismatch.map((c) => `${c.code} (${c.type})`).join(', ')}.
                   </Text>
-                  <View style={[styles.field, { maxWidth: 420 }]}><Select label="Move these users to *" value={moveTo} options={moveOptions} onChange={setMoveTo} /></View>
+                  <View style={[styles.field, { maxWidth: 420 }]}><UserPicker label="Move these users to *" mode="admin" userTypeId={moveTypes} disabled={!moveTypes.length} value={moveTo === 'admin' ? '' : moveTo} onChange={(v) => setMoveTo(v || 'admin')} placeholder="Admin" /></View>
                 </>
               ) : null}
               {impact.planCleared ? <Text style={styles.impactLine}>The plan is removed (it was made for the old type).</Text> : null}

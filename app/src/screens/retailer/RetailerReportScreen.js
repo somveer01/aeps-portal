@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Card, Button, Alert, DateField, Select } from '../../components/UI';
+import UserPicker from '../../components/UserPicker';
 import { api } from '../../api/client';
 import DataGrid, { useGrid, useGridReload } from '../../components/DataGrid';
 import { colors, radius } from '../../theme';
@@ -109,8 +110,7 @@ export default function RetailerReportScreen({ kind }) {
           {isComm ? <Fld label="Type"><Select value={ff.type} onChange={(v) => set('type', v)} searchable={false} options={TYPE_OPTIONS} /></Fld> : null}
           {hasNetwork ? <Fld label="Level"><Select value={ff.level} onChange={(v) => set('level', v)} searchable={false} options={LEVEL_OPTIONS} /></Fld> : null}
           {hasNetwork ? (
-            <Fld label="Downline User"><Select value={ff.sourceUserId} onChange={(v) => set('sourceUserId', v)}
-              options={[{ label: 'All', value: '' }, ...downline.map((u) => ({ label: `${u.user_code} · ${u.name} (${u.user_type_name})`, value: u.id }))]} /></Fld>
+            <Fld label="Downline User"><UserPicker mode="network" scope="downline" value={ff.sourceUserId} onChange={(v) => set('sourceUserId', v)} placeholder="All users" /></Fld>
           ) : null}
           {hasNetwork ? (
             <Fld label="Through Direct User"><Select value={ff.branchChildId} onChange={(v) => set('branchChildId', v)}

@@ -83,6 +83,22 @@ async function validateRefs({ userTypeId, serviceId, planId }) {
   return null;
 }
 
+// A slab for a specific user must name an existing user of the slab's own user type. Returns { code } with the
+// user's exact stored login id, { code: '' } for none, or { error }.
+async function resolveSpecificUser(raw, userTypeId) {
+  const code = clean(raw);
+  if (!code) return { code: '' };
+  const u = await db('users').whereNotNull('user_type_id')
+    .whereRaw("lower(coalesce(nullif(user_code, ''), username)) = lower(?)", [code])
+    .first('user_type_id', 'user_code', 'username');
+  const type = userTypeId ? await userTypeRepo.findById(userTypeId) : null;
+  const typeName = type ? type.name : 'user';
+  if (!u) return { error: `No user found with login id "${code}". Choose a ${typeName} from the list.` };
+  const login = u.user_code || u.username;
+  if (u.user_type_id !== userTypeId) return { error: `${login} is not a ${typeName}. This slab is for ${typeName} users, so it can name only one of them.` };
+  return { code: login };
+}
+
 function validateValues(body) {
   const commissionType = COMMISSION_TYPES.includes(body.commissionType) ? body.commissionType : null;
   if (!commissionType) return 'Commission type must be percentage or amount';
@@ -113,7 +129,9 @@ async function create(req, res, next) {
     if (typeof v === 'string') return res.status(400).json({ error: v, code: 'INVALID_VALUE' });
     const op = await checkOperator(serviceId, req.body.operator);
     if (op.error) return res.status(400).json({ error: op.error, code: 'INVALID_OPERATOR' });
-    const id = await repo.create({ userTypeId, serviceId, planId, operator: op.operator, specificUser: clean(req.body.specificUser), isActive: req.body.isActive !== false, ...v });
+    const su = await resolveSpecificUser(req.body.specificUser, userTypeId);
+    if (su.error) return res.status(400).json({ error: su.error, code: 'INVALID_SPECIFIC_USER' });
+    const id = await repo.create({ userTypeId, serviceId, planId, operator: op.operator, specificUser: su.code, isActive: req.body.isActive !== false, ...v });
     const row = await repo.findById(id);
     await logSlot(req, 'commission_slot_created', { after: snapshot(row) });
     return res.status(201).json({ row });
@@ -156,6 +174,17 @@ async function update(req, res, next) {
         operator = op.operator;
       }
       Object.assign(patch, { userTypeId, serviceId, planId, operator, ...v });
+    }
+
+    // A specific user must exist and be of the slab's user type. Checked only when the user (or the slab's type)
+    // changes, so an old slab never blocks unrelated edits such as a rate change or the on/off switch.
+    const slabType = patch.userTypeId !== undefined ? patch.userTypeId : existing.user_type_id;
+    const wanted = req.body.specificUser !== undefined ? clean(req.body.specificUser) : clean(existing.specific_user);
+    const userChanged = req.body.specificUser !== undefined && wanted.toLowerCase() !== clean(existing.specific_user).toLowerCase();
+    if (wanted && (userChanged || slabType !== existing.user_type_id)) {
+      const su = await resolveSpecificUser(wanted, slabType);
+      if (su.error) return res.status(400).json({ error: su.error, code: 'INVALID_SPECIFIC_USER' });
+      if (req.body.specificUser !== undefined) patch.specificUser = su.code;
     }
 
     await repo.update(id, patch);

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Modal, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { Card, Button, Alert, Select, DateField, StatusBadge } from '../components/UI';
+import UserPicker from '../components/UserPicker';
 import { api, assetUrl } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { pickImage } from '../api/imagePicker';
@@ -90,7 +91,7 @@ export default function PayoutBankScreen() {
         <Card>
           {formError ? <Alert type="error">{formError}</Alert> : null}
           <View style={styles.fgrid}>
-            <View style={styles.ffield}><Select label="User *" value={f.userId} options={userOptions} onChange={(v) => setForm('userId', v)} placeholder="-- Select User --" /></View>
+            <View style={styles.ffield}><UserPicker label="User *" value={f.userId} onChange={(v) => setForm('userId', v)} clearable={false} placeholder="-- Select User --" /></View>
             <View style={styles.ffield}><Text style={styles.label}>Bank Name *</Text><TextInput value={f.bankName} onChangeText={(v) => setForm('bankName', v)} placeholder="e.g. HDFC Bank" placeholderTextColor={colors.muted} style={styles.input} /></View>
             <View style={styles.ffield}><Text style={styles.label}>Account No *</Text><TextInput value={f.accountNo} onChangeText={(v) => setForm('accountNo', v)} keyboardType="numeric" placeholder="Account number" placeholderTextColor={colors.muted} style={styles.input} /></View>
             <View style={styles.ffield}><Text style={styles.label}>IFSC Code *</Text><TextInput value={f.ifscCode} onChangeText={(v) => setForm('ifscCode', v)} autoCapitalize="characters" placeholder="e.g. HDFC0001234" placeholderTextColor={colors.muted} style={styles.input} /></View>
@@ -128,7 +129,7 @@ export default function PayoutBankScreen() {
           <Fld label="Start Date"><DateField value={ff.startDate} onChange={(v) => set('startDate', v)} /></Fld>
           <Fld label="End Date"><DateField value={ff.endDate} onChange={(v) => set('endDate', v)} /></Fld>
           <Fld label="User Type"><Select value={ff.userTypeId} options={utOptions} onChange={(v) => set('userTypeId', v)} placeholder="All" /></Fld>
-          <Fld label="User Id"><Select value={ff.userId} options={userFilterOptions} onChange={(v) => set('userId', v)} placeholder="All" /></Fld>
+          <Fld label="User Id"><UserPicker value={ff.userId} onChange={(v) => set('userId', v)} placeholder="All users" /></Fld>
           <Fld label="Account Status"><Select value={ff.status} options={STATUS_OPTIONS} onChange={(v) => set('status', v)} searchable={false} /></Fld>
           <View style={[styles.field, { justifyContent: 'flex-end' }]}><Button title="Search" onPress={() => setApplied({ ...ff })} /></View>
         </View>

@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
+import UserPicker from '../components/UserPicker';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
@@ -147,7 +148,7 @@ export default function CommissionSlotScreen() {
           {formError ? <Alert type="error">{formError}</Alert> : null}
           <View style={styles.grid}>
             {/* Row 1: User Type, Plan, Service, Commission Type */}
-            <View style={styles.field}><Select label="User Type *" value={form.userTypeId} options={utOptions} onChange={(v) => set('userTypeId', v)} placeholder="Select user type" /></View>
+            <View style={styles.field}><Select label="User Type *" value={form.userTypeId} options={utOptions} onChange={(v) => setForm((f) => ({ ...f, userTypeId: v, specificUser: String(v) === String(f.userTypeId) ? f.specificUser : '' }))} placeholder="Select user type" /></View>
             <View style={styles.field}><Select label="Plan *" value={form.planId} options={planOptions} onChange={(v) => set('planId', v)} placeholder="-- Select Plan --" /></View>
             <View style={styles.field}><Select label="Service *" value={form.serviceId} options={svcOptions} onChange={(v) => set('serviceId', v)} placeholder="-- Choose --" /></View>
             <View style={styles.field}><Select label="Commission Type *" value={form.commissionType} options={COMMISSION_OPTIONS} onChange={(v) => set('commissionType', v)} placeholder="-- Choose --" searchable={false} /></View>
@@ -158,8 +159,11 @@ export default function CommissionSlotScreen() {
             <View style={styles.field}><Text style={styles.label}>To Amount *</Text>
               <TextInput value={form.maxAmount} onChangeText={(v) => set('maxAmount', v)} keyboardType="numeric" placeholder="To Amount" placeholderTextColor={colors.muted} style={styles.modalInput} /></View>
             <View style={styles.field}><Select label="Transaction Type *" value={form.transactionType} options={CHAIN_OPTIONS} onChange={(v) => set('transactionType', v)} placeholder="-- Choose --" searchable={false} /></View>
-            <View style={styles.field}><Text style={styles.label}>For Any Specific User</Text>
-              <TextInput value={form.specificUser} onChangeText={(v) => set('specificUser', v)} placeholder="Enter User Login Id" placeholderTextColor={colors.muted} style={styles.modalInput} autoCapitalize="none" /></View>
+            <View style={styles.field}>
+              {/* Search by login id, name, shop or mobile; only users of the chosen user type. Empty = every user of the type. */}
+              <UserPicker label="For Any Specific User" valueKey="user_code" mode="admin" userTypeId={form.userTypeId}
+                value={form.specificUser} onChange={(v) => set('specificUser', v)} placeholder={form.userTypeId ? 'All users of this type (search to pick one)' : 'Choose the user type first'} disabled={!form.userTypeId} />
+            </View>
             <View style={styles.field}>
               <Select label={opChoices.kind === 'mode' ? 'Transfer Mode' : 'Operator'} value={form.operator} onChange={(v) => set('operator', v)}
                 options={[

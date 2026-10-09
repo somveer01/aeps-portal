@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { Card, Button, Alert, Select, DateField, StatusBadge } from '../components/UI';
+import UserPicker from '../components/UserPicker';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors } from '../theme';
@@ -63,7 +64,7 @@ export default function FundTransferListScreen({ network = false }) {
           <Fld label="Start Date"><DateField value={ff.startDate} onChange={(v) => set('startDate', v)} /></Fld>
           <Fld label="End Date"><DateField value={ff.endDate} onChange={(v) => set('endDate', v)} /></Fld>
           <Fld label="User Type"><Select value={ff.userTypeId} options={utOptions} onChange={(v) => set('userTypeId', v)} placeholder="All" /></Fld>
-          <Fld label="User Id"><Select value={ff.userId} options={userOptions} onChange={(v) => set('userId', v)} placeholder="All" /></Fld>
+          <Fld label="User Id"><UserPicker mode={network ? 'network' : 'admin'} scope="downline" value={ff.userId} onChange={(v) => set('userId', v)} placeholder="All users" /></Fld>
           <Fld label="Transfer type"><Select value={ff.transferType} options={TYPE_OPTIONS} onChange={(v) => set('transferType', v)} searchable={false} /></Fld>
           <View style={[styles.field, { justifyContent: 'flex-end' }]}><Button title="Search" onPress={() => setApplied({ ...ff })} /></View>
         </View>

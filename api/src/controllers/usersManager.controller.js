@@ -34,6 +34,20 @@ async function list(req, res, next) {
   } catch (err) { return next(err); }
 }
 
+const typeIds = (v) => String(v || '').split(',').map((x) => parseInt(x, 10)).filter((n) => Number.isInteger(n) && n > 0);
+
+// GET /api/users/search?q&userTypeId&id&userCode&limit -> a few slim rows for the user picker (admin: every user).
+async function search(req, res, next) {
+  try {
+    const rows = await repo.search({
+      q: clean(req.query.q), userTypeIds: typeIds(req.query.userTypeId), // one id or a comma-separated list
+      id: req.query.id ? parseInt(req.query.id, 10) || null : null, userCode: clean(req.query.userCode),
+      limit: parseInt(req.query.limit, 10) || 20,
+    });
+    return res.json({ rows });
+  } catch (err) { return next(err); }
+}
+
 // GET /api/module-options -> Modules submenu (for Employee Module Access)
 async function moduleOptions(req, res, next) {
   try {
@@ -346,4 +360,4 @@ async function remove(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, create, update, changeImpactPreview, fund, remove, moduleOptions, createUserWithCode, mapFields };
+module.exports = { list, search, create, update, changeImpactPreview, fund, remove, moduleOptions, createUserWithCode, mapFields };

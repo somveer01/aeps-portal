@@ -69,6 +69,26 @@ module.exports = {
     const rows = await q2.limit(pageSize).offset((page - 1) * pageSize);
     return { rows, total: Number(countRow.c) };
   },
+  // Typeahead for the user picker: a few slim rows (no PAN / Aadhaar / email), best matches first.
+  // downlineOf limits it to a user's downline (directOnly: direct children); id / userCode resolve one saved value.
+  async search({ q = '', userTypeId = null, userTypeIds = null, downlineOf = null, directOnly = false, id = null, userCode = '', limit = 20 } = {}) {
+    const qb = base().select('u.id', 'u.user_code', 'u.full_name as name', 'u.shop_name', 'u.mobile', 'u.user_type_id', 'ut.name as user_type_name', 'u.wallet_balance', 'u.is_active');
+    if (downlineOf) {
+      if (directOnly) qb.where('u.parent_id', downlineOf);
+      else qb.whereIn('u.id', downlineIds(downlineOf));
+    }
+    if (userTypeId) qb.where('u.user_type_id', userTypeId);
+    if (Array.isArray(userTypeIds) && userTypeIds.length) qb.whereIn('u.user_type_id', userTypeIds); // several types, e.g. every type above a user
+    if (id) qb.where('u.id', id);
+    if (userCode) qb.whereRaw('lower(u.user_code) = lower(?)', [userCode]);
+    const s = String(q || '').trim();
+    if (s) {
+      const like = `%${s.replace(/[\\%_]/g, '\\$&')}%`;
+      qb.andWhere((w) => w.whereILike('u.user_code', like).orWhereILike('u.full_name', like).orWhereILike('u.shop_name', like).orWhereILike('u.mobile', like));
+      qb.orderByRaw("case when lower(u.user_code) = lower(?) then 0 when lower(u.user_code) like lower(?) then 1 else 2 end", [s, `${s.replace(/[\\%_]/g, '\\$&')}%`]);
+    }
+    return qb.orderBy('u.full_name').orderBy('u.id').limit(Math.min(20, Math.max(1, limit || 20)));
+  },
   findFull(id) { return joined().where('u.id', id).first(); },
   countManaged() { return db('users').whereNotNull('user_type_id').count('id as c').first().then((r) => Number(r.c)); },
   usernameExists(username) { return db('users').where({ username }).first().then((r) => !!r); },

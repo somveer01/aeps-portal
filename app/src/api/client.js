@@ -348,6 +348,8 @@ export const api = {
     meta: () => request('/api/network/meta', { auth: true }),
     users: {
       list: (params = {}) => request(`/api/network/users?${qs(params)}`, { auth: true }),
+      // User picker: slim rows from my own downline. params: q, scope ('direct' | 'downline'), userTypeId, id, userCode, limit.
+      search: (params = {}) => request(`/api/network/users/search?${qs(params)}`, { auth: true }),
       create: (body) => request('/api/network/users', { method: 'POST', body, auth: true }),
       update: (id, body) => request(`/api/network/users/${id}`, { method: 'PUT', body, auth: true }),
     },
@@ -415,6 +417,8 @@ export const api = {
   managedUsers: {
     // params: q, userTypeId, parentUser, accountStatus, kycStatus, page, pageSize + DataGrid sort/dir/f_<col>.
     list: (params = {}) => request(`/api/users?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
+    // User picker: slim rows (no PAN / Aadhaar). params: q, userTypeId, id, userCode, limit (max 20).
+    search: (params = {}) => request(`/api/users/search?${qs(params)}`, { auth: true }),
     create: (body) => request('/api/users', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/users/${id}`, { method: 'PUT', body, auth: true }),
     // Preview of a type / parent change: { fitsParent, parentError, childrenMismatch, planCleared, ... }.

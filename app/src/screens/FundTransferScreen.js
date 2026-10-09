@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
+import UserPicker from '../components/UserPicker';
 import { api } from '../api/client';
 import { colors, radius } from '../theme';
 
@@ -10,9 +11,7 @@ const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
 // network: distributor / MD panel — transfer only to users directly under you.
 export default function FundTransferScreen({ network = false, onDone }) {
   const ftApi = network ? api.network.fundTransfer : api.fundTransfer;
-  const [code, setCode] = useState('');
   const [receiver, setReceiver] = useState(null);
-  const [looking, setLooking] = useState(false);
   const [amount, setAmount] = useState(''); const [remark, setRemark] = useState(''); const [txnType, setTxnType] = useState('credit'); const [txnPw, setTxnPw] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null); const [info, setInfo] = useState(null);
@@ -21,17 +20,15 @@ export default function FundTransferScreen({ network = false, onDone }) {
   const loadAdminBalance = () => (network ? api.network.meta().then((m) => setAdminBalance(m.walletBalance)) : api.adminWallet.balance().then((r) => setAdminBalance(r.balance))).catch(() => {});
   useEffect(() => { loadAdminBalance(); }, []);
 
-  const lookup = async () => {
-    setError(null); setInfo(null); setReceiver(null);
-    if (!code.trim()) { setError('Enter a User Id.'); return; }
-    setLooking(true);
-    try { const { user } = await ftApi.lookup(code.trim()); setReceiver(user); }
-    catch (e) { setError(e.message); } finally { setLooking(false); }
+  // The picker returns a slim user row; the receiver card uses the same fields the old lookup returned.
+  const choose = (_id, u) => {
+    setError(null); setInfo(null);
+    setReceiver(u ? { id: u.id, name: u.name, shopName: u.shop_name, userCode: u.user_code, mobile: u.mobile, walletBalance: u.wallet_balance } : null);
   };
 
   const submit = async () => {
     setError(null); setInfo(null);
-    if (!receiver) { setError('Look up a valid User Id first.'); return; }
+    if (!receiver) { setError('Choose the user to transfer to.'); return; }
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) { setError('Enter a valid amount.'); return; }
     if (!txnPw) { setError('Enter your transaction password.'); return; }
@@ -56,11 +53,9 @@ export default function FundTransferScreen({ network = false, onDone }) {
         {info ? <Alert type="info">{info}</Alert> : null}
         {error ? <Alert type="error">{error}</Alert> : null}
 
-        <Text style={styles.label}>User Id *</Text>
-        <View style={styles.lookupRow}>
-          <TextInput value={code} onChangeText={setCode} placeholder="Enter User Id (e.g. AEP0001)" placeholderTextColor={colors.muted}
-            autoCapitalize="characters" style={[styles.input, { flex: 1 }]} onSubmitEditing={lookup} />
-          <Button title="Lookup" onPress={lookup} loading={looking} style={{ minWidth: 110 }} />
+        <View style={styles.pickRow}>
+          <UserPicker label="User *" mode={network ? 'network' : 'admin'} scope="direct" value={receiver ? receiver.id : ''}
+            onChange={choose} clearable placeholder="Search by login id, name, shop or mobile" />
         </View>
 
         {receiver ? (
@@ -105,7 +100,7 @@ const styles = StyleSheet.create({
   heading: { fontSize: 20, fontWeight: '700', color: colors.text },
   label: { fontSize: 13, fontWeight: '600', color: '#334155' },
   input: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: colors.text, outlineStyle: 'none' },
-  lookupRow: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 6, marginBottom: 4 },
+  pickRow: { marginTop: 6, marginBottom: 4, maxWidth: 520 },
   receiver: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 14, marginVertical: 14, gap: 4 },
   receiverTitle: { color: colors.primary, fontWeight: '700', marginBottom: 6 },
   dRow: { flexDirection: 'row', gap: 8 },

@@ -65,6 +65,19 @@ async function listUsers(req, res, next) {
   } catch (err) { return next(err); }
 }
 
+// GET /api/network/users/search?q&scope=direct|downline&userTypeId&id&userCode&limit — slim rows for the user picker.
+// Always limited to the caller's own downline (scope=direct: only users directly under the caller).
+async function searchUsers(req, res, next) {
+  try {
+    const rows = await usersRepo.search({
+      q: clean(req.query.q), userCode: clean(req.query.userCode), id: intOrNull(req.query.id),
+      userTypeIds: String(req.query.userTypeId || '').split(',').map((x) => parseInt(x, 10)).filter((n) => Number.isInteger(n) && n > 0),
+      limit: parseInt(req.query.limit, 10) || 20, downlineOf: req.user.id, directOnly: req.query.scope === 'direct',
+    });
+    return res.json({ rows });
+  } catch (err) { return next(err); }
+}
+
 // POST /api/network/users — same body as POST /api/users; the user is always placed under the caller.
 async function createUser(req, res, next) {
   try {
@@ -269,4 +282,4 @@ async function summary(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { requireNetwork, getMeta, listUsers, createUser, updateUser, lookup, fundTransfer, listTransfers, report, summary };
+module.exports = { requireNetwork, getMeta, listUsers, searchUsers, createUser, updateUser, lookup, fundTransfer, listTransfers, report, summary };

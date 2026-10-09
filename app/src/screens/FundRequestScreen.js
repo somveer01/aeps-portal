@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Modal, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { Card, Button, Alert, Select, DateField, StatusBadge } from '../components/UI';
+import UserPicker from '../components/UserPicker';
 import { api, assetUrl } from '../api/client';
 import DataGrid, { gridParams } from '../components/DataGrid';
 import { pickImage } from '../api/imagePicker';
@@ -98,7 +99,7 @@ export default function FundRequestScreen({ mode = 'admin', onDone }) {
           <Fld label="Start Date"><DateField value={ff.startDate} onChange={(v) => set('startDate', v)} /></Fld>
           <Fld label="End Date"><DateField value={ff.endDate} onChange={(v) => set('endDate', v)} /></Fld>
           {showUser ? <Fld label="User Type"><Select value={ff.userTypeId} options={utOptions} onChange={(v) => set('userTypeId', v)} placeholder="All" /></Fld> : null}
-          {showUser ? <Fld label="User Id"><Select value={ff.userId} options={userOptions} onChange={(v) => set('userId', v)} placeholder="All" /></Fld> : null}
+          {showUser ? <Fld label="User Id"><UserPicker mode={isNetwork ? 'network' : 'admin'} scope="downline" value={ff.userId} onChange={(v) => set('userId', v)} placeholder="All users" /></Fld> : null}
           <Fld label="Fund Status"><Select value={ff.status} options={STATUS_OPTIONS} onChange={(v) => set('status', v)} searchable={false} /></Fld>
           <View style={[styles.field, { justifyContent: 'flex-end' }]}><Button title="Search" onPress={() => setApplied({ ...ff })} /></View>
         </View>

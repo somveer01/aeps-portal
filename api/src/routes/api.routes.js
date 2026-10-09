@@ -141,6 +141,7 @@ router.delete('/company-banks/:id', requireAdmin, companyBank.remove);
 router.get('/module-options', requireAdmin, usersManager.moduleOptions);
 router.get('/users', requireAdmin, usersManager.list);
 router.post('/users', requireAdmin, usersManager.create);
+router.get('/users/search', requireAdmin, usersManager.search);
 router.get('/users/:id/change-impact', requireAdmin, usersManager.changeImpactPreview);
 router.put('/users/:id', requireAdmin, usersManager.update);
 router.post('/users/:id/fund', requireAdmin, idempotency, usersManager.fund);
@@ -238,6 +239,7 @@ router.post('/tickets/:id/reply', requireAdmin, ticket.adminReply);
 // Distributor / MD panel (own downline only).
 router.get('/network/summary', requireManaged, network.requireNetwork, network.summary);
 router.get('/network/meta', requireManaged, network.requireNetwork, network.getMeta);
+router.get('/network/users/search', requireManaged, network.requireNetwork, network.searchUsers);
 router.get('/network/users', requireManaged, network.requireNetwork, network.listUsers);
 router.post('/network/users', requireManaged, network.requireNetwork, network.createUser);
 router.put('/network/users/:id', requireManaged, network.requireNetwork, network.updateUser);
