@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Button, TextField, Select, Alert } from '../components/UI';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { api } from '../api/client';
 import { colors, radius } from '../theme';
 
@@ -19,14 +20,22 @@ export default function AdminWalletAddScreen() {
   const loadBalance = () => api.adminWallet.balance().then((r) => setBalance(r.balance)).catch(() => {});
   useEffect(() => { loadBalance(); }, []);
 
-  const submit = async () => {
-    setError(null); setDone(null); setLoading(true);
+  const [confirm, setConfirm] = useState(false); // "Credit ₹X to your wallet?" dialog
+  const submit = () => {
+    setError(null); setDone(null);
+    if (!(Number(amount) > 0)) { setError('Enter a valid amount.'); return; }
+    if (!txnType) { setError('Choose the transaction type.'); return; }
+    if (!remark.trim()) { setError('Enter a remark.'); return; }
+    setConfirm(true);
+  };
+  const doSubmit = async () => {
+    setConfirm(false); setLoading(true);
     try {
       const r = await api.adminWallet.add({ amount: Number(amount), txnType, remark: remark.trim() });
       setDone(`Wallet updated. New balance: ${money(r.balance)}`);
       setBalance(r.balance);
       setAmount(''); setTxnType(''); setRemark('');
-    } catch (e) { setError(e.message); } finally { setLoading(false); }
+    } catch (e) { setError(e.message); } finally { setLoading(false); setConfirm(false); }
   };
 
   return (
@@ -56,6 +65,11 @@ export default function AdminWalletAddScreen() {
           </View>
         </View>
       </View>
+      <ConfirmDialog
+        visible={confirm} danger={txnType === 'debit'} title={txnType === 'debit' ? 'Confirm Debit' : 'Confirm Credit'}
+        message={`${txnType === 'debit' ? 'Debit' : 'Credit'} ${money(amount)} ${txnType === 'debit' ? 'from' : 'to'} your admin wallet?`}
+        confirmText={txnType === 'debit' ? 'Debit Now' : 'Credit Now'} loading={loading} onConfirm={doSubmit} onCancel={() => setConfirm(false)}
+      />
     </View>
   );
 }

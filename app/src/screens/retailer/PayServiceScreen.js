@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text } from 'react-native';
 import { Card, Button, TextField, Select, Alert } from '../../components/UI';
 import Receipt from '../../components/Receipt';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import { api } from '../../api/client';
 import { colors } from '../../theme';
 import { ServiceHeader, formStyles } from './serviceKit';
@@ -23,8 +24,17 @@ export default function PayServiceScreen({ kind, title, onBack, onDone }) {
 
   useEffect(() => { if (cfg.opService) api.retailer.operators({ service: cfg.opService }).then((r) => setOps(r.rows.map((o) => ({ label: o.name, value: o.name })))).catch(() => {}); }, [kind]);
 
-  const submit = async () => {
-    setError(null); setLoading(true);
+  const [confirm, setConfirm] = useState(false); // Move To Bank sends money out: ask first
+  const submit = () => {
+    setError(null);
+    if (kind === 'moveToBank') {
+      if (!(Number(amount) > 0)) { setError('Enter a valid amount.'); return; }
+      setConfirm(true); return;
+    }
+    pay();
+  };
+  const pay = async () => {
+    setConfirm(false); setError(null); setLoading(true);
     const target = vals.accountNo || vals.consumerNo || vals.vehicle || vals.policyNo || '';
     try {
       const r = await api.bbps[cfg.call]({ operator, target, amount: Number(amount), ...vals });
@@ -54,6 +64,12 @@ export default function PayServiceScreen({ kind, title, onBack, onDone }) {
           <Text style={{ color: colors.muted }}>Fill the form and submit. On success your wallet is debited and a receipt is generated. Verify details with the operator before paying.</Text>
         </Card>
       </View>
+      <ConfirmDialog
+        visible={confirm} danger={false} title="Confirm Move To Bank"
+        message={`Move ₹${Number(amount || 0).toFixed(2)} from your wallet to account ${vals.accountNo || ''}${vals.ifsc ? ` (${vals.ifsc})` : ''}? Service charges, if any, are added.`}
+        confirmText="Move Money" onConfirm={pay} onCancel={() => setConfirm(false)}
+      />
+
       <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title={`${title} Receipt`}
         rows={receipt ? [['Service', title], ...(receipt.operator ? [['Operator', receipt.operator]] : []), ['Reference', receipt.reference], ['Amount', `₹${Number(receipt.amount).toFixed(2)}`], ['Balance', `₹${Number(receipt.balance).toFixed(2)}`]] : []} />
     </View>

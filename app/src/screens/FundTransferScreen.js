@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
 import UserPicker from '../components/UserPicker';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { api } from '../api/client';
 import { colors, radius } from '../theme';
 
@@ -13,7 +14,7 @@ export default function FundTransferScreen({ network = false, onDone }) {
   const ftApi = network ? api.network.fundTransfer : api.fundTransfer;
   const [receiver, setReceiver] = useState(null);
   const [amount, setAmount] = useState(''); const [remark, setRemark] = useState(''); const [txnType, setTxnType] = useState('credit'); const [txnPw, setTxnPw] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(false); const [confirm, setConfirm] = useState(false); // "Send ₹X?" dialog
   const [error, setError] = useState(null); const [info, setInfo] = useState(null);
   const [adminBalance, setAdminBalance] = useState(null);
 
@@ -32,7 +33,11 @@ export default function FundTransferScreen({ network = false, onDone }) {
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) { setError('Enter a valid amount.'); return; }
     if (!txnPw) { setError('Enter your transaction password.'); return; }
-    setSubmitting(true);
+    setConfirm(true);
+  };
+  const doSubmit = async () => {
+    const amt = Number(amount);
+    setConfirm(false); setSubmitting(true);
     try {
       const { row } = await ftApi.create({ userId: receiver.id, amount: amt, remark, txnType, transactionPassword: txnPw });
       setInfo(`${txnType === 'debit' ? 'Debited' : 'Credited'} ${money(amt)} — ${receiver.name}'s new balance ${money(row.updated_balance)}.`);
@@ -40,9 +45,10 @@ export default function FundTransferScreen({ network = false, onDone }) {
       setReceiver({ ...receiver, walletBalance: row.updated_balance });
       loadAdminBalance(); // your own wallet moved opposite to the receiver's
       if (onDone) onDone();
-    } catch (e) { setError(e.message); } finally { setSubmitting(false); }
+    } catch (e) { setError(e.message); } finally { setSubmitting(false); setConfirm(false); }
   };
 
+  const credit = txnType !== 'debit';
   return (
     <View style={{ gap: 16 }}>
       <View style={styles.headRow}>
@@ -86,6 +92,12 @@ export default function FundTransferScreen({ network = false, onDone }) {
           <Text style={styles.hint}>You can send money only to users directly under you. Crediting a user debits your wallet by the same amount, and debiting takes it back into your wallet. See your past transfers in My Network → All Fund Transfers. The transaction password is your login password, or your Transaction PIN if you set one.</Text>
         ) : <Text style={styles.hint}>Crediting a user debits your own wallet by the same amount (and debiting credits you back) — top up via Admin Wallet → Add Fund if your balance runs low. Use “All Fund Transfers” in the sidebar to see recent transfers. The transaction password is your admin login password (or your Transaction PIN, if set).</Text>}
       </Card>
+
+      <ConfirmDialog
+        visible={confirm} danger={!credit} title={credit ? 'Confirm Credit' : 'Confirm Debit'}
+        message={receiver ? `${credit ? 'Credit' : 'Debit'} ${money(amount)} ${credit ? 'to' : 'from'} ${receiver.name} (${receiver.userCode})? ${credit ? `${money(amount)} will be deducted from your wallet.` : `${money(amount)} will be added back to your wallet.`}` : ''}
+        confirmText={credit ? 'Credit Now' : 'Debit Now'} loading={submitting} onConfirm={doSubmit} onCancel={() => setConfirm(false)}
+      />
     </View>
   );
 }

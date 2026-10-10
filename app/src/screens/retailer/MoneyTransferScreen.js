@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Modal, ScrollView } from 'react-native';
 import { Card, Button, TextField, Select, Alert } from '../../components/UI';
 import Receipt from '../../components/Receipt';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import { api } from '../../api/client';
 import { colors, radius, shadows } from '../../theme';
 import { ServiceHeader } from './serviceKit';
@@ -27,8 +28,15 @@ export default function MoneyTransferScreen({ onBack, onDone }) {
     catch (e) { setError(e.message); }
   };
   const verify = async (id) => { try { await api.dmt.verifyBeneficiary(id); await loadBens(sender.id); } catch (e) { setError(e.message); } };
+  const [confirmSend, setConfirmSend] = useState(false); // "Send ₹X to ...?" dialog on top of the transfer form
+  const askTransfer = () => {
+    setError(null);
+    if (!(Number(xf.amount) > 0)) { setError('Enter a valid amount.'); return; }
+    if (!xf.txnPin) { setError('Enter your transaction PIN.'); return; }
+    setConfirmSend(true);
+  };
   const doTransfer = async () => {
-    setError(null); setBusy(true);
+    setConfirmSend(false); setError(null); setBusy(true);
     try {
       const r = await api.dmt.transfer({ beneficiaryId: xfer.id, amount: Number(xf.amount), mode: xf.mode, txnPin: xf.txnPin });
       setXfer(null); setXf({ amount: '', mode: 'IMPS', txnPin: '' }); setReceipt(r.receipt); await loadBens(sender.id); onDone && onDone();
@@ -105,6 +113,12 @@ export default function MoneyTransferScreen({ onBack, onDone }) {
         </Pressable>
       </Modal>
 
+      <ConfirmDialog
+        visible={confirmSend} danger={false} title="Confirm Money Transfer"
+        message={xfer ? `Send ₹${Number(xf.amount || 0).toFixed(2)} to ${xfer.name} (${xfer.bank_name} · ${xfer.account_no}) via ${xf.mode}? The amount plus any service charge is debited from your wallet.` : ''}
+        confirmText="Send Money" onConfirm={doTransfer} onCancel={() => setConfirmSend(false)}
+      />
+
       {/* Transfer modal */}
       <Modal visible={!!xfer} transparent animationType="fade" onRequestClose={() => setXfer(null)}>
         <Pressable style={styles.backdrop} onPress={() => setXfer(null)}>
@@ -118,7 +132,7 @@ export default function MoneyTransferScreen({ onBack, onDone }) {
             </View>
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
               <Button title="Cancel" variant="ghost" onPress={() => setXfer(null)} style={{ flex: 1 }} />
-              <Button title="Send" onPress={doTransfer} loading={busy} variant="navy" style={{ flex: 1 }} />
+              <Button title="Send" onPress={askTransfer} loading={busy} variant="navy" style={{ flex: 1 }} />
             </View>
           </Pressable>
         </Pressable>

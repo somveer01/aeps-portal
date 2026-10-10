@@ -9,6 +9,7 @@ import { api } from '../api/client';
 import DataGrid, { gridParams } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 import buttonLabel from '../components/buttonLabel';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 // SAP Fiori design tokens (scoped to this screen). Accent follows the app theme.
 const FIORI = {
@@ -258,11 +259,16 @@ export default function UserManagerScreen({ network = false, onDone }) {
     catch (e) { setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, is_active: row.is_active } : r))); setError(e.message); }
   };
   const openFund = (row) => { setFundUser(row); setFundAmount(''); setFundType('credit'); setFundPin(''); setFundError(null); };
-  const submitFund = async () => {
+  const [fundConfirm, setFundConfirm] = useState(false); // "Add ₹X to ...?" dialog on top of the fund form
+  const submitFund = () => {
     const amt = Number(fundAmount);
     if (!Number.isFinite(amt) || amt <= 0) { setFundError('Enter a valid amount.'); return; }
     if (network && !fundPin) { setFundError('Enter your transaction PIN or login password.'); return; }
-    setFunding(true); setFundError(null);
+    setFundError(null); setFundConfirm(true);
+  };
+  const doFund = async () => {
+    const amt = Number(fundAmount);
+    setFundConfirm(false); setFunding(true); setFundError(null);
     try {
       // Network: a zero-sum transfer from my wallet. Admin: a direct wallet adjustment.
       if (network) await api.network.fundTransfer.create({ userId: fundUser.id, amount: amt, txnType: fundType, transactionPassword: fundPin });
@@ -494,6 +500,12 @@ export default function UserManagerScreen({ network = false, onDone }) {
       </View>
 
       {/* Fund modal */}
+      <ConfirmDialog
+        visible={fundConfirm} danger={fundType === 'debit'} title={fundType === 'debit' ? 'Confirm Deduction' : 'Confirm Credit'}
+        message={fundUser ? `${fundType === 'debit' ? 'Deduct' : 'Add'} ${money(fundAmount)} ${fundType === 'debit' ? 'from' : 'to'} ${fundUser.name} (${fundUser.user_code})'s wallet?${network ? (fundType === 'debit' ? ' The amount comes back to your wallet.' : ' The amount is taken from your wallet.') : ''}` : ''}
+        confirmText={fundType === 'debit' ? 'Deduct Now' : 'Add Now'} onConfirm={doFund} onCancel={() => setFundConfirm(false)}
+      />
+
       <Modal visible={!!fundUser} transparent animationType="fade" onRequestClose={() => setFundUser(null)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>

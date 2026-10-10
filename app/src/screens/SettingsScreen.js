@@ -5,6 +5,7 @@ import { api, assetUrl } from '../api/client';
 import { pickImage } from '../api/imagePicker';
 import { setThemeCache } from '../api/storage';
 import { toast } from '../components/Toast';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { colors, radius, isHex, applyTheme, resolveTheme, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../theme';
 
 const PRESETS = [DEFAULT_PRIMARY, DEFAULT_SECONDARY, '#2563eb', '#1d4ed8', '#0ea5e9', '#0891b2', '#059669', '#16a34a', '#ca8a04', '#ea580c', '#dc2626', '#db2777', '#7c3aed', '#4f46e5', '#0f172a', '#334155'];
@@ -233,10 +234,11 @@ export default function SettingsScreen() {
       setBanner(assetUrl(loginBanner)); setInfo('Login banner updated.'); toast.success('Login banner updated successfully.');
     } catch (e) { setError(e.message || 'Upload failed'); } finally { setBannerBusy(false); }
   };
+  const [confirmBanner, setConfirmBanner] = useState(false); // "Remove the login banner?" dialog
   const removeBanner = async () => {
     setBannerBusy(true);
-    try { await api.clearLoginBanner(); setBanner(null); setInfo('Login banner removed.'); }
-    catch (e) { setError(e.message); } finally { setBannerBusy(false); }
+    try { await api.clearLoginBanner(); setBanner(null); setInfo('Login banner removed.'); setConfirmBanner(false); }
+    catch (e) { setError(e.message); setConfirmBanner(false); } finally { setBannerBusy(false); }
   };
 
   if (loading || !s) return <View style={{ padding: 40, alignItems: 'center' }}><ActivityIndicator color={colors.primary} /></View>;
@@ -350,7 +352,7 @@ export default function SettingsScreen() {
           : <View style={[styles.bannerPreview, styles.imgEmpty]}><Text style={{ color: '#cbd5e1', fontWeight: '700' }}>Default banner (no image set)</Text></View>}
         <View style={styles.actions}>
           <Button title={banner ? 'Change banner' : 'Upload banner'} onPress={uploadBanner} loading={bannerBusy} style={{ flex: 1 }} />
-          {banner ? <Button title="Remove" variant="ghost" onPress={removeBanner} disabled={bannerBusy} style={{ flex: 1 }} /> : null}
+          {banner ? <Button title="Remove" variant="ghost" onPress={() => setConfirmBanner(true)} disabled={bannerBusy} style={{ flex: 1 }} /> : null}
         </View>
       </Card>
 
@@ -358,6 +360,12 @@ export default function SettingsScreen() {
       <View style={styles.saveBar}>
         <Button title="SAVE SETTINGS" onPress={saveAll} loading={saving} style={{ minWidth: 200, paddingHorizontal: 24 }} />
       </View>
+
+      <ConfirmDialog
+        visible={confirmBanner} title="Remove Login Banner"
+        message="Remove the login page banner? Visitors will see the default login page until you upload a new one."
+        confirmText="Remove" loading={bannerBusy} onConfirm={removeBanner} onCancel={() => setConfirmBanner(false)}
+      />
     </View>
   );
 }
