@@ -4,6 +4,7 @@ import Icon from '../components/Icon';
 import MenuSearch from '../components/MenuSearch';
 import AccountMenu from '../components/AccountMenu';
 import Avatar from '../components/Avatar';
+import BrandLogo from '../components/BrandLogo';
 import { Card } from '../components/UI';
 import ProfileScreen from './ProfileScreen';
 import TxnPinScreen from './TxnPinScreen';
@@ -63,6 +64,8 @@ export default function RetailerShell({ user, onLogout }) {
 
   const Sidebar = (
     <View style={[styles.sidebar, !isWide && styles.drawer]}>
+      {/* Company logo (Application Settings -> Branding & Logos), same height as the topbar so they line up */}
+      <View style={styles.brandBand}><BrandLogo height={36} maxWidth={200} /></View>
       <View style={styles.profile}>
         <View style={styles.profileBanner} />
         <View style={styles.avatarLg}><Avatar photo={profile?.photo} name={profile?.fullName || user.fullName || user.username} size={78} /></View>
@@ -208,6 +211,7 @@ const styles = StyleSheet.create({
   sidebar: { width: 264, backgroundColor: colors.sidebarBg, borderRightWidth: 1, borderRightColor: colors.sidebarBorder, ...shadows.sm },
   drawer: { position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 40, height: '100%', ...shadows.pop },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.5)', zIndex: 30 },
+  brandBand: { height: 58, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, backgroundColor: colors.sidebarBg, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
   profile: { alignItems: 'center', paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
   profileBanner: { height: 72, alignSelf: 'stretch', backgroundColor: colors.primary, boxShadow: `inset 0 -30px 40px ${colors.primaryDark}` },
   avatarLg: { width: 86, height: 86, borderRadius: 43, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: -46, borderWidth: 4, borderColor: '#fff', ...shadows.card },

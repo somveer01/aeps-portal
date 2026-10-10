@@ -41,6 +41,7 @@ import ServicePermissionScreen from './ServicePermissionScreen';
 import ProfileScreen from './ProfileScreen';
 import AccountMenu from '../components/AccountMenu';
 import Avatar from '../components/Avatar';
+import BrandLogo from '../components/BrandLogo';
 import { api } from '../api/client';
 import { colors, radius, shadows } from '../theme';
 
@@ -113,6 +114,8 @@ export default function DashboardScreen({ user, onLogout }) {
   const Sidebar = (
     <View style={[styles.sidebar, !isWide && styles.drawer]}>
       {/* Profile: wallet band aligned with the topbar, then admin name */}
+      {/* Company logo (Application Settings -> Branding & Logos), same height as the topbar so they line up */}
+      <View style={styles.brandBand}><BrandLogo height={32} maxWidth={200} /></View>
       <View style={styles.profile}>
         <View style={styles.walletCard}>
           <Text style={styles.walletLabel}>WALLET BALANCE</Text>
@@ -471,6 +474,7 @@ const styles = StyleSheet.create({
   drawer: { position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 40, height: '100%', ...shadows.pop },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.5)', zIndex: 30 },
 
+  brandBand: { height: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, backgroundColor: colors.sidebarBg, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
   profile: { borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
   // Blue wallet band: same height as the topbar so the two align into one header strip.
   walletCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.primary, height: 48, paddingHorizontal: 16, ...shadows.card },
