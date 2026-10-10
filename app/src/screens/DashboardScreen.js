@@ -42,8 +42,11 @@ import ProfileScreen from './ProfileScreen';
 import AccountMenu from '../components/AccountMenu';
 import Avatar from '../components/Avatar';
 import BrandLogo from '../components/BrandLogo';
+import ModernSidebar from '../components/ModernSidebar';
+import ModernHeader from '../components/ModernHeader';
+import ModernDashboard from './ModernDashboard';
 import { api } from '../api/client';
-import { colors, radius, shadows } from '../theme';
+import { colors, radius, shadows, ui } from '../theme';
 
 const glass = (a) => (colors.onBrand === '#ffffff' ? `rgba(255,255,255,${a})` : `rgba(15,23,42,${a * 0.6})`); // header pills on the brand colour
 // Title of the top-level module (group) that owns a given route, else null.
@@ -71,8 +74,11 @@ export default function DashboardScreen({ user, onLogout }) {
   const [balance, setBalance] = useState(null);
   const [dash, setDash] = useState(null);
   const [profile, setProfile] = useState(null); // own profile: name, photo, contact (account menu + topbar avatar)
+  const [collapsed, setCollapsed] = useState(false); // Modern layout: sidebar reduced to its icon tiles
+  const [appName, setAppName] = useState('');
 
   useEffect(() => {
+    api.publicSettings().then((s) => setAppName((s.app && s.app.appName) || '')).catch(() => {});
     api.account.profile().then((r) => setProfile(r.profile)).catch(() => {});
     (async () => {
       try {
@@ -143,20 +149,40 @@ export default function DashboardScreen({ user, onLogout }) {
     </View>
   );
 
+  // "Modern" layout (Application Settings -> Layout style): white header, wide sidebar with coloured icon tiles, card dashboard.
+  const modern = ui.layout === 'modern';
+  const ModernBar = (
+    <ModernSidebar
+      menu={menu} active={active} expanded={expanded} collapsed={isWide && collapsed} drawer={!isWide}
+      onToggle={(id) => setExpanded((e) => ({ ...e, [id]: !e[id] }))} onSelect={selForm} onSearchSelect={onSearchSelect}
+      onExpandBar={(id) => { setCollapsed(false); setExpanded((e) => ({ ...e, [id]: true })); }}
+    />
+  );
+  const SidebarEl = modern ? ModernBar : Sidebar;
+
   return (
     <View style={styles.root}>
       {/* Sidebar */}
-      {isWide && Sidebar}
+      {isWide && SidebarEl}
       {!isWide && drawerOpen && (
         <>
           <Pressable style={styles.backdrop} onPress={() => setDrawerOpen(false)} />
-          {Sidebar}
+          {SidebarEl}
         </>
       )}
 
       <View style={styles.main}>
+        {modern ? (
+          <ModernHeader
+            isWide={isWide} onToggle={() => (isWide ? setCollapsed((c) => !c) : setDrawerOpen(true))}
+            appName={appName} balanceText={money(balance)} onWallet={() => selForm({ title: 'Wallet Transactions', route: '/admin-wallet/all' })}
+            onSettings={() => selForm({ title: 'Application Settings', route: '/modules/settings' })}
+            name={profile?.fullName || user.fullName || user.username} role="Super Admin" photo={profile?.photo}
+            onUser={() => { setUserMenu(true); api.adminWallet.balance().then((r) => setBalance(r.balance)).catch(() => {}); }}
+          />
+        ) : null}
         {/* Topbar (blue) */}
-        <View style={styles.topbar}>
+        {!modern ? (<View style={styles.topbar}>
           {!isWide && (
             <Pressable onPress={() => setDrawerOpen(true)} style={styles.hamburger}>
               <Text style={{ fontSize: 22, color: colors.onBrand }}>☰</Text>
@@ -177,14 +203,16 @@ export default function DashboardScreen({ user, onLogout }) {
             {isWide ? <Text style={styles.userChipName} numberOfLines={1}>{profile?.fullName || user.fullName || user.username}</Text> : null}
             <Text style={{ color: colors.onBrand }}>▾</Text>
           </Pressable>
-        </View>
+        </View>) : null}
 
         {/* Content */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
-          <Text style={styles.h1} numberOfLines={1}>
-            {(() => { const m = moduleOf(menu, active.route); return m ? `${m}  ›  ` : ''; })()}
-            <Text style={styles.h1Screen}>{active.title}</Text>
-          </Text>
+          {modern && active.route === '/' ? null : (
+            <Text style={styles.h1} numberOfLines={1}>
+              {(() => { const m = moduleOf(menu, active.route); return m ? `${m}  ›  ` : ''; })()}
+              <Text style={styles.h1Screen}>{active.title}</Text>
+            </Text>
+          )}
           {loading && <ActivityIndicator color={colors.primary} />}
           {error && <Text style={{ color: colors.danger }}>{error}</Text>}
 
@@ -262,6 +290,8 @@ export default function DashboardScreen({ user, onLogout }) {
             <RetailerPanelScreen />
           ) : active.route === '/support-tickets' ? (
             <SupportTicketScreen />
+          ) : active.route === '/' && modern ? (
+            <ModernDashboard notice={<NoticeBanner items={announcements} />} onOpen={selForm} />
           ) : active.route === '/' ? (
             <>
               <NoticeBanner items={announcements} />

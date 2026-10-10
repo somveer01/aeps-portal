@@ -75,6 +75,31 @@ function ColorPicker({ label, value, onChange, logoColors }) {
   );
 }
 
+// Layout style: Classic (the original look) or Modern (white header, wider sidebar with coloured icon tiles, card dashboard).
+function LayoutPicker({ value, onChange }) {
+  const cur = value === 'modern' ? 'modern' : 'classic';
+  const Card2 = ({ id, title, text, sketch }) => (
+    <Pressable onPress={() => onChange(id)} style={[styles.layoutCard, cur === id && styles.layoutCardOn]} accessibilityRole="radio" accessibilityState={{ selected: cur === id }}>
+      <View style={styles.layoutSketch}>{sketch}</View>
+      <Text style={styles.layoutTitle}>{title}{cur === id ? '  ✓' : ''}</Text>
+      <Text style={styles.hint}>{text}</Text>
+    </Pressable>
+  );
+  const bar = (w, c) => <View style={{ height: 6, width: w, borderRadius: 3, backgroundColor: c }} />;
+  return (
+    <View style={{ gap: 8, marginBottom: 18 }}>
+      <Text style={styles.label}>Layout style</Text>
+      <View style={styles.layoutRow}>
+        <Card2 id="classic" title="Classic" text="Coloured header, compact sidebar, the original dashboard."
+          sketch={(<><View style={{ height: 12, backgroundColor: colors.brand }} /><View style={{ flexDirection: 'row', flex: 1 }}><View style={{ width: 28, backgroundColor: '#fff', padding: 4, gap: 4 }}>{bar(18, colors.primary)}{bar(14, '#cbd5e1')}{bar(16, '#cbd5e1')}</View><View style={{ flex: 1, padding: 5, gap: 4 }}>{bar(40, '#cbd5e1')}{bar(30, '#e2e8f0')}</View></View></>)} />
+        <Card2 id="modern" title="Modern" text="White header, wider sidebar with coloured icon tiles, card dashboard with status tiles and charts."
+          sketch={(<><View style={{ height: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }} /><View style={{ flexDirection: 'row', flex: 1 }}><View style={{ width: 34, backgroundColor: '#fff', padding: 4, gap: 4 }}>{[colors.primary, '#16a34a', '#d97706'].map((c) => <View key={c} style={{ flexDirection: 'row', gap: 3, alignItems: 'center' }}><View style={{ width: 7, height: 7, borderRadius: 2, backgroundColor: c }} />{bar(14, '#cbd5e1')}</View>)}</View><View style={{ flex: 1, padding: 5, flexDirection: 'row', flexWrap: 'wrap', gap: 3 }}>{[1, 2, 3, 4].map((k) => <View key={k} style={{ width: 22, height: 14, borderRadius: 3, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0' }} />)}</View></View></>)} />
+      </View>
+      <Text style={styles.hint}>Press Save Settings to apply. You can switch back any time.</Text>
+    </View>
+  );
+}
+
 // What the chosen colours will look like (same resolveTheme() the app uses): header, active menu item, button and a table header.
 // Light colours (white, yellow ...) are handled automatically - the header keeps the exact colour with readable text,
 // the rest uses a darker shade of it.
@@ -185,10 +210,13 @@ export default function SettingsScreen() {
     setSaving(true);
     try {
       await api.saveAppSettings(s);
-      if (isHex(s.theme_primary) && isHex(s.theme_secondary)) {
-        await setThemeCache({ primary: s.theme_primary, secondary: s.theme_secondary });
-        applyTheme({ primary: s.theme_primary, secondary: s.theme_secondary });
-      }
+      // The cache holds colours + layout so the next start (and the reload below) already uses them.
+      const theme = {
+        primary: isHex(s.theme_primary) ? s.theme_primary : null, secondary: isHex(s.theme_secondary) ? s.theme_secondary : null,
+        layout: s.layout_style === 'modern' ? 'modern' : 'classic',
+      };
+      await setThemeCache(theme);
+      applyTheme(theme);
       setInfo('Application settings saved.');
       if (Platform.OS === 'web') setTimeout(() => window.location.reload(), 500);
     } catch (e) { setError(e.message || 'Could not save'); } finally { setSaving(false); }
@@ -253,6 +281,7 @@ export default function SettingsScreen() {
       {/* Theme */}
       <Card>
         <Text style={styles.section}>Theme Colors</Text>
+        <LayoutPicker value={s.layout_style} onChange={(v) => setField('layout_style', v)} />
 
         {/* Colours from the logo: only when a logo is set; without one the colours below work as before */}
         {logoPath ? (
@@ -353,6 +382,11 @@ const styles = StyleSheet.create({
   imgEmpty: { alignItems: 'center', justifyContent: 'center' },
   hexInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 9, color: colors.text, outlineStyle: 'none' },
   hint: { color: colors.muted, fontSize: 12.5, lineHeight: 18 },
+  layoutRow: { flexDirection: 'row', gap: 14, flexWrap: 'wrap' },
+  layoutCard: { width: 260, borderWidth: 2, borderColor: colors.border, borderRadius: radius.md, padding: 10, gap: 6, backgroundColor: '#fff' },
+  layoutCardOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  layoutSketch: { height: 78, borderRadius: 8, overflow: 'hidden', backgroundColor: '#f1f5fb', borderWidth: 1, borderColor: colors.border },
+  layoutTitle: { fontWeight: '800', color: colors.text, fontSize: 14 },
   pvWrap: { marginTop: 16, gap: 6, maxWidth: 420 },
   pvBox: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, overflow: 'hidden', backgroundColor: '#f1f5fb' },
   pvHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 34, paddingHorizontal: 10, borderBottomWidth: 1 },

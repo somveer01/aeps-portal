@@ -279,7 +279,8 @@ export const api = {
   },
 
   // Admin Wallet (top up / adjust admin wallet + history)
-  adminDashboard: () => request('/api/admin/dashboard', { auth: true }),
+  // params: from / to ('YYYY-MM-DD', optional) filter the `range` block used by the Modern dashboard.
+  adminDashboard: (params = {}) => request(`/api/admin/dashboard?${qs(params)}`, { auth: true }),
 
   adminWallet: {
     balance: () => request('/api/admin-wallet/balance', { auth: true }),

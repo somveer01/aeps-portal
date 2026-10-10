@@ -6,7 +6,8 @@ import { colors } from '../theme';
 // Company logo for the sidebar band: the Web Logo (native app: Mobile App Logo) uploaded in Application Settings ->
 // Branding & Logos. Falls back to the Logo Icon + app name, then to an "A" badge + app name; a logo file that does
 // not load falls back to the next option. Reads GET /api/settings/public once when it mounts.
-export default function BrandLogo({ height = 34, maxWidth = 190 }) {
+// iconOnly (collapsed sidebar): just the Logo Icon, or the badge when there is none.
+export default function BrandLogo({ height = 34, maxWidth = 190, iconOnly = false }) {
   const [brand, setBrand] = useState(null);
   const [failed, setFailed] = useState({}); // path -> true when the image did not load
 
@@ -23,6 +24,11 @@ export default function BrandLogo({ height = 34, maxWidth = 190 }) {
   const ok = (p) => p && !failed[p];
   const bad = (p) => () => setFailed((f) => ({ ...f, [p]: true }));
 
+  if (iconOnly) {
+    return ok(icon)
+      ? <Image source={{ uri: assetUrl(icon) }} onError={bad(icon)} resizeMode="contain" style={{ width: height, height }} accessibilityLabel={name} />
+      : <View style={[styles.badge, { width: height, height, borderRadius: height * 0.26 }]}><Text style={[styles.badgeText, { fontSize: height * 0.5 }]}>{name.trim().charAt(0).toUpperCase() || 'A'}</Text></View>;
+  }
   if (ok(main)) {
     return <Image source={{ uri: assetUrl(main) }} onError={bad(main)} resizeMode="contain" style={{ height, width: maxWidth }} accessibilityLabel={name} />;
   }

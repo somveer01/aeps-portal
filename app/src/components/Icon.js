@@ -79,6 +79,28 @@ export default function Icon({ name, size = 18, color = '#cbd5e1' }) {
       body = (<><Path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" {...p} /><Circle cx="12" cy="13.5" r="3.5" {...p} /></>); break;
     case 'chevron':
       body = <Path d="M9 6l6 6-6 6" {...p} />; break;
+    case 'menu':
+      body = <Path d="M4 6h16M4 12h10M4 18h16" {...p} />; break;
+    case 'cart':
+      body = (<><Circle cx="9" cy="20" r="1.3" {...p} /><Circle cx="18" cy="20" r="1.3" {...p} /><Path d="M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6" {...p} /></>); break;
+    case 'check':
+      body = (<><Circle cx="12" cy="12" r="9" {...p} /><Path d="M8 12.5l2.5 2.5L16 9.5" {...p} /></>); break;
+    case 'clock':
+      body = (<><Circle cx="12" cy="12" r="9" {...p} /><Path d="M12 7v5l3 2" {...p} /></>); break;
+    case 'xcircle':
+      body = (<><Circle cx="12" cy="12" r="9" {...p} /><Path d="M9 9l6 6M15 9l-6 6" {...p} /></>); break;
+    case 'arrowDown':
+      body = <Path d="M12 5v14M6 13l6 6 6-6" {...p} />; break;
+    case 'arrowUp':
+      body = <Path d="M12 19V5M6 11l6-6 6 6" {...p} />; break;
+    case 'filter':
+      body = <Path d="M3 5h18l-7 8v6l-4-2v-4L3 5z" {...p} />; break;
+    case 'calendar':
+      body = (<><Rect x="3" y="5" width="18" height="16" rx="2" {...p} /><Path d="M8 3v4M16 3v4M3 10h18" {...p} /></>); break;
+    case 'trend':
+      body = <Path d="M3 17l6-6 4 4 8-8M15 7h6v6" {...p} />; break;
+    case 'package':
+      body = <Path d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8" {...p} />; break;
     default:
       body = <Circle cx="12" cy="12" r="3" {...p} />;
   }

@@ -126,7 +126,11 @@ export function resolveTheme(primary, secondary) {
   };
 }
 
-export function applyTheme({ primary, secondary } = {}) {
+// The app look chosen in Application Settings (Layout style): 'classic' (default) or 'modern'. Set at startup with the theme.
+export const ui = { layout: 'classic' };
+
+export function applyTheme({ primary, secondary, layout } = {}) {
+  ui.layout = layout === 'modern' ? 'modern' : 'classic';
   const p = isHex(primary) ? primary : colors.brand;
   const s = isHex(secondary) ? secondary : colors.secondary;
   const t = resolveTheme(p, s);

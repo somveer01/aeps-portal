@@ -29,6 +29,7 @@ const APP_SETTINGS = {
   enable_email_otp: 'enum',
   theme_primary: 'color',
   theme_secondary: 'color',
+  layout_style: 'layout',
   cert_signature: 'path',
   cert_issuer_name: 'text',
   cert_issuer_designation: 'text',
@@ -38,18 +39,20 @@ const APP_SETTINGS = {
   privacy_policy: 'longtext',
 };
 const ENUM_VALUES = ['activate', 'deactivate'];
+const LAYOUTS = ['classic', 'modern']; // app look; empty = classic
 
 // GET /api/settings/public  (no auth) -> values the app/login screen needs
 async function getPublic(req, res, next) {
   try {
-    const [loginBanner, themePrimary, themeSecondary, appName, supportContact, supportEmail, webLogo, mobileLogo, logoIcon, favicon] = await Promise.all([
+    const [loginBanner, themePrimary, themeSecondary, appName, supportContact, supportEmail, webLogo, mobileLogo, logoIcon, favicon, layout] = await Promise.all([
       settingsRepo.get(LOGIN_BANNER_KEY), settingsRepo.get(THEME_PRIMARY_KEY), settingsRepo.get(THEME_SECONDARY_KEY),
       settingsRepo.get('app_name'), settingsRepo.get('support_contact'), settingsRepo.get('support_email'),
       settingsRepo.get('web_logo'), settingsRepo.get('mobile_logo'), settingsRepo.get('logo_icon'), settingsRepo.get('favicon'),
+      settingsRepo.get('layout_style'),
     ]);
     return res.json({
       loginBanner: loginBanner || null,
-      theme: { primary: themePrimary || null, secondary: themeSecondary || null },
+      theme: { primary: themePrimary || null, secondary: themeSecondary || null, layout: LAYOUTS.includes(layout) ? layout : 'classic' },
       app: {
         appName: appName || null, supportContact: supportContact || null, supportEmail: supportEmail || null,
         webLogo: webLogo || null, mobileLogo: mobileLogo || null, logoIcon: logoIcon || null, favicon: favicon || null,
@@ -91,6 +94,9 @@ async function saveApp(req, res, next) {
       } else if (type === 'enum') {
         val = String(val).toLowerCase().trim();
         if (val && !ENUM_VALUES.includes(val)) return res.status(400).json({ error: `${key} must be activate/deactivate`, code: 'INVALID_ENUM' });
+      } else if (type === 'layout') {
+        val = String(val).toLowerCase().trim();
+        if (val && !LAYOUTS.includes(val)) return res.status(400).json({ error: 'layout_style must be classic or modern', code: 'INVALID_LAYOUT' });
       } else if (type === 'path') {
         val = String(val).trim();
         if (val && !UPLOAD_PATH.test(val)) val = ''; // ignore non-upload paths

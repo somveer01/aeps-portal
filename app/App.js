@@ -27,7 +27,7 @@ export default function App() {
       if (!theme) {
         try {
           const s = await api.publicSettings();
-          if (s.theme?.primary && s.theme?.secondary) theme = s.theme;
+          if ((s.theme?.primary && s.theme?.secondary) || s.theme?.layout) theme = s.theme;
         } catch {}
       }
       if (theme) { applyTheme(theme); setThemeCache(theme); }
@@ -35,7 +35,7 @@ export default function App() {
 
       // Keep the cache fresh for next launch.
       api.publicSettings().then((s) => {
-        if (s.theme?.primary && s.theme?.secondary) setThemeCache(s.theme);
+        if ((s.theme?.primary && s.theme?.secondary) || s.theme?.layout) setThemeCache(s.theme);
       }).catch(() => {});
 
       // 2) Restore session.
