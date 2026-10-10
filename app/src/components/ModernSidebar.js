@@ -81,10 +81,10 @@ export default function ModernSidebar({ menu, active, expanded, onToggle, onSele
 }
 
 const styles = StyleSheet.create({
-  wrap: { backgroundColor: '#fff', borderRightWidth: 1, borderRightColor: '#eef2f7', ...shadows.sm },
+  wrap: { backgroundColor: '#fff', borderRightWidth: 1, borderRightColor: '#eef2f7', zIndex: 20, ...shadows.sm },
   drawer: { position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 40, height: '100%', ...shadows.pop },
   brand: { height: MODERN_HEADER_HEIGHT, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: '#eef2f7' },
-  search: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 },
+  search: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4, zIndex: 50 }, // the results list drops over the menu below
   item: { flexDirection: 'row', alignItems: 'center', gap: 14, marginHorizontal: 12, marginVertical: 3, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 14 },
   itemCollapsed: { justifyContent: 'center', paddingHorizontal: 0, marginHorizontal: 14 },
   tile: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },

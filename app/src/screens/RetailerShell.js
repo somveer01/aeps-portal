@@ -1,16 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, useWindowDimensions, ActivityIndicator } from 'react-native';
-import Icon from '../components/Icon';
-import MenuSearch from '../components/MenuSearch';
-import AccountMenu from '../components/AccountMenu';
+import { View, Text, StyleSheet } from 'react-native';
 import Avatar from '../components/Avatar';
-import BrandLogo from '../components/BrandLogo';
-import { Card } from '../components/UI';
+import AppShell, { ScreenTitle } from '../shell/AppShell';
+import useShellCore from '../shell/useShellCore';
+import { api } from '../api/client';
+import { colors, shadows } from '../theme';
+
 import ProfileScreen from './ProfileScreen';
 import TxnPinScreen from './TxnPinScreen';
-import { api } from '../api/client';
-import { colors, radius, shadows } from '../theme';
-
 import RetailerDashboard from './retailer/RetailerDashboard';
 import ServicesScreen from './retailer/ServicesScreen';
 import MobileRechargeScreen from './retailer/MobileRechargeScreen';
@@ -24,7 +21,6 @@ import RetailerReportScreen from './retailer/RetailerReportScreen';
 import MyCommissionSlabScreen from './retailer/MyCommissionSlabScreen';
 import SupportTicketScreen from './retailer/SupportTicketScreen';
 import SimplePage from './retailer/SimplePage';
-// Distributor / MD panel reuses the admin screens in their network mode.
 import UserManagerScreen from './UserManagerScreen';
 import FundTransferScreen from './FundTransferScreen';
 import FundTransferListScreen from './FundTransferListScreen';
@@ -33,60 +29,23 @@ import FundRequestScreen from './FundRequestScreen';
 import CommissionPackageScreen from './CommissionPackageScreen';
 import KycScreen from './retailer/KycScreen';
 
-const glass = (a) => (colors.onBrand === '#ffffff' ? `rgba(255,255,255,${a})` : `rgba(15,23,42,${a * 0.6})`); // header pills on the brand colour
 const money = (v) => (v == null ? '₹0.00' : `₹${Number(v).toFixed(2)}`);
 
+// The distributor / super distributor / retailer / employee panel: the shell (sidebar, header, account menu, Classic / Modern layout)
+// is the shared AppShell; this file only knows these routes -> screens and where the wallet balance comes from.
 export default function RetailerShell({ user, onLogout }) {
-  const { width } = useWindowDimensions();
-  const isWide = width >= 860;
-  const [menu, setMenu] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [active, setActive] = useState({ title: 'Dashboard', route: '/' });
-  const [expanded, setExpanded] = useState({});
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [userMenu, setUserMenu] = useState(false);
+  const core = useShellCore({ expandAll: false });
+  const { active, profile, setProfile } = core;
   const [summary, setSummary] = useState(null);
-  const [profile, setProfile] = useState(null); // own profile: name, photo, contact (account menu + avatars)
 
   const loadSummary = useCallback(() => { api.retailer.summary().then(setSummary).catch(() => {}); }, []);
-  useEffect(() => {
-    api.account.profile().then((r) => setProfile(r.profile)).catch(() => {});
-    api.menu().then(({ menu }) => setMenu(menu)).catch(() => {}).finally(() => setLoading(false));
-    loadSummary();
-  }, [loadSummary]);
+  useEffect(() => { loadSummary(); }, [loadSummary]);
 
-  const go = (route, title) => { setActive({ route, title }); if (!isWide) setDrawerOpen(false); loadSummary(); };
+  const go = (route, title) => { core.open({ route, title }); loadSummary(); };
   const doLogout = () => { api.account.logout().catch(() => {}).finally(() => onLogout()); };
-  const onSelect = (item) => { if (item.route === '/logout') return doLogout(); go(item.route, item.title); };
-  const onSearchSelect = (node, ancestorIds) => {
-    setExpanded((e) => { const n = { ...e }; ancestorIds.forEach((id) => { n[id] = true; }); return n; });
-    onSelect(node);
-  };
-
-  const Sidebar = (
-    <View style={[styles.sidebar, !isWide && styles.drawer]}>
-      {/* Company logo (Application Settings -> Branding & Logos), same height as the topbar so they line up */}
-      <View style={styles.brandBand}><BrandLogo height={36} maxWidth={200} /></View>
-      <View style={styles.profile}>
-        <View style={styles.profileBanner} />
-        <View style={styles.avatarLg}><Avatar photo={profile?.photo} name={profile?.fullName || user.fullName || user.username} size={78} /></View>
-        <Text style={styles.profileName}>{summary?.name || user.fullName || user.username}</Text>
-        <View style={styles.roleRow}>
-          <Text style={styles.profileRole}>{summary?.userTypeName || 'Retailer'}</Text>
-          {summary?.kycStatus === 'verified' ? <Text style={styles.kyc}>· KYC ✓</Text> : summary?.kycStatus === 'rejected' ? <Text style={styles.kycRej}>· KYC ✗</Text> : <Text style={styles.kycPend}>· KYC ⏳</Text>}
-        </View>
-      </View>
-      <View style={styles.sideSearch}>
-        <MenuSearch menu={menu} onSelect={onSearchSelect} variant="sidebar" />
-      </View>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 8 }}>
-        {menu.map((node) => (
-          <MenuNode key={node.id} node={node} active={active} expanded={expanded}
-            onToggle={(id) => setExpanded((e) => ({ ...e, [id]: !e[id] }))} onSelect={onSelect} />
-        ))}
-      </ScrollView>
-    </View>
-  );
+  const onSelect = (item) => { if (item.route === '/logout') return doLogout(); return go(item.route, item.title); };
+  const name = profile?.fullName || user.fullName || user.username;
+  const typeName = summary?.userTypeName || 'Retailer';
 
   const back = () => go('/services', 'Services');
   const renderContent = () => {
@@ -139,112 +98,57 @@ export default function RetailerShell({ user, onLogout }) {
   };
 
   return (
-    <View style={styles.root}>
-      {isWide && Sidebar}
-      {!isWide && drawerOpen && (<><Pressable style={styles.backdrop} onPress={() => setDrawerOpen(false)} />{Sidebar}</>)}
-      <View style={styles.main}>
-        <View style={styles.topbar}>
-          {!isWide && <Pressable onPress={() => setDrawerOpen(true)} style={styles.hamburger}><Text style={{ fontSize: 22, color: colors.onBrand }}>☰</Text></Pressable>}
-          <Text style={styles.topbarBrand} numberOfLines={1}>Welcome to AEPS Portal — {summary?.userTypeName || 'Retailer'}</Text>
-          {isWide && <MenuSearch menu={menu} onSelect={onSearchSelect} variant="topbar" style={styles.topSearch} />}
-          <View style={{ flex: 1 }} />
-          {/* Wallet pill: always visible; opens the account history */}
-          <Pressable style={styles.walletPill} onPress={() => go('/account-history', 'Account History')} accessibilityLabel="Wallet balance">
-            <Icon name="wallet" size={16} color="#fff" />
-            {isWide ? <Text style={styles.walletPillLabel}>Wallet</Text> : null}
-            <Text style={styles.walletPillAmt}>{money(summary?.balance)}</Text>
-          </Pressable>
-          <Pressable style={styles.userChip} onPress={() => { setUserMenu(true); loadSummary(); }}>
-            <Avatar photo={profile?.photo} name={profile?.fullName || user.fullName || user.username} size={30} light />
-            {isWide ? <Text style={styles.userChipName} numberOfLines={1}>{profile?.fullName || user.fullName || user.username}</Text> : null}
-            <Text style={{ color: colors.onBrand }}>▾</Text>
-          </Pressable>
+    <AppShell
+      panel="retailer"
+      core={core}
+      onSelect={onSelect}
+      header={{
+        name, photo: profile?.photo, role: typeName, brandText: `Welcome to AEPS Portal — ${typeName}`, balanceText: money(summary?.balance),
+        onWallet: () => go('/account-history', 'Account History'),
+        onSettings: () => go('/profile', 'My Profile'),
+        onUser: () => { core.setUserMenu(true); loadSummary(); },
+      }}
+      profileBlock={(
+        <View style={styles.profile}>
+          <View style={styles.profileBanner} />
+          <View style={styles.avatarLg}><Avatar photo={profile?.photo} name={name} size={78} /></View>
+          <Text style={styles.profileName}>{summary?.name || user.fullName || user.username}</Text>
+          <View style={styles.roleRow}>
+            <Text style={styles.profileRole}>{typeName}</Text>
+            {summary?.kycStatus === 'verified' ? <Text style={styles.kyc}>· KYC ✓</Text> : summary?.kycStatus === 'rejected' ? <Text style={styles.kycRej}>· KYC ✗</Text> : <Text style={styles.kycPend}>· KYC ⏳</Text>}
+          </View>
         </View>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
-          <Text style={styles.h1}>{active.title}</Text>
-          {loading ? <ActivityIndicator color={colors.primary} /> : renderContent()}
-        </ScrollView>
-      </View>
-      <AccountMenu
-        visible={userMenu}
-        onClose={() => setUserMenu(false)}
-        profile={profile || { fullName: summary?.name || user.fullName || user.username, userTypeName: summary?.userTypeName || 'Retailer', userCode: summary?.userCode || user.username }}
-        balance={summary?.balance}
-        onRefresh={() => api.retailer.summary().then(setSummary)}
-        walletAction={{ label: 'Fund Request', onPress: () => go('/fund-request', 'Fund Request') }}
-        onManage={() => go('/profile', 'My Profile')}
-        onLogout={doLogout}
-        items={[
+      )}
+      accountMenu={{
+        profile: profile || { fullName: summary?.name || user.fullName || user.username, userTypeName: typeName, userCode: summary?.userCode || user.username },
+        balance: summary?.balance,
+        onRefresh: () => api.retailer.summary().then(setSummary),
+        walletAction: { label: 'Fund Request', onPress: () => go('/fund-request', 'Fund Request') },
+        onManage: () => go('/profile', 'My Profile'),
+        onLogout: doLogout,
+        items: [
           { key: 'profile', label: 'My Profile', icon: 'user', onPress: () => go('/profile', 'My Profile') },
           { key: 'password', label: 'Change Password', icon: 'lock', onPress: () => go('/account-settings', 'Change Password') },
           { key: 'pin', label: 'Transaction PIN', icon: 'key', onPress: () => go('/txn-pin', 'Transaction PIN') },
           { key: 'kyc', label: 'KYC', icon: 'shield', onPress: () => go('/kyc', 'KYC') },
           { key: 'slab', label: 'My Commission Slab', icon: 'commission', onPress: () => go('/my-commission-slab', 'My Commission Slab') },
-        ]}
-      />
-    </View>
-  );
-}
-
-function MenuNode({ node, active, expanded, onToggle, onSelect, depth = 0 }) {
-  const hasChildren = node.children && node.children.length > 0;
-  const isActive = active.route && active.route === node.route;
-  const [hover, setHover] = useState(false);
-  return (
-    <View>
-      <Pressable onHoverIn={() => setHover(true)} onHoverOut={() => setHover(false)}
-        onPress={() => (hasChildren ? onToggle(node.id) : onSelect(node))}
-        style={[styles.link, { paddingLeft: 14 + depth * 14 }, isActive && styles.linkActive, hover && !isActive && styles.linkHover]}>
-        <Icon name={node.icon} color={isActive ? colors.onActive : colors.primary} />
-        <Text style={[styles.linkText, isActive && { color: colors.onActive, fontWeight: '600' }]} numberOfLines={1}>{node.title}</Text>
-        {hasChildren && <Text style={[styles.caret, isActive && { color: colors.onActive }]}>{expanded[node.id] ? '⌄' : '›'}</Text>}
-      </Pressable>
-      {hasChildren && expanded[node.id] && node.children.map((c) => (
-        <MenuNode key={c.id} node={c} active={active} expanded={expanded} onToggle={onToggle} onSelect={onSelect} depth={depth + 1} />
-      ))}
-    </View>
+        ],
+      }}
+      title={<ScreenTitle panel="retailer" text={active.title} />}
+    >
+      {renderContent()}
+    </AppShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, flexDirection: 'row', backgroundColor: colors.contentBg },
-  sidebar: { width: 264, backgroundColor: colors.sidebarBg, borderRightWidth: 1, borderRightColor: colors.sidebarBorder, ...shadows.sm },
-  drawer: { position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 40, height: '100%', ...shadows.pop },
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.5)', zIndex: 30 },
-  brandBand: { height: 58, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, backgroundColor: colors.sidebarBg, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
   profile: { alignItems: 'center', paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
   profileBanner: { height: 72, alignSelf: 'stretch', backgroundColor: colors.primary, boxShadow: `inset 0 -30px 40px ${colors.primaryDark}` },
   avatarLg: { width: 86, height: 86, borderRadius: 43, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: -46, borderWidth: 4, borderColor: '#fff', ...shadows.card },
-  avatarLgText: { color: '#fff', fontWeight: '800', fontSize: 28 },
   profileName: { fontWeight: '800', color: colors.text, marginTop: 10, fontSize: 15.5 },
   roleRow: { flexDirection: 'row', gap: 4, marginTop: 2 },
   profileRole: { color: colors.muted, fontSize: 11.5, textTransform: 'uppercase', letterSpacing: 0.6 },
   kyc: { color: colors.success, fontSize: 11.5, fontWeight: '700' },
   kycPend: { color: colors.warning, fontSize: 11.5, fontWeight: '700' },
   kycRej: { color: colors.danger, fontSize: 11.5, fontWeight: '700' },
-  sideSearch: { paddingHorizontal: 12, paddingTop: 12, zIndex: 50 },
-  topSearch: { flex: 1, maxWidth: 420, marginLeft: 12 },
-  link: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingRight: 12, marginHorizontal: 10, marginVertical: 1, borderRadius: 10 },
-  linkActive: { backgroundColor: colors.activeBg, ...shadows.sm },
-  linkHover: { backgroundColor: colors.primarySoft },
-  linkText: { color: colors.sidebarText, flex: 1, fontSize: 14, fontWeight: '500' },
-  caret: { color: colors.muted, fontSize: 16 },
-  main: { flex: 1 },
-  topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.topbarBg, borderBottomWidth: 1, borderBottomColor: colors.brandBorder, paddingHorizontal: 18, paddingVertical: 12, minHeight: 58, zIndex: 10, ...shadows.card },
-  hamburger: { padding: 4 },
-  topbarBrand: { color: colors.onBrand, fontWeight: '800', fontSize: 15, letterSpacing: 0.2 },
-  walletPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: glass(0.18), borderRadius: 22, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: glass(0.22), marginRight: 8 },
-  walletPillLabel: { color: colors.onBrand, opacity: 0.85, fontSize: 11.5, fontWeight: '700' },
-  walletPillAmt: { color: colors.onBrand, fontWeight: '800', fontSize: 13.5 },
-  userChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: glass(0.18), borderRadius: 22, paddingVertical: 5, paddingHorizontal: 8, maxWidth: 200, borderWidth: 1, borderColor: glass(0.22) },
-  avatarSm: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  avatarSmText: { color: colors.primary, fontWeight: '800', fontSize: 12 },
-  userChipName: { color: colors.onBrand, fontWeight: '600', flexShrink: 1 },
-  menuBackdrop: { flex: 1 },
-  userDropdown: { position: 'absolute', top: 58, right: 16, backgroundColor: '#fff', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, minWidth: 180, ...shadows.pop, overflow: 'hidden' },
-  dropHead: { padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  dropName: { fontWeight: '700', color: colors.text }, dropRole: { color: colors.muted, fontSize: 12 },
-  dropItem: { padding: 12 },
-  content: { padding: 26, maxWidth: 1200, width: '100%', alignSelf: 'center' },
-  h1: { fontSize: 23, fontWeight: '800', marginBottom: 20, color: colors.text, letterSpacing: -0.2 },
 });

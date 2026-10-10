@@ -2,13 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Icon from './Icon';
 import Avatar from './Avatar';
+import MenuSearch from './MenuSearch';
 import { api } from '../api/client';
 import { colors, shadows } from '../theme';
 import { MODERN_HEADER_HEIGHT } from './ModernSidebar';
 
 // Header of the "Modern" layout (white): sidebar toggle, a two-line label (app name + the API mode, mock or live),
 // the wallet pill, a settings shortcut and the account chip. Colours that are not neutral follow the theme Primary.
-export default function ModernHeader({ isWide, onToggle, appName, balanceText, onWallet, onSettings, name, role, photo, onUser }) {
+// menu / onSearchSelect / showSearch: while the sidebar is collapsed (no search box there) the header carries the menu search.
+export default function ModernHeader({ isWide, onToggle, appName, balanceText, onWallet, onSettings, name, role, photo, onUser, menu, onSearchSelect, showSearch }) {
   const [mode, setMode] = useState(null); // 'mock' | 'live'
   useEffect(() => { api.health().then((h) => setMode(h && h.mode)).catch(() => {}); }, []);
   const live = mode === 'live';
@@ -27,6 +29,7 @@ export default function ModernHeader({ isWide, onToggle, appName, balanceText, o
           </View>
         </View>
       ) : null}
+      {showSearch && menu ? <MenuSearch menu={menu} onSelect={onSearchSelect} variant="sidebar" style={styles.search} /> : null}
       <View style={{ flex: 1 }} />
 
       <Pressable onPress={onWallet} accessibilityLabel="Wallet balance" style={({ hovered }) => [styles.wallet, { backgroundColor: colors.primary }, hovered && { opacity: 0.92 }]}>
@@ -54,6 +57,7 @@ export default function ModernHeader({ isWide, onToggle, appName, balanceText, o
 
 const styles = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', gap: 14, height: MODERN_HEADER_HEIGHT, paddingHorizontal: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eef2f7', zIndex: 10, ...shadows.sm },
+  search: { width: 300, marginLeft: 8 },
   iconBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   hover: { backgroundColor: '#f1f5f9' },
   l1: { fontSize: 11.5, fontWeight: '800', letterSpacing: 1.1 },
