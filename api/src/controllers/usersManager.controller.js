@@ -437,4 +437,4 @@ async function resetPassword(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, search, create, update, changeImpactPreview, fund, remove, moduleOptions, resetPassword, createUserWithCode, mapFields, nameError, prepareName };
+module.exports = { list, search, create, update, changeImpactPreview, fund, remove, moduleOptions, resetPassword, createUserWithCode, mapFields, nameFields, nameError, prepareName };

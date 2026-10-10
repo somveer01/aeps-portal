@@ -288,6 +288,9 @@ export const api = {
   // Account settings → change password / logout (revoke) / transaction PIN
   account: {
     changePassword: (body) => request('/api/account/change-password', { method: 'POST', body, auth: true }),
+    // My Profile (own row): { profile }. update: { firstName, middleName, lastName, email, photo, currentPassword } - only what is sent changes.
+    profile: () => request('/api/account/profile', { auth: true }),
+    updateProfile: (body) => request('/api/account/profile', { method: 'PUT', body, auth: true }),
     logout: () => request('/api/account/logout', { method: 'POST', auth: true }),
     setTxnPin: (body) => request('/api/account/txn-pin', { method: 'POST', body, auth: true }),
   },

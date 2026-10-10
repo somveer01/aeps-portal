@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, useWindowDimensions, ActivityIndicator, Modal,
+  View, Text, StyleSheet, ScrollView, Pressable, useWindowDimensions, ActivityIndicator,
 } from 'react-native';
 import Icon from '../components/Icon';
 import MenuSearch from '../components/MenuSearch';
@@ -38,16 +38,11 @@ import TxnPinScreen from './TxnPinScreen';
 import RetailerPanelScreen from './RetailerPanelScreen';
 import SupportTicketScreen from './SupportTicketScreen';
 import ServicePermissionScreen from './ServicePermissionScreen';
+import ProfileScreen from './ProfileScreen';
+import AccountMenu from '../components/AccountMenu';
+import Avatar from '../components/Avatar';
 import { api } from '../api/client';
 import { colors, radius, shadows } from '../theme';
-
-function initials(user) {
-  const src = (user?.fullName || user?.username || '').trim();
-  if (!src) return '?';
-  const parts = src.split(/\s+/);
-  const s = parts.length >= 2 ? parts[0][0] + parts[1][0] : src.slice(0, 2);
-  return s.toUpperCase();
-}
 
 // Title of the top-level module (group) that owns a given route, else null.
 function moduleOf(nodes, route) {
@@ -73,8 +68,10 @@ export default function DashboardScreen({ user, onLogout }) {
   const [announcements, setAnnouncements] = useState([]);
   const [balance, setBalance] = useState(null);
   const [dash, setDash] = useState(null);
+  const [profile, setProfile] = useState(null); // own profile: name, photo, contact (account menu + topbar avatar)
 
   useEffect(() => {
+    api.account.profile().then((r) => setProfile(r.profile)).catch(() => {});
     (async () => {
       try {
         const { menu } = await api.menu();
@@ -169,9 +166,15 @@ export default function DashboardScreen({ user, onLogout }) {
           <View style={{ flex: 1 }} />
           {isWide && <MenuSearch menu={menu} onSelect={onSearchSelect} variant="topbar" style={styles.topSearch} />}
           <View style={{ flex: 1 }} />
-          <Pressable style={styles.userChip} onPress={() => setUserMenu(true)}>
-            <View style={styles.avatarSm}><Text style={styles.avatarSmText}>{initials(user)}</Text></View>
-            <Text style={styles.userChipName} numberOfLines={1}>{user.fullName || user.username}</Text>
+          {/* Wallet pill: always visible; opens the wallet transactions */}
+          <Pressable style={styles.walletPill} onPress={() => selForm({ title: 'Wallet Transactions', route: '/admin-wallet/all' })} accessibilityLabel="Wallet balance">
+            <Icon name="wallet" size={16} color="#fff" />
+            {isWide ? <Text style={styles.walletPillLabel}>Wallet</Text> : null}
+            <Text style={styles.walletPillAmt}>{money(balance)}</Text>
+          </Pressable>
+          <Pressable style={styles.userChip} onPress={() => { setUserMenu(true); api.adminWallet.balance().then((r) => setBalance(r.balance)).catch(() => {}); }}>
+            <Avatar photo={profile?.photo} name={profile?.fullName || user.fullName || user.username} size={30} light />
+            {isWide ? <Text style={styles.userChipName} numberOfLines={1}>{profile?.fullName || user.fullName || user.username}</Text> : null}
             <Text style={{ color: '#fff' }}>▾</Text>
           </Pressable>
         </View>
@@ -247,6 +250,10 @@ export default function DashboardScreen({ user, onLogout }) {
             <AdminWalletAddScreen />
           ) : active.route === '/admin-wallet/all' ? (
             <AdminWalletListScreen />
+          ) : active.route === '/profile' ? (
+            <ProfileScreen onChanged={setProfile} onLogout={onLogout}
+              goTo={(route) => selForm({ title: route === '/change-password' ? 'Change Password' : route === '/txn-pin' ? 'Transaction PIN' : 'Wallet Transactions', route })}
+              routes={{ password: '/change-password', pin: '/txn-pin', statement: '/admin-wallet/all' }} statementLabel="Wallet transactions" />
           ) : active.route === '/change-password' ? (
             <ChangePasswordScreen onDone={onLogout} />
           ) : active.route === '/txn-pin' ? (
@@ -356,20 +363,24 @@ export default function DashboardScreen({ user, onLogout }) {
         </ScrollView>
       </View>
 
-      {/* User dropdown */}
-      <Modal visible={userMenu} transparent animationType="fade" onRequestClose={() => setUserMenu(false)}>
-        <Pressable style={styles.menuBackdrop} onPress={() => setUserMenu(false)}>
-          <View style={styles.userDropdown}>
-            <View style={styles.dropHead}>
-              <Text style={styles.dropName}>{user.fullName || user.username}</Text>
-              <Text style={styles.dropRole}>{user.role}</Text>
-            </View>
-            <Pressable style={styles.dropItem} onPress={() => { setUserMenu(false); doLogout(); }}>
-              <Text style={{ color: colors.danger, fontWeight: '600' }}>Logout</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
+      {/* Account menu (Google style): identity, wallet, account actions */}
+      <AccountMenu
+        visible={userMenu}
+        onClose={() => setUserMenu(false)}
+        profile={profile || { fullName: user.fullName || user.username, role: user.role, userCode: user.username }}
+        balance={balance}
+        onRefresh={() => api.adminWallet.balance().then((r) => setBalance(r.balance))}
+        walletAction={{ label: 'Add Fund', onPress: () => selForm({ title: 'Add Fund', route: '/admin-wallet/add' }) }}
+        onManage={() => selForm({ title: 'My Profile', route: '/profile' })}
+        onLogout={doLogout}
+        items={[
+          { key: 'profile', label: 'My Profile', icon: 'user', onPress: () => selForm({ title: 'My Profile', route: '/profile' }) },
+          { key: 'password', label: 'Change Password', icon: 'lock', onPress: () => selForm({ title: 'Change Password', route: '/change-password' }) },
+          { key: 'pin', label: 'Transaction PIN', icon: 'key', onPress: () => selForm({ title: 'Transaction PIN', route: '/txn-pin' }) },
+          { key: 'settings', label: 'Application Settings', icon: 'settings', onPress: () => selForm({ title: 'Application Settings', route: '/modules/settings' }) },
+          { key: 'banners', label: 'Application Banners', icon: 'image', onPress: () => selForm({ title: 'Application Banners', route: '/modules/application-banners' }) },
+        ]}
+      />
     </View>
   );
 }
@@ -496,6 +507,9 @@ const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.topbarBg, paddingHorizontal: 18, paddingVertical: 0, height: 48, zIndex: 10, ...shadows.card },
   hamburger: { padding: 4 },
   topbarBrand: { color: '#fff', fontWeight: '800', fontSize: 17, letterSpacing: 0.3 },
+  walletPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 22, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
+  walletPillLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 11.5, fontWeight: '700' },
+  walletPillAmt: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
   userChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 22, paddingVertical: 5, paddingHorizontal: 8, maxWidth: 200, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
   avatarSm: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   avatarSmText: { color: colors.primary, fontWeight: '800', fontSize: 12 },

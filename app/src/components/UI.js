@@ -115,7 +115,7 @@ export function Button({ title, onPress, loading, disabled, variant = 'primary',
   );
 }
 
-export function TextField({ label, value, onChangeText, secureTextEntry, placeholder, keyboardType, autoFocus, maxLength, style, onSubmitEditing }) {
+export function TextField({ label, value, onChangeText, secureTextEntry, placeholder, keyboardType, autoFocus, maxLength, style, onSubmitEditing, editable = true }) {
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(!!secureTextEntry);
   return (
@@ -132,10 +132,11 @@ export function TextField({ label, value, onChangeText, secureTextEntry, placeho
           autoFocus={autoFocus}
           maxLength={maxLength}
           autoCapitalize="none"
+          editable={editable}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           onSubmitEditing={onSubmitEditing}
-          style={[styles.input, focused && styles.inputFocused, secureTextEntry && { paddingRight: 44 }]}
+          style={[styles.input, focused && styles.inputFocused, secureTextEntry && { paddingRight: 44 }, !editable && { backgroundColor: '#f1f5f9', color: colors.muted }]}
         />
         {secureTextEntry ? (
           <Pressable onPress={() => setHidden((h) => !h)} style={styles.eye} hitSlop={8}>

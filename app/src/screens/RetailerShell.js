@@ -1,8 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, useWindowDimensions, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, useWindowDimensions, ActivityIndicator } from 'react-native';
 import Icon from '../components/Icon';
 import MenuSearch from '../components/MenuSearch';
+import AccountMenu from '../components/AccountMenu';
+import Avatar from '../components/Avatar';
 import { Card } from '../components/UI';
+import ProfileScreen from './ProfileScreen';
+import TxnPinScreen from './TxnPinScreen';
 import { api } from '../api/client';
 import { colors, radius, shadows } from '../theme';
 
@@ -28,12 +32,6 @@ import FundRequestScreen from './FundRequestScreen';
 import CommissionPackageScreen from './CommissionPackageScreen';
 import KycScreen from './retailer/KycScreen';
 
-function initials(user) {
-  const src = (user?.fullName || user?.username || '').trim();
-  if (!src) return '?';
-  const p = src.split(/\s+/);
-  return (p.length >= 2 ? p[0][0] + p[1][0] : src.slice(0, 2)).toUpperCase();
-}
 const money = (v) => (v == null ? '₹0.00' : `₹${Number(v).toFixed(2)}`);
 
 export default function RetailerShell({ user, onLogout }) {
@@ -46,9 +44,11 @@ export default function RetailerShell({ user, onLogout }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
   const [summary, setSummary] = useState(null);
+  const [profile, setProfile] = useState(null); // own profile: name, photo, contact (account menu + avatars)
 
   const loadSummary = useCallback(() => { api.retailer.summary().then(setSummary).catch(() => {}); }, []);
   useEffect(() => {
+    api.account.profile().then((r) => setProfile(r.profile)).catch(() => {});
     api.menu().then(({ menu }) => setMenu(menu)).catch(() => {}).finally(() => setLoading(false));
     loadSummary();
   }, [loadSummary]);
@@ -65,7 +65,7 @@ export default function RetailerShell({ user, onLogout }) {
     <View style={[styles.sidebar, !isWide && styles.drawer]}>
       <View style={styles.profile}>
         <View style={styles.profileBanner} />
-        <View style={styles.avatarLg}><Text style={styles.avatarLgText}>{initials(user)}</Text></View>
+        <View style={styles.avatarLg}><Avatar photo={profile?.photo} name={profile?.fullName || user.fullName || user.username} size={78} /></View>
         <Text style={styles.profileName}>{summary?.name || user.fullName || user.username}</Text>
         <View style={styles.roleRow}>
           <Text style={styles.profileRole}>{summary?.userTypeName || 'Retailer'}</Text>
@@ -119,7 +119,14 @@ export default function RetailerShell({ user, onLogout }) {
     if (r === '/commission-report') return <RetailerReportScreen key="commission" kind="commission" />;
     if (r === '/my-commission-slab') return <MyCommissionSlabScreen />;
     if (r === '/support-ticket') return <SupportTicketScreen />;
-    if (r === '/profile') return <SimplePage title="Profile" note={`${summary?.shopName || ''}\nUser ID: ${summary?.userCode || user.username}\nName: ${summary?.name || user.fullName}`} />;
+    if (r === '/profile') {
+      return (
+        <ProfileScreen onChanged={(p) => { setProfile(p); loadSummary(); }} onLogout={onLogout}
+          goTo={(route) => go(route, route === '/account-settings' ? 'Change Password' : route === '/txn-pin' ? 'Transaction PIN' : 'Account History')}
+          routes={{ password: '/account-settings', pin: '/txn-pin', statement: '/account-history' }} statementLabel="Account history" />
+      );
+    }
+    if (r === '/txn-pin') return <TxnPinScreen />;
     if (r === '/kyc') return <KycScreen onDone={loadSummary} />;
     if (r === '/account-settings') {
       const ChangePasswordScreen = require('./ChangePasswordScreen').default;
@@ -138,9 +145,15 @@ export default function RetailerShell({ user, onLogout }) {
           <Text style={styles.topbarBrand} numberOfLines={1}>Welcome to AEPS Portal — {summary?.userTypeName || 'Retailer'}</Text>
           {isWide && <MenuSearch menu={menu} onSelect={onSearchSelect} variant="topbar" style={styles.topSearch} />}
           <View style={{ flex: 1 }} />
-          <Pressable style={styles.userChip} onPress={() => setUserMenu(true)}>
-            <View style={styles.avatarSm}><Text style={styles.avatarSmText}>{initials(user)}</Text></View>
-            <Text style={styles.userChipName} numberOfLines={1}>{user.fullName || user.username}</Text>
+          {/* Wallet pill: always visible; opens the account history */}
+          <Pressable style={styles.walletPill} onPress={() => go('/account-history', 'Account History')} accessibilityLabel="Wallet balance">
+            <Icon name="wallet" size={16} color="#fff" />
+            {isWide ? <Text style={styles.walletPillLabel}>Wallet</Text> : null}
+            <Text style={styles.walletPillAmt}>{money(summary?.balance)}</Text>
+          </Pressable>
+          <Pressable style={styles.userChip} onPress={() => { setUserMenu(true); loadSummary(); }}>
+            <Avatar photo={profile?.photo} name={profile?.fullName || user.fullName || user.username} size={30} light />
+            {isWide ? <Text style={styles.userChipName} numberOfLines={1}>{profile?.fullName || user.fullName || user.username}</Text> : null}
             <Text style={{ color: '#fff' }}>▾</Text>
           </Pressable>
         </View>
@@ -149,14 +162,23 @@ export default function RetailerShell({ user, onLogout }) {
           {loading ? <ActivityIndicator color={colors.primary} /> : renderContent()}
         </ScrollView>
       </View>
-      <Modal visible={userMenu} transparent animationType="fade" onRequestClose={() => setUserMenu(false)}>
-        <Pressable style={styles.menuBackdrop} onPress={() => setUserMenu(false)}>
-          <View style={styles.userDropdown}>
-            <View style={styles.dropHead}><Text style={styles.dropName}>{user.fullName || user.username}</Text><Text style={styles.dropRole}>{summary?.userTypeName || 'Retailer'}</Text></View>
-            <Pressable style={styles.dropItem} onPress={() => { setUserMenu(false); doLogout(); }}><Text style={{ color: colors.danger, fontWeight: '600' }}>Logout</Text></Pressable>
-          </View>
-        </Pressable>
-      </Modal>
+      <AccountMenu
+        visible={userMenu}
+        onClose={() => setUserMenu(false)}
+        profile={profile || { fullName: summary?.name || user.fullName || user.username, userTypeName: summary?.userTypeName || 'Retailer', userCode: summary?.userCode || user.username }}
+        balance={summary?.balance}
+        onRefresh={() => api.retailer.summary().then(setSummary)}
+        walletAction={{ label: 'Fund Request', onPress: () => go('/fund-request', 'Fund Request') }}
+        onManage={() => go('/profile', 'My Profile')}
+        onLogout={doLogout}
+        items={[
+          { key: 'profile', label: 'My Profile', icon: 'user', onPress: () => go('/profile', 'My Profile') },
+          { key: 'password', label: 'Change Password', icon: 'lock', onPress: () => go('/account-settings', 'Change Password') },
+          { key: 'pin', label: 'Transaction PIN', icon: 'key', onPress: () => go('/txn-pin', 'Transaction PIN') },
+          { key: 'kyc', label: 'KYC', icon: 'shield', onPress: () => go('/kyc', 'KYC') },
+          { key: 'slab', label: 'My Commission Slab', icon: 'commission', onPress: () => go('/my-commission-slab', 'My Commission Slab') },
+        ]}
+      />
     </View>
   );
 }
@@ -210,6 +232,9 @@ const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.topbarBg, paddingHorizontal: 18, paddingVertical: 12, minHeight: 58, zIndex: 10, ...shadows.card },
   hamburger: { padding: 4 },
   topbarBrand: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.2 },
+  walletPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 22, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)', marginRight: 8 },
+  walletPillLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 11.5, fontWeight: '700' },
+  walletPillAmt: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
   userChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 22, paddingVertical: 5, paddingHorizontal: 8, maxWidth: 200, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
   avatarSm: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   avatarSmText: { color: colors.primary, fontWeight: '800', fontSize: 12 },

@@ -174,6 +174,8 @@ router.post('/admin-wallet/add', requireAdmin, idempotency, adminWallet.add);
 
 // Account Settings → self-service (any authenticated user).
 router.post('/account/change-password', requireAuth, account.changePassword);
+router.get('/account/profile', requireAuth, account.getProfile);
+router.put('/account/profile', requireAuth, account.updateProfile);
 router.post('/account/logout', requireAuth, account.logout);
 router.post('/account/txn-pin', requireAuth, account.setTxnPin);
 
