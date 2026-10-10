@@ -42,6 +42,7 @@ import ProfileScreen from './ProfileScreen';
 import AccountMenu from '../components/AccountMenu';
 import Avatar from '../components/Avatar';
 import BrandLogo from '../components/BrandLogo';
+import TopBar, { TOPBAR_HEIGHT } from '../components/TopBar';
 import { api } from '../api/client';
 import { colors, radius, shadows } from '../theme';
 
@@ -115,7 +116,7 @@ export default function DashboardScreen({ user, onLogout }) {
     <View style={[styles.sidebar, !isWide && styles.drawer]}>
       {/* Company logo band (same height as the topbar), then the admin name. The wallet balance lives in the topbar pill / account menu. */}
       <View style={styles.profile}>
-        <View style={styles.brandBand}><BrandLogo /></View>
+        <View style={styles.brandBand}><BrandLogo height={40} maxWidth={210} /></View>
         <View style={styles.profileInfo}>
           <Text style={styles.profileName}>{user.fullName || user.username}</Text>
           <Text style={styles.profileRole}>{user.role}</Text>
@@ -153,29 +154,13 @@ export default function DashboardScreen({ user, onLogout }) {
       )}
 
       <View style={styles.main}>
-        {/* Topbar (blue) */}
-        <View style={styles.topbar}>
-          {!isWide && (
-            <Pressable onPress={() => setDrawerOpen(true)} style={styles.hamburger}>
-              <Text style={{ fontSize: 22, color: '#fff' }}>☰</Text>
-            </Pressable>
-          )}
-          <Text style={styles.topbarBrand}>AEPS Portal</Text>
-          <View style={{ flex: 1 }} />
-          {isWide && <MenuSearch menu={menu} onSelect={onSearchSelect} variant="topbar" style={styles.topSearch} />}
-          <View style={{ flex: 1 }} />
-          {/* Wallet pill: always visible; opens the wallet transactions */}
-          <Pressable style={styles.walletPill} onPress={() => selForm({ title: 'Wallet Transactions', route: '/admin-wallet/all' })} accessibilityLabel="Wallet balance">
-            <Icon name="wallet" size={16} color="#fff" />
-            {isWide ? <Text style={styles.walletPillLabel}>Wallet</Text> : null}
-            <Text style={styles.walletPillAmt}>{money(balance)}</Text>
-          </Pressable>
-          <Pressable style={styles.userChip} onPress={() => { setUserMenu(true); api.adminWallet.balance().then((r) => setBalance(r.balance)).catch(() => {}); }}>
-            <Avatar photo={profile?.photo} name={profile?.fullName || user.fullName || user.username} size={30} light />
-            {isWide ? <Text style={styles.userChipName} numberOfLines={1}>{profile?.fullName || user.fullName || user.username}</Text> : null}
-            <Text style={{ color: '#fff' }}>▾</Text>
-          </Pressable>
-        </View>
+        {/* Header: search, wallet pill, account chip (theme coloured accent) */}
+        <TopBar
+          isWide={isWide} onMenu={() => setDrawerOpen(true)} menu={menu} onSearchSelect={onSearchSelect}
+          walletAmount={money(balance)} onWallet={() => selForm({ title: 'Wallet Transactions', route: '/admin-wallet/all' })}
+          photo={profile?.photo} name={profile?.fullName || user.fullName || user.username} role="Admin"
+          onUser={() => { setUserMenu(true); api.adminWallet.balance().then((r) => setBalance(r.balance)).catch(() => {}); }}
+        />
 
         {/* Content */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
@@ -471,7 +456,7 @@ const styles = StyleSheet.create({
 
   profile: { borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
   // Logo band: same height as the topbar so the two line up as one header strip.
-  brandBand: { height: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, backgroundColor: colors.sidebarBg, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
+  brandBand: { height: TOPBAR_HEIGHT, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, backgroundColor: colors.sidebarBg, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
   profileInfo: { alignItems: 'center', paddingTop: 12, paddingBottom: 14, paddingHorizontal: 14 },
   profileName: { fontWeight: '800', color: colors.text, fontSize: 15 },
   profileRole: { color: colors.muted, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 1 },
@@ -480,7 +465,6 @@ const styles = StyleSheet.create({
   menuTools: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 2 },
   menuToolText: { color: colors.primary, fontSize: 11.5, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
   menuToolSep: { color: colors.muted, fontSize: 12 },
-  topSearch: { width: 420, maxWidth: '45%', marginHorizontal: 12 },
 
   link: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 8, paddingLeft: 10, paddingRight: 12, marginHorizontal: 10, marginVertical: 1.5, borderRadius: 12, position: 'relative' },
   linkTop: { marginVertical: 2 },
@@ -500,23 +484,7 @@ const styles = StyleSheet.create({
   main: { flex: 1 },
 
   // Topbar (blue)
-  topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.topbarBg, paddingHorizontal: 18, paddingVertical: 0, height: 48, zIndex: 10, ...shadows.card },
-  hamburger: { padding: 4 },
-  topbarBrand: { color: '#fff', fontWeight: '800', fontSize: 17, letterSpacing: 0.3 },
-  walletPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 22, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
-  walletPillLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 11.5, fontWeight: '700' },
-  walletPillAmt: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
-  userChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 22, paddingVertical: 5, paddingHorizontal: 8, maxWidth: 200, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
-  avatarSm: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  avatarSmText: { color: colors.primary, fontWeight: '800', fontSize: 12 },
-  userChipName: { color: '#fff', fontWeight: '600', flexShrink: 1 },
 
-  menuBackdrop: { flex: 1 },
-  userDropdown: { position: 'absolute', top: 58, right: 16, backgroundColor: '#fff', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, minWidth: 180, shadowColor: '#0f172a', shadowOpacity: 0.15, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 6, overflow: 'hidden' },
-  dropHead: { padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  dropName: { fontWeight: '700', color: colors.text },
-  dropRole: { color: colors.muted, fontSize: 12, textTransform: 'capitalize' },
-  dropItem: { padding: 12 },
 
   content: { paddingHorizontal: 13, paddingVertical: 10, maxWidth: 1200, width: '100%', alignSelf: 'center' },
   h1: { fontSize: 12, fontWeight: '800', marginBottom: 8, color: colors.text, letterSpacing: 0.1 },
