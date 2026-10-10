@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { createPortal } from 'react-dom';
 import { colors, radius, shadows } from '../theme';
+import buttonLabel from './buttonLabel';
 
 /**
  * Cross-platform searchable dropdown. options: [{ label, value }].
@@ -110,7 +111,7 @@ export function Button({ title, onPress, loading, disabled, variant = 'primary',
       {loading ? (
         <ActivityIndicator color={isGhost ? colors.text : onBtn} />
       ) : (
-        <Text style={[styles.btnText, { color: onBtn }, isGhost && { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.btnText, { color: onBtn }, isGhost && { color: colors.text }]}>{buttonLabel(title)}</Text>
       )}
     </Pressable>
   );

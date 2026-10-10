@@ -8,6 +8,7 @@ import UserPicker from '../components/UserPicker';
 import { api } from '../api/client';
 import DataGrid, { gridParams } from '../components/DataGrid';
 import { colors, radius } from '../theme';
+import buttonLabel from '../components/buttonLabel';
 
 // SAP Fiori design tokens (scoped to this screen). Accent follows the app theme.
 const FIORI = {
@@ -48,7 +49,7 @@ function FioriButton({ title, onPress, variant = 'emphasized', disabled }) {
       onHoverIn={() => setHover(true)} onHoverOut={() => setHover(false)}
       style={[styles.fBtn, base, hover && !disabled && hov, disabled && { opacity: 0.5 }]}
     >
-      <Text style={[styles.fBtnText, variant === 'emphasized' && { color: '#fff' }]}>{title}</Text>
+      <Text style={[styles.fBtnText, variant === 'emphasized' && { color: '#fff' }]}>{buttonLabel(title)}</Text>
     </Pressable>
   );
 }

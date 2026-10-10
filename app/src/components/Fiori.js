@@ -6,6 +6,7 @@ import {
   View, Text, Pressable, StyleSheet, TextInput,
 } from 'react-native';
 import { shadows, colors } from '../theme';
+import buttonLabel from './buttonLabel';
 
 // Structural tones stay Fiori-neutral; the accent (blue*) follows the app theme
 // (colors.* is already themed before screens/StyleSheets load, see App.js).
@@ -25,7 +26,7 @@ export function FioriButton({ title, onPress, variant = 'emphasized', disabled }
       onHoverIn={() => setHover(true)} onHoverOut={() => setHover(false)}
       style={[s.btn, base, hover && !disabled && hov, disabled && { opacity: 0.5 }]}
     >
-      <Text style={[s.btnText, variant === 'emphasized' && { color: '#fff' }]}>{title}</Text>
+      <Text style={[s.btnText, variant === 'emphasized' && { color: '#fff' }]}>{buttonLabel(title)}</Text>
     </Pressable>
   );
 }

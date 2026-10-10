@@ -109,7 +109,7 @@ export default function FundRequestScreen({ mode = 'admin', onDone }) {
         {error ? <Alert type="error">{error}</Alert> : null}
         <DataGrid
           rows={rows} loading={loading}
-          emptyText={isMine ? 'No requests yet. Tap + NEW REQUEST after you pay.' : 'No fund requests found.'}
+          emptyText={isMine ? 'No requests yet. Tap + New Request after you pay.' : 'No fund requests found.'}
           sort={sort} onSort={setSort} filters={colFilters} onFilter={setColFilters}
           columns={[
             { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
