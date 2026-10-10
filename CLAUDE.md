@@ -93,6 +93,16 @@ scripts/deploy.sh status
 
 Setup once: copy `.deploy.env.example` to `.deploy.env` (git-ignored) and set `DEPLOY_HOST` (changes on every EC2 stop/start) and `DEPLOY_KEY` (path to the .pem, kept outside the repo). The very first run needs `--from <sha currently on the server>`; after that the server keeps a `~/fintech/.deployed_sha` marker. `scripts/remote-deploy.sh` / `remote-rollback.sh` are uploaded and run on the server by the script. Rollback restores the old files and re-tags the saved images; migration/data changes stay in the DB (the pre-deploy dump is in `~/backups/`). `docker-compose.yml` is not deployed by the script (it warns when it changes).
 
+## Password reset & recovery
+
+- **No one can see a password** (bcrypt only). Admin → Users Manager 🔑 → `POST /api/users/:id/reset-password {newPassword?}` sets a temporary password
+  (given, min 8, else generated; returned once, never stored/logged), signs the user out everywhere (`token_epoch`), clears the failed-login lock and sets
+  `users.must_change_password`. While it is set, `middleware/auth.js` answers `403 PASSWORD_CHANGE_REQUIRED` to everything except `/api/me`,
+  `/api/account/change-password`, `/api/account/logout`; the app shows only the Change Password screen (`App.js`). Admin only, managed users only.
+- **Admin forgot their own password:** on the server `docker compose exec api node scripts/reset-admin-password.js [--username admin]` prints a new random password once.
+- Blocking a user (Status switch) also bumps `token_epoch`, so an unblock does not revive old sessions.
+- No self-service "Forgot password?" yet: it needs a real SMS provider + `NODE_ENV=production` first (the dev master OTP would let anyone reset any account).
+
 ## Conventions & gotchas
 
 - Module routes are `/modules/<x>`; top-level ones are `/<x>` (e.g. `/company-banks`). Match them in `DashboardScreen.js`'s route chain.

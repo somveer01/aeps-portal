@@ -118,7 +118,7 @@ async function verifyOtp(req, res, next) {
     await auditRepo.log({ userId, username: user.username, event: 'login_success', ...meta });
     return res.json({
       accessToken: tokenService.signAccess(user),
-      user: { id: user.id, username: user.username, fullName: user.full_name, role: user.role },
+      user: { id: user.id, username: user.username, fullName: user.full_name, role: user.role, mustChangePassword: !!user.must_change_password },
     });
   } catch (err) {
     return next(err);
@@ -151,7 +151,7 @@ async function me(req, res, next) {
     const user = await userRepo.findById(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     return res.json({
-      user: { id: user.id, username: user.username, fullName: user.full_name, role: user.role, mobile: user.mobile },
+      user: { id: user.id, username: user.username, fullName: user.full_name, role: user.role, mobile: user.mobile, mustChangePassword: !!user.must_change_password },
     });
   } catch (err) {
     return next(err);

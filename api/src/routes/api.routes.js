@@ -145,6 +145,7 @@ router.get('/users/search', requireAdmin, usersManager.search);
 router.get('/users/:id/change-impact', requireAdmin, usersManager.changeImpactPreview);
 router.put('/users/:id', requireAdmin, usersManager.update);
 router.post('/users/:id/fund', requireAdmin, idempotency, usersManager.fund);
+router.post('/users/:id/reset-password', requireAdmin, usersManager.resetPassword);
 router.delete('/users/:id', requireAdmin, usersManager.remove);
 
 // Reports + Fund Requests.

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ActivityIndicator, ScrollView,
+  View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ActivityIndicator, ScrollView, Platform,
 } from 'react-native';
 import { Card, Button, Alert, Select, DateField } from '../components/UI';
 import UserPicker from '../components/UserPicker';
@@ -93,6 +93,9 @@ export default function UserManagerScreen({ network = false, onDone }) {
   // fund / view / delete
   const [fundUser, setFundUser] = useState(null); const [fundAmount, setFundAmount] = useState(''); const [fundType, setFundType] = useState('credit'); const [funding, setFunding] = useState(false); const [fundError, setFundError] = useState(null);
   const [viewUser, setViewUser] = useState(null);
+  // admin: reset a user's password (temporary password shown once)
+  const [resetUser, setResetUser] = useState(null); const [resetPwd, setResetPwd] = useState(''); const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState(null); const [resetDone, setResetDone] = useState(null); const [copied, setCopied] = useState(false);
   const [toDelete, setToDelete] = useState(null); const [deleting, setDeleting] = useState(false);
   const [impact, setImpact] = useState(null); const [moveTo, setMoveTo] = useState('admin'); // type / parent change preview
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
@@ -265,6 +268,17 @@ export default function UserManagerScreen({ network = false, onDone }) {
       setFundUser(null); await load({ page });
       if (onDone) onDone();
     } catch (e) { setFundError(e.message); } finally { setFunding(false); }
+  };
+  const openReset = (row) => { setResetUser(row); setResetPwd(''); setResetError(null); setResetDone(null); setCopied(false); };
+  const closeReset = () => { setResetUser(null); setResetDone(null); setResetPwd(''); };
+  const submitReset = async () => {
+    if (resetPwd && resetPwd.length < 8) { setResetError('Password must be at least 8 characters, or leave it empty to generate one.'); return; }
+    setResetting(true); setResetError(null);
+    try { const res = await api.managedUsers.resetPassword(resetUser.id, resetPwd ? { newPassword: resetPwd } : {}); setResetDone(res.password); setResetPwd(''); }
+    catch (e) { setResetError(e.message); } finally { setResetting(false); }
+  };
+  const copyPassword = () => {
+    try { navigator.clipboard.writeText(resetDone).then(() => setCopied(true), () => {}); } catch { /* no clipboard (native): the text is selectable */ }
   };
   const confirmDelete = async () => {
     setDeleting(true);
@@ -455,12 +469,13 @@ export default function UserManagerScreen({ network = false, onDone }) {
             { key: 'ekyc', title: 'E-Kyc', width: 100, render: (row) => <KycBadge value={row.ekyc_status} /> },
             { key: 'kyc', title: 'Kyc', width: 100, render: (row) => <KycBadge value={row.kyc_status} /> },
             { key: 'package', title: 'Package', width: 140, render: (row) => <Text style={styles.td}>{row.commission_package_name || 'Admin default'}</Text> },
-            { key: 'action', title: 'Action', width: 140, sortable: false, filterable: false, render: (row) => (
+            { key: 'action', title: 'Action', width: network ? 140 : 175, sortable: false, filterable: false, render: (row) => (
               <View style={styles.actions}>
                 {/* In the network panel money moves only to users directly under you. */}
                 {!network || row.parent_id === meId ? <Pressable onPress={() => openFund(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>💰</Text></Pressable> : null}
                 <Pressable onPress={() => setViewUser(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>👁️</Text></Pressable>
                 <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 15 }}>✏️</Text></Pressable>
+                {!network ? <Pressable onPress={() => openReset(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>🔑</Text></Pressable> : null}
                 {!network ? <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 15 }}>🗑️</Text></Pressable> : null}
               </View>
             ) },
@@ -498,6 +513,37 @@ export default function UserManagerScreen({ network = false, onDone }) {
               <Button title="Cancel" variant="ghost" onPress={() => setFundUser(null)} style={{ flex: 1 }} />
               <Button title={fundType === 'debit' ? 'Debit' : 'Credit'} onPress={submitFund} loading={funding} style={{ flex: 1, backgroundColor: fundType === 'debit' ? colors.danger : colors.success }} />
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Reset password modal (admin) */}
+      <Modal visible={!!resetUser} transparent animationType="fade" onRequestClose={closeReset}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Reset Password</Text>
+            <Text style={styles.para}>{resetUser?.name} ({resetUser?.user_code})</Text>
+            {resetDone ? (
+              <>
+                <Alert type="success">Password reset. Give this temporary password to the user - it is shown only once.</Alert>
+                <Text selectable style={styles.tempPwd}>{resetDone}</Text>
+                <Text style={styles.hint}>The user is signed out everywhere and must choose a new password at the next login.</Text>
+                <View style={styles.modalActions}>
+                  <Button title={copied ? 'Copied' : 'Copy'} variant="ghost" onPress={copyPassword} style={{ flex: 1 }} />
+                  <Button title="Done" onPress={closeReset} style={{ flex: 1 }} />
+                </View>
+              </>
+            ) : (
+              <>
+                {resetError ? <Alert type="error">{resetError}</Alert> : null}
+                <Text style={styles.hint}>This signs the user out everywhere, unlocks the account and makes them choose a new password at the next login.</Text>
+                <TextInput value={resetPwd} onChangeText={setResetPwd} placeholder="New password (optional, min 8) - empty = generate one" placeholderTextColor={colors.muted} style={styles.input} autoCapitalize="none" />
+                <View style={styles.modalActions}>
+                  <Button title="Cancel" variant="ghost" onPress={closeReset} style={{ flex: 1 }} />
+                  <Button title="Reset password" onPress={submitReset} loading={resetting} style={{ flex: 1 }} />
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -630,6 +676,7 @@ const styles = StyleSheet.create({
   modalCard: { backgroundColor: '#fff', borderRadius: radius.md, padding: 22, width: '100%', maxWidth: 420, gap: 12 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
   modalActions: { flexDirection: 'row', gap: 12, marginTop: 6 },
+  tempPwd: { fontSize: 22, fontWeight: '700', letterSpacing: 1.5, textAlign: 'center', color: colors.text, backgroundColor: colors.bg, borderRadius: 8, paddingVertical: 14, ...(Platform.OS === 'web' ? { userSelect: 'all' } : {}) },
   para: { color: colors.text, lineHeight: 21 },
   typeBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingVertical: 10, alignItems: 'center' },
   typeBtnOn: { backgroundColor: colors.success, borderColor: colors.success },

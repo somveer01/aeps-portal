@@ -1,6 +1,8 @@
 'use strict';
 
 const bcrypt = require('bcryptjs');
+const userRepo = require('../repositories/user.repo');
+const { MIN_PASSWORD, generatePassword } = require('../utils/password');
 const { parseGrid } = require('../utils/gridQuery');
 const repo = require('../repositories/usersManager.repo');
 const userTypeRepo = require('../repositories/userType.repo');
@@ -416,4 +418,23 @@ async function remove(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, search, create, update, changeImpactPreview, fund, remove, moduleOptions, createUserWithCode, mapFields, nameError, prepareName };
+// POST /api/users/:id/reset-password  { newPassword? }  (admin only; managed users only - the admin account is not a managed user)
+// Sets a temporary password (the one given, else a generated one, shown once in the answer and never stored or logged),
+// signs the user out everywhere, clears a failed-login lock and makes them choose their own password at the next login.
+async function resetPassword(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const existing = Number.isInteger(id) ? await repo.findFull(id) : null;
+    if (!existing) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
+    const given = req.body && req.body.newPassword !== undefined && req.body.newPassword !== null ? String(req.body.newPassword) : '';
+    if (given && given.length < MIN_PASSWORD) return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD} characters`, code: 'WEAK_PASSWORD' });
+    const password = given || generatePassword();
+    const hash = await bcrypt.hash(password, 12);
+    await db.transaction((trx) => userRepo.resetPassword(id, hash, trx));
+    await audit.log({ userId: req.user.id, username: req.user.username, ip: req.ip, userAgent: req.get('user-agent'), event: 'password_reset', detail: { targetUserId: id, generated: !given } });
+    res.set('Cache-Control', 'no-store');
+    return res.json({ ok: true, password, generated: !given });
+  } catch (err) { return next(err); }
+}
+
+module.exports = { list, search, create, update, changeImpactPreview, fund, remove, moduleOptions, resetPassword, createUserWithCode, mapFields, nameError, prepareName };

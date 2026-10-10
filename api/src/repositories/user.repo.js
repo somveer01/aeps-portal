@@ -43,7 +43,19 @@ module.exports = {
     return db(TABLE).where({ id }).increment('token_epoch', 1);
   },
 
+  // Every session dies (token_epoch + 1) and any "must change" flag is cleared: the user just chose this password.
   setPassword(id, passwordHash) {
-    return db(TABLE).where({ id }).update({ password_hash: passwordHash, updated_at: db.fn.now() }).then(() => db(TABLE).where({ id }).increment('token_epoch', 1));
+    return db(TABLE).where({ id }).update({ password_hash: passwordHash, must_change_password: false, token_epoch: db.raw('token_epoch + 1'), updated_at: db.fn.now() });
+  },
+
+  /**
+   * Admin reset: new (temporary) password, every session dead, lock cleared, the user must pick their own at next login.
+   * trx: run inside the caller's transaction.
+   */
+  resetPassword(id, passwordHash, trx = db) {
+    return trx(TABLE).where({ id }).update({
+      password_hash: passwordHash, must_change_password: true, token_epoch: db.raw('token_epoch + 1'),
+      failed_login_attempts: 0, locked_until: null, updated_at: db.fn.now(),
+    });
   },
 };

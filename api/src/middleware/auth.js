@@ -9,6 +9,9 @@ function bearer(req) {
   return h.startsWith('Bearer ') ? h.slice(7).trim() : null;
 }
 
+// The only calls a user with users.must_change_password may make (the app's Change Password screen and sign-out).
+const FORCED_CHANGE_ALLOWED = new Set(['/api/me', '/api/account/change-password', '/api/account/logout']);
+
 /**
  * Requires a valid ACCESS token AND that the account is still active and the
  * token has not been revoked. Revocation works via `users.token_epoch`: signing
@@ -30,7 +33,11 @@ async function requireAuth(req, res, next) {
     const user = await userRepo.findById(payload.sub);
     if (!user || user.is_active === false) return res.status(401).json({ error: 'Account is inactive', code: 'INACTIVE' });
     if ((user.token_epoch || 0) !== (payload.epoch || 0)) return res.status(401).json({ error: 'Session expired, please log in again', code: 'TOKEN_REVOKED' });
-    req.user = { id: user.id, username: user.username, role: user.role, userTypeId: user.user_type_id };
+    req.user = { id: user.id, username: user.username, role: user.role, userTypeId: user.user_type_id, mustChangePassword: !!user.must_change_password };
+    // After an admin reset the temporary password only opens the Change Password screen: nothing else (money included).
+    if (req.user.mustChangePassword && !FORCED_CHANGE_ALLOWED.has(req.originalUrl.split('?')[0].replace(/\/+$/, ''))) {
+      return res.status(403).json({ error: 'Please set a new password first', code: 'PASSWORD_CHANGE_REQUIRED' });
+    }
     return next();
   } catch (err) {
     return next(err);

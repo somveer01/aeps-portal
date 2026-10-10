@@ -83,6 +83,14 @@ export default function App() {
       content = <LoginScreen onPending={(p) => { setPending(p); setStage('otp'); }} />;
     } else if (stage === 'otp') {
       content = <OtpScreen pending={pending} onVerified={handleVerified} onCancel={() => { setPending(null); setStage('login'); }} />;
+    } else if (user && user.mustChangePassword) {
+      // The admin reset this password: nothing else opens until the user chooses their own (the API enforces it too).
+      const ChangePasswordScreen = require('./src/screens/ChangePasswordScreen').default;
+      content = (
+        <View style={styles.forced}>
+          <View style={styles.forcedBox}><ChangePasswordScreen forced onDone={handleLogout} onCancel={handleLogout} /></View>
+        </View>
+      );
     } else if (user && user.role === 'admin') {
       const DashboardScreen = require('./src/screens/DashboardScreen').default;
       content = <DashboardScreen user={user} onLogout={handleLogout} />;
@@ -103,5 +111,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  forced: { flex: 1, justifyContent: 'center', padding: 16, backgroundColor: colors.bg },
+  forcedBox: { width: '100%', maxWidth: 460, alignSelf: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sidebar },
 });

@@ -427,6 +427,8 @@ export const api = {
     search: (params = {}) => request(`/api/users/search?${qs(params)}`, { auth: true }),
     create: (body) => request('/api/users', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/users/${id}`, { method: 'PUT', body, auth: true }),
+    // Admin: temporary password (the given newPassword, else a generated one) returned once; the user must change it at next login.
+    resetPassword: (id, body = {}) => request(`/api/users/${id}/reset-password`, { method: 'POST', body, auth: true }),
     // Preview of a type / parent change: { fitsParent, parentError, childrenMismatch, planCleared, ... }.
     changeImpact: (id, params = {}) => request(`/api/users/${id}/change-impact?${qs(params)}`, { auth: true }),
     fund: (id, body) => request(`/api/users/${id}/fund`, { method: 'POST', body, auth: true, idempotencyKey: idemKey() }),

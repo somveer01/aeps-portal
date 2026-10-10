@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Button, TextField, Alert } from '../components/UI';
 import { api } from '../api/client';
 import { colors, radius } from '../theme';
 
-export default function ChangePasswordScreen({ onDone }) {
+// forced: the admin reset this password, so the user has to choose their own before anything else (onCancel = sign out).
+export default function ChangePasswordScreen({ onDone, forced = false, onCancel }) {
   const [cur, setCur] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -30,10 +31,11 @@ export default function ChangePasswordScreen({ onDone }) {
       <View style={styles.card}>
         <View style={styles.header}><Text style={styles.headerText}>Change Password</Text></View>
         <View style={styles.body}>
+          {forced ? <Alert type="info">Your password was reset by the administrator. Enter the temporary password you were given and choose a new password to continue.</Alert> : null}
           {error ? <Alert type="error">{error}</Alert> : null}
           {done ? <Alert type="success">Password changed. Signing you out — please log in with your new password…</Alert> : null}
-          <Text style={styles.label}>Current Password <Text style={styles.req}>*</Text></Text>
-          <TextField value={cur} onChangeText={setCur} placeholder="Enter current password" secureTextEntry />
+          <Text style={styles.label}>{forced ? 'Temporary Password' : 'Current Password'} <Text style={styles.req}>*</Text></Text>
+          <TextField value={cur} onChangeText={setCur} placeholder={forced ? 'Enter the temporary password' : 'Enter current password'} secureTextEntry />
           <Text style={[styles.label, { marginTop: 12 }]}>New Password <Text style={styles.req}>*</Text></Text>
           <TextField value={next} onChangeText={setNext} placeholder="At least 8 characters" secureTextEntry />
           <Text style={[styles.label, { marginTop: 12 }]}>Confirm New Password <Text style={styles.req}>*</Text></Text>
@@ -41,6 +43,7 @@ export default function ChangePasswordScreen({ onDone }) {
           <View style={{ marginTop: 16 }}>
             <Button title="Submit" onPress={submit} loading={loading} variant="navy" />
           </View>
+          {forced && onCancel ? <Pressable onPress={onCancel} style={{ marginTop: 10, alignSelf: 'center' }}><Text style={{ color: colors.muted, fontSize: 13 }}>Sign out</Text></Pressable> : null}
         </View>
       </View>
     </View>
