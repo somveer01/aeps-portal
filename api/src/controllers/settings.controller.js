@@ -38,17 +38,17 @@ const ENUM_VALUES = ['activate', 'deactivate'];
 // GET /api/settings/public  (no auth) -> values the app/login screen needs
 async function getPublic(req, res, next) {
   try {
-    const [loginBanner, themePrimary, themeSecondary, appName, supportContact, supportEmail, webLogo, logoIcon, favicon] = await Promise.all([
+    const [loginBanner, themePrimary, themeSecondary, appName, supportContact, supportEmail, webLogo, mobileLogo, logoIcon, favicon] = await Promise.all([
       settingsRepo.get(LOGIN_BANNER_KEY), settingsRepo.get(THEME_PRIMARY_KEY), settingsRepo.get(THEME_SECONDARY_KEY),
       settingsRepo.get('app_name'), settingsRepo.get('support_contact'), settingsRepo.get('support_email'),
-      settingsRepo.get('web_logo'), settingsRepo.get('logo_icon'), settingsRepo.get('favicon'),
+      settingsRepo.get('web_logo'), settingsRepo.get('mobile_logo'), settingsRepo.get('logo_icon'), settingsRepo.get('favicon'),
     ]);
     return res.json({
       loginBanner: loginBanner || null,
       theme: { primary: themePrimary || null, secondary: themeSecondary || null },
       app: {
         appName: appName || null, supportContact: supportContact || null, supportEmail: supportEmail || null,
-        webLogo: webLogo || null, logoIcon: logoIcon || null, favicon: favicon || null,
+        webLogo: webLogo || null, mobileLogo: mobileLogo || null, logoIcon: logoIcon || null, favicon: favicon || null,
       },
     });
   } catch (err) {

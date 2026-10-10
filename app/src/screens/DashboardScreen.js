@@ -41,6 +41,7 @@ import ServicePermissionScreen from './ServicePermissionScreen';
 import ProfileScreen from './ProfileScreen';
 import AccountMenu from '../components/AccountMenu';
 import Avatar from '../components/Avatar';
+import BrandLogo from '../components/BrandLogo';
 import { api } from '../api/client';
 import { colors, radius, shadows } from '../theme';
 
@@ -112,12 +113,9 @@ export default function DashboardScreen({ user, onLogout }) {
 
   const Sidebar = (
     <View style={[styles.sidebar, !isWide && styles.drawer]}>
-      {/* Profile: wallet band aligned with the topbar, then admin name */}
+      {/* Company logo band (same height as the topbar), then the admin name. The wallet balance lives in the topbar pill / account menu. */}
       <View style={styles.profile}>
-        <View style={styles.walletCard}>
-          <Text style={styles.walletLabel}>WALLET BALANCE</Text>
-          <Text style={styles.walletAmt}>{money(balance)}</Text>
-        </View>
+        <View style={styles.brandBand}><BrandLogo /></View>
         <View style={styles.profileInfo}>
           <Text style={styles.profileName}>{user.fullName || user.username}</Text>
           <Text style={styles.profileRole}>{user.role}</Text>
@@ -472,10 +470,8 @@ const styles = StyleSheet.create({
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.5)', zIndex: 30 },
 
   profile: { borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
-  // Blue wallet band: same height as the topbar so the two align into one header strip.
-  walletCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.primary, height: 48, paddingHorizontal: 16, ...shadows.card },
-  walletLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 10.5, fontWeight: '700', letterSpacing: 0.6 },
-  walletAmt: { color: '#fff', fontWeight: '800', fontSize: 17, letterSpacing: -0.2 },
+  // Logo band: same height as the topbar so the two line up as one header strip.
+  brandBand: { height: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, backgroundColor: colors.sidebarBg, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
   profileInfo: { alignItems: 'center', paddingTop: 12, paddingBottom: 14, paddingHorizontal: 14 },
   profileName: { fontWeight: '800', color: colors.text, fontSize: 15 },
   profileRole: { color: colors.muted, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 1 },
