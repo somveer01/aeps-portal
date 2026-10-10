@@ -63,8 +63,11 @@ export default function RetailerReportScreen({ kind }) {
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(null);
   const isComm = kind === 'commission';
-  const [ff, setFf] = useState({ startDate: '', endDate: '', level: '', type: '', sourceUserId: '', branchChildId: '' }); const [applied, setApplied] = useState({});
+  const [ff, setFf] = useState({ startDate: '', endDate: '', service: '', level: '', type: '', sourceUserId: '', branchChildId: '' }); const [applied, setApplied] = useState({});
   const [totals, setTotals] = useState(null); const [summary, setSummary] = useState(null); const [downline, setDownline] = useState([]);
+  const [services, setServices] = useState([]); // the services in my own reports, for the Service filter
+  useEffect(() => { api.retailer.reportServices().then((r) => setServices(r.rows || [])).catch(() => setServices([])); }, []);
+  const svcOptions = [{ label: 'All Services', value: '' }, ...services.map((s) => ({ label: s, value: s }))];
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
   const grid = useGrid(); // DataGrid column sort + filters
 
@@ -107,6 +110,7 @@ export default function RetailerReportScreen({ kind }) {
         <View style={reportStyles.grid}>
           <Fld label="Start Date"><DateField value={ff.startDate} onChange={(v) => set('startDate', v)} /></Fld>
           <Fld label="End Date"><DateField value={ff.endDate} onChange={(v) => set('endDate', v)} /></Fld>
+          <Fld label="Service"><Select value={ff.service} onChange={(v) => set('service', v)} options={svcOptions} placeholder="All Services" /></Fld>
           {isComm ? <Fld label="Type"><Select value={ff.type} onChange={(v) => set('type', v)} searchable={false} options={TYPE_OPTIONS} /></Fld> : null}
           {hasNetwork ? <Fld label="Level"><Select value={ff.level} onChange={(v) => set('level', v)} searchable={false} options={LEVEL_OPTIONS} /></Fld> : null}
           {hasNetwork ? (

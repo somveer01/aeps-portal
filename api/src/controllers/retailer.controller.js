@@ -177,6 +177,22 @@ async function gstReport(req, res, next) {
 async function tdsReport(req, res, next) {
   try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.COMMISSION_GRID) }; const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
+// GET /api/retailer/report-services — the services that appear in MY reports (own transactions, wallet history, commission earned),
+// for the "Service" filter of the Service / Commission / GST / TDS / history reports. Only the caller's own rows.
+async function reportServices(req, res, next) {
+  try {
+    const me = req.user.id;
+    const { rows } = await db.raw(
+      `SELECT DISTINCT name FROM (
+         SELECT service AS name FROM service_transactions WHERE user_id = ?
+         UNION SELECT service_name FROM commission_ledger WHERE user_id = ?
+         UNION SELECT service_name FROM account_transactions WHERE user_id = ?) s
+       WHERE name IS NOT NULL AND name <> '' ORDER BY name`, [me, me, me],
+    );
+    return res.json({ rows: rows.map((r) => r.name) });
+  } catch (e) { return next(e); }
+}
+
 // Level filter from the query: 'own' = 0, 'downline' = anything below me, or a level number.
 function levelFilter(v) {
   const s = clean(v).toLowerCase();
@@ -250,4 +266,4 @@ async function myCommissionSlab(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { summary, dashboard, serviceStats, catalogue, operators, accountHistory, serviceReport, gstReport, tdsReport, commissionReport, commissionSummary, myCommissionSlab };
+module.exports = { summary, dashboard, reportServices, serviceStats, catalogue, operators, accountHistory, serviceReport, gstReport, tdsReport, commissionReport, commissionSummary, myCommissionSlab };

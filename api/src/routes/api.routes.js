@@ -193,6 +193,7 @@ router.post('/fund-transfers', requireAdmin, idempotency, fundTransfer.create);
 // ── Retailer panel (managed users; owner-scoped) ──────────────────────────
 router.get('/retailer/summary', requireManaged, retailer.summary);
 router.get('/retailer/dashboard', requireManaged, retailer.dashboard);
+router.get('/retailer/report-services', requireManaged, retailer.reportServices);
 router.get('/retailer/service-stats', requireManaged, retailer.serviceStats);
 router.get('/services/catalogue', requireManaged, retailer.catalogue);
 router.get('/operators', requireManaged, retailer.operators);

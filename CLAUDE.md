@@ -83,7 +83,7 @@ For quick one-offs you can still write an ad-hoc in-process script to the scratc
   nothing - the Commission Slots screen warns about it (`GET /commission-slots/chain-gaps`).
 - **Commission Report**: managed users `GET /api/retailer/commission-report` (own + whole downline, filters level /
   downline user / direct child, totals, via-child column) and `/retailer/commission-summary` (per direct child); admin
-  `GET /api/commission-report`. Filters that name a user are checked against the caller's downline (404 otherwise).
+  `GET /api/commission-report`. Filters that name a user are checked against the caller's downline (404 otherwise). **Service wise:** every managed-user report (Service, Commission, GST, TDS, Account History = `screens/retailer/RetailerReportScreen.js`) has a Service dropdown; its options are `GET /api/retailer/report-services` (distinct services in the caller's own transactions / ledger / wallet history) and the chosen name goes as `service=` (exact match). The admin and network Service / Commission reports already had it.
 
 ## Deploy & rollback
 
