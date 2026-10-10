@@ -177,7 +177,7 @@ export default function DashboardScreen({ user, onLogout }) {
             isWide={isWide} onToggle={() => (isWide ? setCollapsed((c) => !c) : setDrawerOpen(true))}
             appName={appName} balanceText={money(balance)} onWallet={() => selForm({ title: 'Wallet Transactions', route: '/admin-wallet/all' })}
             onSettings={() => selForm({ title: 'Application Settings', route: '/modules/settings' })}
-            name={profile?.fullName || user.fullName || user.username} role="Super Admin" photo={profile?.photo}
+            name={profile?.fullName || user.fullName || user.username} role="Admin" photo={profile?.photo}
             onUser={() => { setUserMenu(true); api.adminWallet.balance().then((r) => setBalance(r.balance)).catch(() => {}); }}
           />
         ) : null}
