@@ -11,14 +11,14 @@ export function initialsOf(nameOrUser) {
 }
 
 // Profile picture (an /uploads/... path) or, without one, the initials on a colored disc.
-// light: white disc with colored initials (used on the blue topbar).
+// light: a disc in the header text colour with initials in the header (brand) colour (used on the topbar).
 export default function Avatar({ photo, name, size = 30, light = false, border = false }) {
   const box = { width: size, height: size, borderRadius: size / 2 };
   const ring = border ? { borderWidth: 3, borderColor: '#fff' } : null;
   if (photo) return <Image source={{ uri: assetUrl(photo) }} style={[styles.img, box, ring]} resizeMode="cover" />;
   return (
-    <View style={[styles.disc, box, ring, { backgroundColor: light ? colors.onPrimary : colors.primary }]}>
-      <Text style={{ color: light ? colors.primary : colors.onPrimary, fontWeight: '800', fontSize: Math.max(11, Math.round(size * 0.38)) }}>{initialsOf(name)}</Text>
+    <View style={[styles.disc, box, ring, { backgroundColor: light ? colors.onBrand : colors.primary }]}>
+      <Text style={{ color: light ? colors.brand : colors.onPrimary, fontWeight: '800', fontSize: Math.max(11, Math.round(size * 0.38)) }}>{initialsOf(name)}</Text>
     </View>
   );
 }

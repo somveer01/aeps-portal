@@ -19,6 +19,11 @@ export const colors = {
   activeBg: DEFAULT_SECONDARY,
   onActive: '#ffffff',
   onPrimary: '#ffffff',
+  // The header uses the exact chosen Primary (brand) with its readable text colour; `primary` below is the readable shade
+  // for buttons / icons / links (equal to brand for dark and mid colours). See resolveTheme().
+  brand: DEFAULT_PRIMARY,
+  onBrand: '#ffffff',
+  brandBorder: 'transparent',
   primary: DEFAULT_PRIMARY,
   primaryDark: '#1a3379',
   primarySoft: '#eef1fa', // tinted primary wash (hover / active bg)
@@ -92,20 +97,52 @@ export function onColor(hex) {
  * (before screens render) and after the admin saves a new theme (followed by
  * a reload so already-created StyleSheets pick up the change).
  */
+/**
+ * A shade of the colour that is safe as a text / icon / line colour on white AND as a background under white text:
+ * dark and mid colours are returned unchanged, a light one (white, yellow ...) is darkened until it reads well.
+ */
+export function readable(hex) {
+  if (!isHex(hex) || luminance(hex) <= 0.4) return hex;
+  let c = hex; let i = 0;
+  while (luminance(c) > 0.2 && i < 40) { c = darken(c, 0.08); i += 1; }
+  return c;
+}
+
+/**
+ * The colours a theme resolves to (also used by the live preview in Application Settings):
+ *  brand / onBrand : exactly the chosen Primary and the text colour that reads on it - used for the header, so a white
+ *                    Primary gives a white header with dark text and a thin border.
+ *  primary         : `readable(Primary)` - everything else (buttons, table headers, menu icons, links, charts).
+ *  activeBg / onActive : active menu item - the Secondary, or the readable Primary when the Secondary is too light.
+ */
+export function resolveTheme(primary, secondary) {
+  const brand = primary;
+  const ink = readable(primary);
+  const activeBg = luminance(secondary) > 0.8 ? ink : secondary;
+  return {
+    brand, onBrand: onColor(brand), brandBorder: luminance(brand) > 0.8 ? '#e2e8f0' : 'transparent',
+    primary: ink, onPrimary: onColor(ink), primaryDark: darken(ink, 0.12),
+    activeBg, onActive: onColor(activeBg),
+  };
+}
+
 export function applyTheme({ primary, secondary } = {}) {
-  const p = isHex(primary) ? primary : colors.primary;
+  const p = isHex(primary) ? primary : colors.brand;
   const s = isHex(secondary) ? secondary : colors.secondary;
-  colors.primary = p;
-  colors.primaryDark = darken(p, 0.12);
-  colors.topbarBg = p;
-  colors.topbarDark = darken(p, 0.12);
-  colors.info = p;
+  const t = resolveTheme(p, s);
+  colors.brand = t.brand;
+  colors.onBrand = t.onBrand;
+  colors.brandBorder = t.brandBorder;
+  colors.primary = t.primary;
+  colors.primaryDark = t.primaryDark;
+  colors.topbarBg = t.brand;
+  colors.topbarDark = darken(t.brand, 0.12);
+  colors.info = t.primary;
   colors.secondary = s;
   colors.sidebarActive = s; // menu highlight
-  colors.onPrimary = onColor(p);
-  // A white / very light secondary would vanish on the white sidebar (white active item, white text): fall back to the primary.
-  colors.activeBg = luminance(s) > 0.8 ? p : s;
-  colors.onActive = onColor(colors.activeBg);
+  colors.onPrimary = t.onPrimary;
+  colors.activeBg = t.activeBg;
+  colors.onActive = t.onActive;
   return { primary: p, secondary: s };
 }
 

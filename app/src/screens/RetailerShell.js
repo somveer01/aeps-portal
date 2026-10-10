@@ -33,6 +33,7 @@ import FundRequestScreen from './FundRequestScreen';
 import CommissionPackageScreen from './CommissionPackageScreen';
 import KycScreen from './retailer/KycScreen';
 
+const glass = (a) => (colors.onBrand === '#ffffff' ? `rgba(255,255,255,${a})` : `rgba(15,23,42,${a * 0.6})`); // header pills on the brand colour
 const money = (v) => (v == null ? '₹0.00' : `₹${Number(v).toFixed(2)}`);
 
 export default function RetailerShell({ user, onLogout }) {
@@ -143,7 +144,7 @@ export default function RetailerShell({ user, onLogout }) {
       {!isWide && drawerOpen && (<><Pressable style={styles.backdrop} onPress={() => setDrawerOpen(false)} />{Sidebar}</>)}
       <View style={styles.main}>
         <View style={styles.topbar}>
-          {!isWide && <Pressable onPress={() => setDrawerOpen(true)} style={styles.hamburger}><Text style={{ fontSize: 22, color: '#fff' }}>☰</Text></Pressable>}
+          {!isWide && <Pressable onPress={() => setDrawerOpen(true)} style={styles.hamburger}><Text style={{ fontSize: 22, color: colors.onBrand }}>☰</Text></Pressable>}
           <Text style={styles.topbarBrand} numberOfLines={1}>Welcome to AEPS Portal — {summary?.userTypeName || 'Retailer'}</Text>
           {isWide && <MenuSearch menu={menu} onSelect={onSearchSelect} variant="topbar" style={styles.topSearch} />}
           <View style={{ flex: 1 }} />
@@ -156,7 +157,7 @@ export default function RetailerShell({ user, onLogout }) {
           <Pressable style={styles.userChip} onPress={() => { setUserMenu(true); loadSummary(); }}>
             <Avatar photo={profile?.photo} name={profile?.fullName || user.fullName || user.username} size={30} light />
             {isWide ? <Text style={styles.userChipName} numberOfLines={1}>{profile?.fullName || user.fullName || user.username}</Text> : null}
-            <Text style={{ color: '#fff' }}>▾</Text>
+            <Text style={{ color: colors.onBrand }}>▾</Text>
           </Pressable>
         </View>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
@@ -229,16 +230,16 @@ const styles = StyleSheet.create({
   linkText: { color: colors.sidebarText, flex: 1, fontSize: 14, fontWeight: '500' },
   caret: { color: colors.muted, fontSize: 16 },
   main: { flex: 1 },
-  topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.topbarBg, paddingHorizontal: 18, paddingVertical: 12, minHeight: 58, zIndex: 10, ...shadows.card },
+  topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.topbarBg, borderBottomWidth: 1, borderBottomColor: colors.brandBorder, paddingHorizontal: 18, paddingVertical: 12, minHeight: 58, zIndex: 10, ...shadows.card },
   hamburger: { padding: 4 },
-  topbarBrand: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.2 },
-  walletPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 22, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)', marginRight: 8 },
-  walletPillLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 11.5, fontWeight: '700' },
-  walletPillAmt: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
-  userChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 22, paddingVertical: 5, paddingHorizontal: 8, maxWidth: 200, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
+  topbarBrand: { color: colors.onBrand, fontWeight: '800', fontSize: 15, letterSpacing: 0.2 },
+  walletPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: glass(0.18), borderRadius: 22, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: glass(0.22), marginRight: 8 },
+  walletPillLabel: { color: colors.onBrand, opacity: 0.85, fontSize: 11.5, fontWeight: '700' },
+  walletPillAmt: { color: colors.onBrand, fontWeight: '800', fontSize: 13.5 },
+  userChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: glass(0.18), borderRadius: 22, paddingVertical: 5, paddingHorizontal: 8, maxWidth: 200, borderWidth: 1, borderColor: glass(0.22) },
   avatarSm: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   avatarSmText: { color: colors.primary, fontWeight: '800', fontSize: 12 },
-  userChipName: { color: '#fff', fontWeight: '600', flexShrink: 1 },
+  userChipName: { color: colors.onBrand, fontWeight: '600', flexShrink: 1 },
   menuBackdrop: { flex: 1 },
   userDropdown: { position: 'absolute', top: 58, right: 16, backgroundColor: '#fff', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, minWidth: 180, ...shadows.pop, overflow: 'hidden' },
   dropHead: { padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border },

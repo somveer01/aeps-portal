@@ -45,6 +45,7 @@ import BrandLogo from '../components/BrandLogo';
 import { api } from '../api/client';
 import { colors, radius, shadows } from '../theme';
 
+const glass = (a) => (colors.onBrand === '#ffffff' ? `rgba(255,255,255,${a})` : `rgba(15,23,42,${a * 0.6})`); // header pills on the brand colour
 // Title of the top-level module (group) that owns a given route, else null.
 function moduleOf(nodes, route) {
   const has = (n) => n.route === route || (n.children || []).some(has);
@@ -158,7 +159,7 @@ export default function DashboardScreen({ user, onLogout }) {
         <View style={styles.topbar}>
           {!isWide && (
             <Pressable onPress={() => setDrawerOpen(true)} style={styles.hamburger}>
-              <Text style={{ fontSize: 22, color: '#fff' }}>☰</Text>
+              <Text style={{ fontSize: 22, color: colors.onBrand }}>☰</Text>
             </Pressable>
           )}
           <Text style={styles.topbarBrand}>AEPS Portal</Text>
@@ -174,7 +175,7 @@ export default function DashboardScreen({ user, onLogout }) {
           <Pressable style={styles.userChip} onPress={() => { setUserMenu(true); api.adminWallet.balance().then((r) => setBalance(r.balance)).catch(() => {}); }}>
             <Avatar photo={profile?.photo} name={profile?.fullName || user.fullName || user.username} size={30} light />
             {isWide ? <Text style={styles.userChipName} numberOfLines={1}>{profile?.fullName || user.fullName || user.username}</Text> : null}
-            <Text style={{ color: '#fff' }}>▾</Text>
+            <Text style={{ color: colors.onBrand }}>▾</Text>
           </Pressable>
         </View>
 
@@ -500,16 +501,16 @@ const styles = StyleSheet.create({
   main: { flex: 1 },
 
   // Topbar (blue)
-  topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.topbarBg, paddingHorizontal: 18, paddingVertical: 0, height: 48, zIndex: 10, ...shadows.card },
+  topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.topbarBg, borderBottomWidth: 1, borderBottomColor: colors.brandBorder, paddingHorizontal: 18, paddingVertical: 0, height: 48, zIndex: 10, ...shadows.card },
   hamburger: { padding: 4 },
-  topbarBrand: { color: '#fff', fontWeight: '800', fontSize: 17, letterSpacing: 0.3 },
-  walletPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 22, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
-  walletPillLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 11.5, fontWeight: '700' },
-  walletPillAmt: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
-  userChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 22, paddingVertical: 5, paddingHorizontal: 8, maxWidth: 200, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
+  topbarBrand: { color: colors.onBrand, fontWeight: '800', fontSize: 17, letterSpacing: 0.3 },
+  walletPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: glass(0.18), borderRadius: 22, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: glass(0.22) },
+  walletPillLabel: { color: colors.onBrand, opacity: 0.85, fontSize: 11.5, fontWeight: '700' },
+  walletPillAmt: { color: colors.onBrand, fontWeight: '800', fontSize: 13.5 },
+  userChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: glass(0.18), borderRadius: 22, paddingVertical: 5, paddingHorizontal: 8, maxWidth: 200, borderWidth: 1, borderColor: glass(0.22) },
   avatarSm: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   avatarSmText: { color: colors.primary, fontWeight: '800', fontSize: 12 },
-  userChipName: { color: '#fff', fontWeight: '600', flexShrink: 1 },
+  userChipName: { color: colors.onBrand, fontWeight: '600', flexShrink: 1 },
 
   menuBackdrop: { flex: 1 },
   userDropdown: { position: 'absolute', top: 58, right: 16, backgroundColor: '#fff', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, minWidth: 180, shadowColor: '#0f172a', shadowOpacity: 0.15, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 6, overflow: 'hidden' },

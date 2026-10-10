@@ -4,7 +4,7 @@ import { Card, Button, Alert, Select } from '../components/UI';
 import { api, assetUrl } from '../api/client';
 import { pickImage } from '../api/imagePicker';
 import { setThemeCache } from '../api/storage';
-import { colors, radius, isHex, applyTheme, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../theme';
+import { colors, radius, isHex, applyTheme, resolveTheme, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../theme';
 
 const PRESETS = [DEFAULT_PRIMARY, DEFAULT_SECONDARY, '#2563eb', '#1d4ed8', '#0ea5e9', '#0891b2', '#059669', '#16a34a', '#ca8a04', '#ea580c', '#dc2626', '#db2777', '#7c3aed', '#4f46e5', '#0f172a', '#334155'];
 const OTP_OPTIONS = [{ label: 'Activate', value: 'activate' }, { label: 'Deactivate', value: 'deactivate' }];
@@ -75,6 +75,38 @@ function ColorPicker({ label, value, onChange, logoColors }) {
   );
 }
 
+// What the chosen colours will look like (same resolveTheme() the app uses): header, active menu item, button and a table header.
+// Light colours (white, yellow ...) are handled automatically - the header keeps the exact colour with readable text,
+// the rest uses a darker shade of it.
+function ThemePreview({ primary, secondary }) {
+  const p = isHex(primary) ? primary : DEFAULT_PRIMARY;
+  const s = isHex(secondary) ? secondary : DEFAULT_SECONDARY;
+  const t = resolveTheme(p, s);
+  const glass = t.onBrand === '#ffffff' ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.1)';
+  return (
+    <View style={styles.pvWrap}>
+      <Text style={styles.hint}>Preview</Text>
+      <View style={styles.pvBox}>
+        <View style={[styles.pvHeader, { backgroundColor: t.brand, borderBottomColor: t.brandBorder }]}>
+          <Text style={{ color: t.onBrand, fontWeight: '800', fontSize: 13 }}>Header</Text>
+          <View style={{ flex: 1 }} />
+          <View style={[styles.pvPill, { backgroundColor: glass }]}><Text style={{ color: t.onBrand, fontWeight: '700', fontSize: 11 }}>Wallet ₹2000</Text></View>
+        </View>
+        <View style={{ flexDirection: 'row' }}>
+          <View style={styles.pvSide}>
+            <View style={[styles.pvItem, { backgroundColor: t.activeBg }]}><Text style={{ color: t.onActive, fontWeight: '700', fontSize: 11 }}>Dashboard</Text></View>
+            <View style={styles.pvItem}><View style={[styles.pvDot, { backgroundColor: t.primary }]} /><Text style={{ color: colors.sidebarText, fontSize: 11 }}>Users</Text></View>
+          </View>
+          <View style={{ flex: 1, padding: 8, gap: 6 }}>
+            <View style={[styles.pvTh, { backgroundColor: t.primary }]}><Text style={{ color: t.onPrimary, fontWeight: '700', fontSize: 10 }}>NAME</Text></View>
+            <View style={[styles.pvBtn, { backgroundColor: t.primary }]}><Text style={{ color: t.onPrimary, fontWeight: '700', fontSize: 11 }}>Save</Text></View>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function ImageField({ label, value, onChange, uploading, onPick, tall }) {
   return (
     <View style={styles.field}>
@@ -110,7 +142,7 @@ export default function SettingsScreen() {
     (async () => {
       try {
         const { settings } = await api.getAppSettings();
-        if (!settings.theme_primary) settings.theme_primary = colors.primary;
+        if (!settings.theme_primary) settings.theme_primary = colors.brand;
         if (!settings.theme_secondary) settings.theme_secondary = colors.secondary;
         setS(settings);
         const pub = await api.publicSettings().catch(() => ({}));
@@ -248,6 +280,7 @@ export default function SettingsScreen() {
           <View style={styles.field}><ColorPicker label="Theme Primary Color *" value={s.theme_primary} onChange={(v) => setField('theme_primary', v)} logoColors={logoPalette && logoPalette.palette} /></View>
           <View style={styles.field}><ColorPicker label="Theme Secondary Color * (menu highlight)" value={s.theme_secondary} onChange={(v) => setField('theme_secondary', v)} logoColors={logoPalette && logoPalette.palette} /></View>
         </View>
+        <ThemePreview primary={s.theme_primary} secondary={s.theme_secondary} />
         <Pressable onPress={() => { setField('theme_primary', DEFAULT_PRIMARY); setField('theme_secondary', DEFAULT_SECONDARY); }}><Text style={{ color: colors.primary, fontWeight: '600', marginTop: 8 }}>Reset theme to default</Text></Pressable>
       </Card>
 
@@ -320,6 +353,15 @@ const styles = StyleSheet.create({
   imgEmpty: { alignItems: 'center', justifyContent: 'center' },
   hexInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 9, color: colors.text, outlineStyle: 'none' },
   hint: { color: colors.muted, fontSize: 12.5, lineHeight: 18 },
+  pvWrap: { marginTop: 16, gap: 6, maxWidth: 420 },
+  pvBox: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, overflow: 'hidden', backgroundColor: '#f1f5fb' },
+  pvHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 34, paddingHorizontal: 10, borderBottomWidth: 1 },
+  pvPill: { borderRadius: 12, paddingVertical: 3, paddingHorizontal: 8 },
+  pvSide: { width: 110, backgroundColor: '#fff', padding: 8, gap: 4 },
+  pvItem: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 8 },
+  pvDot: { width: 10, height: 10, borderRadius: 5 },
+  pvTh: { borderRadius: 4, paddingVertical: 5, paddingHorizontal: 8 },
+  pvBtn: { alignSelf: 'flex-start', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 14 },
   logoBox: { flexDirection: 'row', alignItems: 'center', gap: 16, flexWrap: 'wrap', backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 14, marginBottom: 16 },
   sugg: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   suggDot: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: colors.border },
