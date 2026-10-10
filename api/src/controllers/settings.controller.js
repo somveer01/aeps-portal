@@ -1,6 +1,10 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const settingsRepo = require('../repositories/settings.repo');
+const { UPLOAD_DIR } = require('../middleware/upload');
+const { paletteFromFile } = require('../services/logoColors.service');
 
 const LOGIN_BANNER_KEY = 'login_banner';
 const THEME_PRIMARY_KEY = 'theme_primary';
@@ -142,4 +146,22 @@ async function clearLoginBanner(req, res, next) {
   }
 }
 
-module.exports = { getPublic, getApp, saveApp, saveTheme, uploadLoginBanner, clearLoginBanner };
+// POST /api/settings/logo-colors  (admin)  { path: '/uploads/...' } -> { primary, secondary, palette } picked from the logo
+// (nulls when the logo has no real colour). Only an already uploaded file is read, never an arbitrary path.
+async function logoColors(req, res, next) {
+  try {
+    const p = String((req.body && req.body.path) || '').trim();
+    if (!UPLOAD_PATH.test(p) || p.includes('..')) return res.status(400).json({ error: 'Choose an uploaded logo', code: 'INVALID_PATH' });
+    const file = path.join(UPLOAD_DIR, path.basename(p));
+    if (!fs.existsSync(file)) return res.status(404).json({ error: 'Logo file not found', code: 'NOT_FOUND' });
+    try {
+      return res.json(await paletteFromFile(file));
+    } catch {
+      return res.status(400).json({ error: 'This file is not an image the server can read', code: 'INVALID_IMAGE' });
+    }
+  } catch (err) {
+    return next(err);
+  }
+}
+
+module.exports = { getPublic, getApp, saveApp, saveTheme, uploadLoginBanner, clearLoginBanner, logoColors };

@@ -9,7 +9,7 @@ import { colors, radius, isHex, applyTheme, DEFAULT_PRIMARY, DEFAULT_SECONDARY }
 const PRESETS = ['#2563eb', '#1d4ed8', '#0ea5e9', '#0891b2', '#059669', '#16a34a', '#ca8a04', '#ea580c', '#dc2626', '#db2777', '#7c3aed', '#4f46e5', '#0f172a', '#334155'];
 const OTP_OPTIONS = [{ label: 'Activate', value: 'activate' }, { label: 'Deactivate', value: 'deactivate' }];
 
-function ColorPicker({ label, value, onChange }) {
+function ColorPicker({ label, value, onChange, logoColors }) {
   return (
     <View style={{ gap: 8 }}>
       <Text style={styles.label}>{label}</Text>
@@ -17,6 +17,16 @@ function ColorPicker({ label, value, onChange }) {
         <View style={[styles.swatchLg, { backgroundColor: isHex(value) ? value : '#e2e8f0' }]} />
         <TextInput value={value} onChangeText={onChange} placeholder="#2563eb" autoCapitalize="none" placeholderTextColor={colors.muted} style={styles.hexInput} maxLength={7} />
       </View>
+      {logoColors && logoColors.length ? (
+        <View style={{ gap: 4 }}>
+          <Text style={styles.hint}>From your logo</Text>
+          <View style={styles.swatchGrid}>
+            {logoColors.map((c) => (
+              <Pressable key={c} onPress={() => onChange(c)} style={[styles.swatch, { backgroundColor: c }, (value || '').toLowerCase() === c && styles.swatchSel]} />
+            ))}
+          </View>
+        </View>
+      ) : null}
       <View style={styles.swatchGrid}>
         {PRESETS.map((c) => (
           <Pressable key={c} onPress={() => onChange(c)} style={[styles.swatch, { backgroundColor: c }, (value || '').toLowerCase() === c && styles.swatchSel]} />
@@ -54,6 +64,8 @@ export default function SettingsScreen() {
   const [bannerBusy, setBannerBusy] = useState(false);
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
+  const [logoPalette, setLogoPalette] = useState(null); // { primary, secondary, palette } picked from the logo (null = none asked yet)
+  const [paletteBusy, setPaletteBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -78,7 +90,21 @@ export default function SettingsScreen() {
       setUploading(key);
       const { path } = await api.uploadImage(picked);
       setField(key, path);
+      if (key === 'web_logo' || key === 'logo_icon') suggestColors(path); // a new logo: offer its colours (nothing is applied until you press Apply)
     } catch (e) { setError(e.message || 'Upload failed'); } finally { setUploading(null); }
+  };
+
+  // Ask the server for the brand colours of an uploaded logo; the admin then applies them (or not) and saves as usual.
+  const suggestColors = async (path) => {
+    setPaletteBusy(true);
+    try { setLogoPalette(await api.logoColors(path)); }
+    catch (e) { setLogoPalette(null); setError(e.message || 'Could not read colours from the logo'); } finally { setPaletteBusy(false); }
+  };
+  const logoPath = s ? (s.web_logo || s.logo_icon || s.mobile_logo || '') : '';
+  const applySuggested = () => {
+    if (!logoPalette || !logoPalette.primary) return;
+    setField('theme_primary', logoPalette.primary); setField('theme_secondary', logoPalette.secondary);
+    setInfo('Logo colours applied below. Press Save to keep them.');
   };
 
   const saveAll = async () => {
@@ -156,9 +182,32 @@ export default function SettingsScreen() {
       {/* Theme */}
       <Card>
         <Text style={styles.section}>Theme Colors</Text>
+
+        {/* Colours from the logo: only when a logo is set; without one the colours below work as before */}
+        {logoPath ? (
+          <View style={styles.logoBox}>
+            <View style={{ flex: 1, minWidth: 220, gap: 6 }}>
+              <Text style={styles.label}>Colours from your logo</Text>
+              {paletteBusy ? <ActivityIndicator color={colors.primary} style={{ alignSelf: 'flex-start' }} /> : null}
+              {!paletteBusy && logoPalette && logoPalette.primary ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                  <View style={styles.sugg}><View style={[styles.suggDot, { backgroundColor: logoPalette.primary }]} /><Text style={styles.suggText}>Primary {logoPalette.primary}</Text></View>
+                  <View style={styles.sugg}><View style={[styles.suggDot, { backgroundColor: logoPalette.secondary }]} /><Text style={styles.suggText}>Secondary {logoPalette.secondary}</Text></View>
+                </View>
+              ) : null}
+              {!paletteBusy && logoPalette && !logoPalette.primary ? <Text style={styles.hint}>This logo has no distinct colour (black / grey / white), so pick the colours yourself below.</Text> : null}
+              {!paletteBusy && !logoPalette ? <Text style={styles.hint}>Pick the theme colours from your logo, then press Apply and Save.</Text> : null}
+            </View>
+            <View style={{ gap: 6 }}>
+              {logoPalette && logoPalette.primary ? <Button title="Apply logo colours" onPress={applySuggested} style={{ minWidth: 170 }} /> : null}
+              <Button title={logoPalette ? 'Pick again' : 'Pick colours from logo'} variant="ghost" onPress={() => suggestColors(logoPath)} loading={paletteBusy} style={{ minWidth: 170 }} />
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.grid}>
-          <View style={styles.field}><ColorPicker label="Theme Primary Color *" value={s.theme_primary} onChange={(v) => setField('theme_primary', v)} /></View>
-          <View style={styles.field}><ColorPicker label="Theme Secondary Color * (menu highlight)" value={s.theme_secondary} onChange={(v) => setField('theme_secondary', v)} /></View>
+          <View style={styles.field}><ColorPicker label="Theme Primary Color *" value={s.theme_primary} onChange={(v) => setField('theme_primary', v)} logoColors={logoPalette && logoPalette.palette} /></View>
+          <View style={styles.field}><ColorPicker label="Theme Secondary Color * (menu highlight)" value={s.theme_secondary} onChange={(v) => setField('theme_secondary', v)} logoColors={logoPalette && logoPalette.palette} /></View>
         </View>
         <Pressable onPress={() => { setField('theme_primary', DEFAULT_PRIMARY); setField('theme_secondary', DEFAULT_SECONDARY); }}><Text style={{ color: colors.primary, fontWeight: '600', marginTop: 8 }}>Reset theme to default</Text></Pressable>
       </Card>
@@ -231,6 +280,11 @@ const styles = StyleSheet.create({
   imgPreview: { width: 120, height: 48, borderRadius: radius.sm, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: colors.border },
   imgEmpty: { alignItems: 'center', justifyContent: 'center' },
   hexInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 9, color: colors.text, outlineStyle: 'none' },
+  hint: { color: colors.muted, fontSize: 12.5, lineHeight: 18 },
+  logoBox: { flexDirection: 'row', alignItems: 'center', gap: 16, flexWrap: 'wrap', backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 14, marginBottom: 16 },
+  sugg: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  suggDot: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: colors.border },
+  suggText: { color: colors.text, fontWeight: '700', fontSize: 13 },
   swatchLg: { width: 40, height: 40, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
   swatchGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   swatch: { width: 26, height: 26, borderRadius: 6, borderWidth: 2, borderColor: 'transparent' },

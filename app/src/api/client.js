@@ -150,6 +150,8 @@ export const api = {
   saveTheme: (primary, secondary) => request('/api/settings/theme', { method: 'POST', body: { primary, secondary }, auth: true }),
   getAppSettings: () => request('/api/settings/app', { auth: true }),
   saveAppSettings: (settings) => request('/api/settings/app', { method: 'POST', body: settings, auth: true }),
+  // Theme colours picked from an uploaded logo ('/uploads/...'): { primary, secondary, palette } (nulls when the logo has no colour).
+  logoColors: (path) => request('/api/settings/logo-colors', { method: 'POST', body: { path }, auth: true }),
 
   // Modules → Application Banners
   banners: {

@@ -60,6 +60,7 @@ router.post('/settings/app', requireAdmin, settings.saveApp);
 router.post('/settings/login-banner', requireAdmin, uploadImage.single('banner'), settings.uploadLoginBanner);
 router.delete('/settings/login-banner', requireAdmin, settings.clearLoginBanner);
 router.post('/settings/theme', requireAdmin, settings.saveTheme);
+router.post('/settings/logo-colors', requireAdmin, settings.logoColors);
 
 // Modules → Service Categories (admin CRUD).
 router.get('/service-categories', requireAdmin, serviceCategory.list);

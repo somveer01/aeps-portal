@@ -63,7 +63,7 @@ export default function MenuSearch({ menu, onSelect, variant = 'sidebar', style 
   return (
     <View style={[styles.wrap, style]}>
       <View style={[styles.field, topbar ? styles.fieldTop : styles.fieldSide]}>
-        <Icon name="search" size={16} color={topbar ? '#fff' : colors.muted} />
+        <Icon name="search" size={16} color={topbar ? colors.onPrimary : colors.muted} />
         <TextInput
           value={q}
           onChangeText={(v) => { setQ(v); setOpen(true); setHi(0); }}
@@ -71,14 +71,14 @@ export default function MenuSearch({ menu, onSelect, variant = 'sidebar', style 
           onBlur={() => { focused.current = false; closeTimer.current = setTimeout(() => { if (!overList.current) setOpen(false); }, 150); }}
           onKeyPress={onKeyPress}
           placeholder="Search menu…"
-          placeholderTextColor={topbar ? 'rgba(255,255,255,0.75)' : colors.muted}
+          placeholderTextColor={topbar ? (colors.onPrimary === '#ffffff' ? 'rgba(255,255,255,0.78)' : 'rgba(15,23,42,0.6)') : colors.muted}
           autoCapitalize="none"
           autoCorrect={false}
-          style={[styles.input, { color: topbar ? '#fff' : colors.text }]}
+          style={[styles.input, { color: topbar ? colors.onPrimary : colors.text }]}
         />
         {q ? (
           <Pressable onPress={() => { setQ(''); setOpen(false); }} hitSlop={8}>
-            <Text style={{ color: topbar ? '#fff' : colors.muted, fontSize: 14 }}>✕</Text>
+            <Text style={{ color: topbar ? colors.onPrimary : colors.muted, fontSize: 14 }}>✕</Text>
           </Pressable>
         ) : null}
       </View>
@@ -111,7 +111,9 @@ export default function MenuSearch({ menu, onSelect, variant = 'sidebar', style 
 const styles = StyleSheet.create({
   wrap: { position: 'relative', zIndex: 50 },
   field: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, height: 38, borderWidth: 1 },
-  fieldTop: { backgroundColor: 'rgba(255,255,255,0.18)', borderColor: 'rgba(255,255,255,0.22)', borderRadius: 22 },
+  fieldTop: colors.onPrimary === '#ffffff'
+    ? { backgroundColor: 'rgba(255,255,255,0.18)', borderColor: 'rgba(255,255,255,0.22)', borderRadius: 22 }
+    : { backgroundColor: 'rgba(15,23,42,0.07)', borderColor: 'rgba(15,23,42,0.12)', borderRadius: 22 },
   fieldSide: { backgroundColor: colors.surfaceAlt, borderColor: colors.border, borderRadius: radius.md },
   input: { flex: 1, minWidth: 0, fontSize: 14, outlineStyle: 'none', paddingVertical: 0 },
   list: { position: 'absolute', top: 44, left: 0, right: 0, minWidth: 260, backgroundColor: '#fff', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', ...shadows.pop },
