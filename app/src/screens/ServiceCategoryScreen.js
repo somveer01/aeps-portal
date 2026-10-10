@@ -9,20 +9,10 @@ import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 import FormBar from '../components/FormBar';
+import { fmtDateTime as fmtDate } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 
-function fmtDate(s) {
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return '—';
-  const day = String(d.getDate()).padStart(2, '0');
-  const mon = d.toLocaleString('en-US', { month: 'short' });
-  let h = d.getHours();
-  const ampm = h >= 12 ? 'pm' : 'am';
-  h = h % 12 || 12;
-  const min = String(d.getMinutes()).padStart(2, '0');
-  return `${day} ${mon} ${d.getFullYear()} ${String(h).padStart(2, '0')}:${min} ${ampm}`;
-}
 
 export default function ServiceCategoryScreen() {
   const [rows, setRows] = useState([]);

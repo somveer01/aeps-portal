@@ -5,14 +5,11 @@ import UserPicker from '../components/UserPicker';
 import { api } from '../api/client';
 import DataGrid, { gridParams } from '../components/DataGrid';
 import { colors, radius } from '../theme';
+import { fmtDateTime } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 const TYPE_OPTIONS = [{ label: 'All', value: '' }, { label: 'Credit', value: 'credit' }, { label: 'Debit', value: 'debit' }];
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
-function fmtDateTime(s) {
-  if (!s) return '—'; const d = new Date(s); if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 export default function AccountHistoryScreen() {
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
@@ -73,7 +70,7 @@ export default function AccountHistoryScreen() {
             { key: 'before_balance', title: 'Before Bal', width: 120, render: (r) => <Text style={styles.td}>{money(r.before_balance)}</Text> },
             { key: 'updated_balance', title: 'Updated Bal', width: 120, render: (r) => <Text style={styles.td}>{money(r.updated_balance)}</Text> },
             { key: 'user', title: 'Retailer Details', width: 190, render: (r) => <View><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code} · {r.user_mobile}</Text></View> },
-            { key: 'created_at', title: 'Date', width: 165, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+            { key: 'created_at', title: 'Date', width: 175, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
           ]}
         />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />

@@ -6,12 +6,12 @@ import DataGrid, { useGrid } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 import { Pager, reportStyles } from './AccountHistoryScreen';
 import { KYC_DOCS } from './retailer/KycScreen';
+import { fmtDateTime as dt } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 const STATUS_OPTIONS = [{ label: 'Pending review', value: 'pending' }, { label: 'Approved', value: 'approved' }, { label: 'Rejected', value: 'rejected' }, { label: 'All', value: '' }];
 const tone = (s) => (s === 'approved' ? 'success' : s === 'rejected' ? 'danger' : 'warning');
-const dt = (s) => { if (!s) return '—'; const d = new Date(s); return Number.isNaN(d.getTime()) ? '—' : `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
-const COLS = [40, 190, 120, 110, 120, 110, 150, 115, 150, 100];
+const COLS = [40, 190, 120, 110, 120, 110, 175, 115, 175, 100];
 
 // Admin: KYC submissions waiting for review; opens a submission in-page to approve or reject.
 export default function KycRequestScreen() {

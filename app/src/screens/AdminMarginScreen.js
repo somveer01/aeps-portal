@@ -5,13 +5,10 @@ import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
+import { fmtDateTime } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 const money = (v) => { const n = Number(v || 0); return `${n < 0 ? '-' : ''}₹${Math.abs(n).toFixed(2)}`; };
-function fmtDateTime(s) {
-  if (!s) return '—'; const d = new Date(s); if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 const marginColor = (v) => (Number(v) < 0 ? colors.danger : colors.success);
 
 // Admin margin = provider commission + service charges collected − commission paid to users.
@@ -75,7 +72,7 @@ export default function AdminMarginScreen() {
             { key: 'charges_collected', title: 'Charges', width: 115, render: (r) => <Text style={styles.td}>{money(r.charges_collected)}</Text> },
             { key: 'commission_paid', title: 'Paid Out', width: 115, render: (r) => <Text style={styles.td}>{money(r.commission_paid)}</Text> },
             { key: 'margin', title: 'Margin', width: 120, render: (r) => <Text style={{ color: marginColor(r.margin), fontWeight: '700', fontSize: 13 }}>{money(r.margin)}</Text> },
-            { key: 'created_at', title: 'Date', width: 165, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+            { key: 'created_at', title: 'Date', width: 175, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
           ]}
         />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />

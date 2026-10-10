@@ -7,15 +7,12 @@ import DataGrid, { gridParams } from '../components/DataGrid';
 import { pickImage } from '../api/imagePicker';
 import { colors, radius } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
+import { fmtDate, fmtDateTime } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 const STATUS_OPTIONS = [{ label: 'All', value: '' }, { label: 'Pending', value: 'pending' }, { label: 'Approved', value: 'approved' }, { label: 'Rejected', value: 'rejected' }];
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
 const statusTone = (s) => (s === 'approved' ? 'success' : s === 'rejected' ? 'danger' : 'warning');
-function fmtDate(s) {
-  if (!s) return '—'; const d = new Date(s); if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()}`;
-}
 const approverLabel = (r) => (r.approver_role === 'admin' || !r.approver_id ? 'Admin' : (r.approver_code || '—'));
 
 /**
@@ -114,6 +111,7 @@ export default function FundRequestScreen({ mode = 'admin', onDone }) {
           columns={[
             { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
             { key: 'bank', title: 'Bank Details', width: 190, render: (r) => <View><Text style={styles.td}>{r.bank_name || (r.approver_role === 'admin' ? '—' : `Paid to ${approverLabel(r)}`)}</Text><Text style={styles.sub}>{r.account_no || ''}</Text></View> },
+            { key: 'created_at', title: 'Requested On', width: 175, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
             { key: 'deposit_date', title: 'Deposit Date', width: 130, render: (r) => <Text style={styles.td}>{fmtDate(r.deposit_date)}</Text> },
             { key: 'payment_mode', title: 'Mode', width: 100 },
             { key: 'amount', title: 'Amount', width: 115, render: (r) => <Text style={styles.td}>{money(r.amount)}</Text> },

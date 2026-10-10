@@ -6,11 +6,11 @@ import Icon from '../components/Icon';
 import { api } from '../api/client';
 import { pickImage } from '../api/imagePicker';
 import { colors, radius } from '../theme';
+import { fmtDateTime as fmt } from '../utils/dateTime';
 
 // My Profile (admin and managed users): edit name / email / photo; mobile, user id, type and KYC are read-only here.
 // goTo(route) opens another screen of the current panel; routes = { password, pin, statement } and statementLabel are per panel.
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
-const fmt = (d) => (d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
 
 export default function ProfileScreen({ onChanged, goTo, routes = {}, statementLabel = 'Wallet statement', onLogout }) {
   const [p, setP] = useState(null);

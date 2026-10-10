@@ -4,6 +4,7 @@ import { Card, Button, Alert, StatusBadge } from '../../components/UI';
 import { api, assetUrl } from '../../api/client';
 import { pickImage } from '../../api/imagePicker';
 import { colors, radius } from '../../theme';
+import { fmtDateTime as dt } from '../../utils/dateTime';
 
 // Photos the user must provide; bank proof is optional.
 export const KYC_DOCS = [
@@ -15,7 +16,6 @@ export const KYC_DOCS = [
   { key: 'bankProof', field: 'bank_proof', label: 'Cancelled cheque or passbook (optional)', optional: true },
 ];
 const EMPTY = { aadhaarNumber: '', panNumber: '', bankName: '', accountHolder: '', accountNo: '', ifscCode: '' };
-const dt = (s) => { const d = new Date(s); return Number.isNaN(d.getTime()) ? '—' : `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()}`; };
 const localPreview = (picked) => {
   if (picked && picked.asset) return picked.asset.uri;
   if (picked && picked.file && Platform.OS === 'web') return URL.createObjectURL(picked.file);

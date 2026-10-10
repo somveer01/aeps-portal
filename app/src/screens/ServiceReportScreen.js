@@ -6,15 +6,12 @@ import { api } from '../api/client';
 import DataGrid, { gridParams } from '../components/DataGrid';
 import { colors } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
+import { fmtDateTime } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 const STATUS_OPTIONS = [{ label: 'All', value: '' }, { label: 'Success', value: 'success' }, { label: 'Failed', value: 'failed' }, { label: 'Pending', value: 'pending' }];
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
 const statusTone = (s) => (s === 'success' ? 'success' : s === 'failed' ? 'danger' : 'warning');
-function fmtDateTime(s) {
-  if (!s) return '—'; const d = new Date(s); if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 // network: distributor / MD panel — only the caller's own downline.
 export default function ServiceReportScreen({ network = false }) {
@@ -87,7 +84,7 @@ export default function ServiceReportScreen({ network = false }) {
             { key: 'status', title: 'Status', width: 120, render: (r) => <StatusBadge label={r.status} tone={statusTone(r.status)} /> },
             { key: 'response', title: 'Response', flex: 1, minWidth: 200, render: (r) => <Text style={styles.td} numberOfLines={2}>{r.response || '—'}</Text> },
             { key: 'user', title: 'User', width: 170, render: (r) => <View><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code}</Text></View> },
-            { key: 'created_at', title: 'Date', width: 165, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+            { key: 'created_at', title: 'Date', width: 175, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
           ]}
         />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />

@@ -6,10 +6,10 @@ import { api } from '../../api/client';
 import DataGrid, { useGrid, useGridReload } from '../../components/DataGrid';
 import { colors, radius } from '../../theme';
 import { Fld, Pager, reportStyles } from '../AccountHistoryScreen';
+import { fmtDateTime as dt } from '../../utils/dateTime';
 
 const PAGE = 10;
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
-const dt = (s) => { if (!s) return '—'; const d = new Date(s); return Number.isNaN(d.getTime()) ? '—' : `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()}`; };
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '—');
 
 // cols: [title, value(row, n), width, colour(row)?, gridKey] — gridKey = the API's sort/filter key; null = not sortable.
@@ -19,7 +19,7 @@ const CONFIG = {
     cols: [
       ['#', (r, i) => i, 56, null, null], ['Service', (r) => r.service_name, 150, null, 'service_name'], ['Type', (r) => cap(r.type), 90, (r) => (r.type === 'debit' ? colors.danger : colors.success), 'type'],
       ['Remark', (r) => r.remark || '—', 240, null, 'remark'], ['Amount', (r) => money(r.amount), 110, null, 'amount'], ['Before', (r) => money(r.before_balance), 110, null, 'before_balance'],
-      ['Updated', (r) => money(r.updated_balance), 110, null, 'updated_balance'], ['Date', (r) => dt(r.created_at), 130, null, 'created_at'],
+      ['Updated', (r) => money(r.updated_balance), 110, null, 'updated_balance'], ['Date', (r) => dt(r.created_at), 175, null, 'created_at'],
     ],
   },
   serviceReport: {
@@ -27,16 +27,16 @@ const CONFIG = {
     cols: [
       ['#', (r, i) => i, 56, null, null], ['Service', (r) => r.service, 150, null, 'service'], ['Operator', (r) => r.operator || '—', 140, null, 'operator'],
       ['Target', (r) => r.target || '—', 130, null, 'target'], ['Amount', (r) => money(r.amount), 110, null, 'amount'], ['Status', (r) => cap(r.status), 100, (r) => (r.status === 'failed' ? colors.danger : colors.success), 'status'],
-      ['Reference', (r) => r.reference_id || '—', 150, null, 'reference_id'], ['Date', (r) => dt(r.created_at), 130, null, 'created_at'],
+      ['Reference', (r) => r.reference_id || '—', 150, null, 'reference_id'], ['Date', (r) => dt(r.created_at), 175, null, 'created_at'],
     ],
   },
   gst: {
     title: 'GST Report', fetch: (p) => api.retailer.gstReport(p),
-    cols: [['#', (r, i) => i, 56, null, null], ['Service', (r) => r.service_name, 150, null, 'service_name'], ['Commission', (r) => money(r.type_value_amount), 130, null, 'type_value_amount'], ['GST %', (r) => `${Number(r.gst_percent).toFixed(0)}`, 90, null, 'gst_percent'], ['GST Amt', (r) => money(r.gst_amount), 110, null, 'gst_amount'], ['Net', (r) => money(r.net_amount), 110, null, 'net_amount'], ['Date', (r) => dt(r.created_at), 130, null, 'created_at']],
+    cols: [['#', (r, i) => i, 56, null, null], ['Service', (r) => r.service_name, 150, null, 'service_name'], ['Commission', (r) => money(r.type_value_amount), 130, null, 'type_value_amount'], ['GST %', (r) => `${Number(r.gst_percent).toFixed(0)}`, 90, null, 'gst_percent'], ['GST Amt', (r) => money(r.gst_amount), 110, null, 'gst_amount'], ['Net', (r) => money(r.net_amount), 110, null, 'net_amount'], ['Date', (r) => dt(r.created_at), 175, null, 'created_at']],
   },
   tds: {
     title: 'TDS Report', fetch: (p) => api.retailer.tdsReport(p),
-    cols: [['#', (r, i) => i, 56, null, null], ['Service', (r) => r.service_name, 150, null, 'service_name'], ['Commission', (r) => money(r.type_value_amount), 130, null, 'type_value_amount'], ['TDS %', (r) => `${Number(r.tds_percent).toFixed(0)}`, 90, null, 'tds_percent'], ['TDS Amt', (r) => money(r.tds_amount), 110, null, 'tds_amount'], ['Net', (r) => money(r.net_amount), 110, null, 'net_amount'], ['Date', (r) => dt(r.created_at), 130, null, 'created_at']],
+    cols: [['#', (r, i) => i, 56, null, null], ['Service', (r) => r.service_name, 150, null, 'service_name'], ['Commission', (r) => money(r.type_value_amount), 130, null, 'type_value_amount'], ['TDS %', (r) => `${Number(r.tds_percent).toFixed(0)}`, 90, null, 'tds_percent'], ['TDS Amt', (r) => money(r.tds_amount), 110, null, 'tds_amount'], ['Net', (r) => money(r.net_amount), 110, null, 'net_amount'], ['Date', (r) => dt(r.created_at), 175, null, 'created_at']],
   },
   // Own commission + what came from the whole downline: which downline user, which level, through
   // which of my direct users (Via), the transaction amount, and service charges (Charge) apart.
@@ -52,7 +52,7 @@ const CONFIG = {
       ['Type', (r) => (r.wallet_txn_type === 'debit' ? 'Charge' : 'Credit'), 90, (r) => (r.wallet_txn_type === 'debit' ? colors.danger : colors.success), 'wallet_txn_type'],
       ['Commission', (r) => money(r.type_value_amount), 120, null, 'type_value_amount'], ['GST', (r) => money(r.gst_amount), 100, null, 'gst_amount'],
       ['TDS', (r) => money(r.tds_amount), 100, null, 'tds_amount'], ['Net', (r) => money(r.net_amount), 120, null, 'net_amount'],
-      ['Date', (r) => dt(r.created_at), 120, null, 'created_at'],
+      ['Date', (r) => dt(r.created_at), 175, null, 'created_at'],
     ],
   },
 };

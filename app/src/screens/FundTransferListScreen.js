@@ -6,15 +6,12 @@ import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
+import { fmtDateTime } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 const TYPE_OPTIONS = [{ label: 'All', value: '' }, { label: 'Credit', value: 'credit' }, { label: 'Debit', value: 'debit' }];
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
 const statusTone = (s) => (s === 'success' || s === 'approved' ? 'success' : s === 'failed' || s === 'rejected' ? 'danger' : 'warning');
-function fmtDateTime(s) {
-  if (!s) return '—'; const d = new Date(s); if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 // network: distributor / MD panel — only the caller's own downline.
 export default function FundTransferListScreen({ network = false }) {
@@ -84,7 +81,7 @@ export default function FundTransferListScreen({ network = false }) {
             { key: 'remark', title: 'Remark', flex: 1, minWidth: 220, render: (r) => <Text style={styles.td} numberOfLines={2}>{r.remark || '—'}</Text> },
             { key: 'wallet', title: 'Receiver Wallet', width: 170, render: (r) => <View><Text style={styles.sub}>Before {money(r.before_balance)}</Text><Text style={styles.td}>Updated {money(r.updated_balance)}</Text></View> },
             { key: 'status', title: 'Status', width: 115, render: (r) => <StatusBadge label={r.status || 'success'} tone={statusTone(r.status || 'success')} /> },
-            { key: 'created_at', title: 'Date', width: 165, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+            { key: 'created_at', title: 'Date', width: 175, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
           ]}
         />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />

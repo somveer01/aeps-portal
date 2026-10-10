@@ -5,10 +5,10 @@ import { api } from '../api/client';
 import DataGrid, { useGrid } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 import { Pager, reportStyles } from './AccountHistoryScreen';
+import { fmtDateTime as dt } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 const money = (v) => (v == null ? '—' : `₹${Number(v).toFixed(2)}`);
-const dt = (s) => { if (!s) return '—'; const d = new Date(s); return Number.isNaN(d.getTime()) ? '—' : `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 const yesterday = () => { const y = new Date(Date.now() - 86400000); return `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`; };
 const TYPE_TEXT = {
   STATUS_MISMATCH: 'Status differs',
@@ -18,7 +18,7 @@ const TYPE_TEXT = {
   AUTO_FINALIZED: 'Pending → settled',
 };
 const STATE_OPTIONS = [{ label: 'Open', value: 'open' }, { label: 'Resolved', value: 'resolved' }, { label: 'Settled automatically', value: 'auto' }, { label: 'All', value: '' }];
-const RUN_COLS = [110, 90, 90, 100, 110, 100, 140, 110];
+const RUN_COLS = [110, 90, 90, 100, 110, 100, 175, 110];
 const ITEM_COLS = [170, 170, 150, 180, 180, 110, 220];
 
 // Admin: compare one day of our transactions with the provider's report. The scheduler

@@ -6,14 +6,11 @@ import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
+import { fmtDateTime } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '—');
-function fmtDateTime(s) {
-  if (!s) return '—'; const d = new Date(s); if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 // kind: 'gst' | 'tds' | 'commission' — same ledger: tax columns, or (commission) every payout with
 // its chain level, the downline user it came from, the transaction amount and totals.
@@ -104,7 +101,7 @@ export default function TaxReportScreen({ kind = 'gst' }) {
               { key: 'txn_amount', title: 'Txn Amount', width: 120, render: (r) => <Text style={styles.td}>{r.txn_amount != null ? money(r.txn_amount) : '—'}</Text> },
               { key: 'operator', title: 'Operator', width: 120, render: (r) => <Text style={styles.td}>{r.txn_operator || r.txn_mode || '—'}</Text> },
             ] : []),
-            { key: 'created_at', title: 'Date', width: 165, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+            { key: 'created_at', title: 'Date', width: 175, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
           ]}
         />
         {isComm && totals ? (

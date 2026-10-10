@@ -5,15 +5,12 @@ import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
+import { fmtDateTime } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 const TXN_OPTIONS = [{ label: 'All', value: '' }, { label: 'Credit', value: 'credit' }, { label: 'Debit', value: 'debit' }];
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '—');
-function fmtDateTime(s) {
-  if (!s) return '—'; const d = new Date(s); if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 export default function AdminWalletListScreen() {
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
@@ -62,7 +59,7 @@ export default function AdminWalletListScreen() {
             { key: 'updated_balance', title: 'Updated Balance', width: 135, render: (r) => <Text style={styles.td}>{money(r.updated_balance)}</Text> },
             { key: 'remark', title: 'Remark', flex: 1, minWidth: 220, render: (r) => <Text style={styles.td} numberOfLines={2}>{r.remark || '—'}</Text> },
             { key: 'user', title: 'User', width: 160, render: (r) => <Text style={styles.td}>{r.user_name || r.user_username}</Text> },
-            { key: 'created_at', title: 'Created on', width: 165, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+            { key: 'created_at', title: 'Created on', width: 175, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
           ]}
         />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />

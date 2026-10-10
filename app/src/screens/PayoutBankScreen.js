@@ -8,14 +8,11 @@ import { pickImage } from '../api/imagePicker';
 import { colors, radius } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
 import FormBar from '../components/FormBar';
+import { fmtDateTime as fmtDate } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 const STATUS_OPTIONS = [{ label: 'All', value: '' }, { label: 'Pending', value: 'pending' }, { label: 'Approved', value: 'approved' }, { label: 'Rejected', value: 'rejected' }];
 const statusTone = (s) => (s === 'approved' ? 'success' : s === 'rejected' ? 'danger' : 'warning');
-function fmtDate(s) {
-  if (!s) return '—'; const d = new Date(s); if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()}`;
-}
 
 export default function PayoutBankScreen() {
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
@@ -144,7 +141,7 @@ export default function PayoutBankScreen() {
             { key: 'status', title: 'Status', width: 115, render: (r) => <StatusBadge label={r.status} tone={statusTone(r.status)} /> },
             { key: 'user', title: 'User Id', width: 180, render: (r) => <View><Text style={styles.td}>{r.user_code}</Text><Text style={styles.sub}>{r.user_name}</Text></View> },
             { key: 'remark', title: 'Remark', flex: 1, minWidth: 220, render: (r) => <Text style={styles.td} numberOfLines={2}>{r.remark || '—'}</Text> },
-            { key: 'created_at', title: 'Date', width: 130, render: (r) => <Text style={styles.td}>{fmtDate(r.created_at)}</Text> },
+            { key: 'created_at', title: 'Date', width: 175, render: (r) => <Text style={styles.td}>{fmtDate(r.created_at)}</Text> },
             { key: 'action', title: 'Action', width: 130, sortable: false, filterable: false, render: (r) => (<View style={styles.actions}>{r.status === 'pending' ? <Pressable onPress={() => openAct(r)} style={styles.actBtn}><Text style={styles.actBtnText}>Review</Text></Pressable> : null}<Pressable onPress={() => openEdit(r)} hitSlop={6} style={styles.iconBtn}><Text style={{ color: colors.primary, fontSize: 14 }}>✎</Text></Pressable></View>) },
           ]}
         />

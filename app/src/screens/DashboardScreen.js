@@ -40,6 +40,7 @@ import AppShell, { ScreenTitle } from '../shell/AppShell';
 import useShellCore from '../shell/useShellCore';
 import { api } from '../api/client';
 import { colors, radius, shadows, ui } from '../theme';
+import { fmtDateTime } from '../utils/dateTime';
 
 // Title of the top-level module (group) that owns a given route, else null.
 function moduleOf(nodes, route) {
@@ -194,7 +195,7 @@ export default function DashboardScreen({ user, onLogout }) {
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
                           <Text style={styles.rowVal}>{money(r.amount)}</Text>
-                          <Text style={styles.rowSub}>{new Date(r.created_at).toLocaleDateString()}</Text>
+                          <Text style={styles.rowSub}>{fmtDateTime(r.created_at)}</Text>
                         </View>
                       </View>
                     ))}

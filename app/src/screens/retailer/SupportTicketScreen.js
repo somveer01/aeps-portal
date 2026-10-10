@@ -5,13 +5,13 @@ import { api } from '../../api/client';
 import DataGrid, { useGrid, useGridReload } from '../../components/DataGrid';
 import { colors, radius } from '../../theme';
 import { Pager, reportStyles } from '../AccountHistoryScreen';
+import { fmtDateTime as dt } from '../../utils/dateTime';
 
 const PAGE = 10;
 const STATUS_OPTIONS = [{ label: 'All', value: '' }, { label: 'Open', value: 'open' }, { label: 'In Progress', value: 'in_progress' }, { label: 'Resolved', value: 'resolved' }, { label: 'Closed', value: 'closed' }];
 const PRIORITY_OPTIONS = [{ label: 'Low', value: 'low' }, { label: 'Medium', value: 'medium' }, { label: 'High', value: 'high' }];
 const statusTone = (s) => (s === 'open' ? 'warning' : s === 'in_progress' ? 'info' : s === 'resolved' ? 'success' : 'muted');
 const cap = (s) => (s ? s.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—');
-const dt = (s) => { if (!s) return '—'; const d = new Date(s); return Number.isNaN(d.getTime()) ? '—' : `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
 export default function SupportTicketScreen() {
   const [view, setView] = useState('list'); // list | new | detail
@@ -64,7 +64,7 @@ export default function SupportTicketScreen() {
             { key: 'department', title: 'Department', width: 140, render: (r) => <Text style={reportStyles.td}>{r.department_name}</Text> },
             { key: 'priority', title: 'Priority', width: 100, render: (r) => <Text style={[reportStyles.td, { textTransform: 'capitalize' }]}>{r.priority}</Text> },
             { key: 'status', title: 'Status', width: 120, render: (r) => <StatusBadge label={cap(r.status)} tone={statusTone(r.status)} /> },
-            { key: 'created_at', title: 'Date', width: 135, render: (r) => <Text style={reportStyles.td}>{dt(r.created_at)}</Text> },
+            { key: 'created_at', title: 'Date', width: 175, render: (r) => <Text style={reportStyles.td}>{dt(r.created_at)}</Text> },
           ]}
         />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />

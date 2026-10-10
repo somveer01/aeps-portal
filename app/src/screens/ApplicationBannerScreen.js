@@ -9,6 +9,7 @@ import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { pickImage } from '../api/imagePicker';
 import { colors, radius } from '../theme';
 import FormBar from '../components/FormBar';
+import { fmtDateTime as fmtDate } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 const TYPE_OPTIONS = [
@@ -16,13 +17,6 @@ const TYPE_OPTIONS = [
   { label: 'App', value: 'app' },
 ];
 const typeLabel = (t) => (TYPE_OPTIONS.find((o) => o.value === t) || {}).label || 'Login Page';
-function fmtDate(s) {
-  if (!s) return '—';
-  const d = new Date(s); if (Number.isNaN(d.getTime())) return '—';
-  const day = String(d.getDate()).padStart(2, '0'); const mon = d.toLocaleString('en-US', { month: 'short' });
-  let h = d.getHours(); const ampm = h >= 12 ? 'pm' : 'am'; h = h % 12 || 12;
-  return `${day} ${mon} ${d.getFullYear()} ${String(h).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${ampm}`;
-}
 
 export default function ApplicationBannerScreen() {
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);

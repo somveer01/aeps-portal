@@ -7,13 +7,13 @@ import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 import { Pager, reportStyles } from './AccountHistoryScreen';
 import FormBar from '../components/FormBar';
+import { fmtDateTime as fmtDate } from '../utils/dateTime';
 
 // My Network → Commission Packages. A package sets what my direct downline earns per service.
 // The money comes out of my own share (the admin's total never changes); the most I can give
 // for a service is the admin default for that user type plus my own share.
 const PAGE_SIZE = 10;
 const fmt = (type, v) => (v == null ? '—' : type === 'amount' ? `Rs ${Number(v).toFixed(2)}` : `${Number(v)}%`);
-const fmtDate = (s) => { const d = new Date(s); return Number.isNaN(d.getTime()) ? '—' : `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()}`; };
 const TYPE_OPTIONS = [{ label: '%', value: 'percentage' }, { label: 'Rs', value: 'amount' }];
 
 export default function CommissionPackageScreen() {
@@ -74,7 +74,7 @@ export default function CommissionPackageScreen() {
             { key: 'rates', title: 'Rates', flex: 1, minWidth: 260, sortable: false, filterable: false, render: (r) => <Text style={reportStyles.td} numberOfLines={3}>{r.items.map((i) => `${i.service_name}${i.operator ? ` (${i.operator})` : ''} ${fmt(i.commission_type, i.value)}`).join(' · ') || '—'}</Text> },
             { key: 'users', title: 'Users', width: 90, render: (r) => <Text style={reportStyles.td}>{r.users_count}</Text> },
             { key: 'status', title: 'Status', width: 110, render: (r) => <StatusBadge label={r.is_active ? 'Active' : 'Off'} tone={r.is_active ? 'success' : 'muted'} /> },
-            { key: 'created_at', title: 'Created', width: 130, render: (r) => <Text style={reportStyles.td}>{fmtDate(r.created_at)}</Text> },
+            { key: 'created_at', title: 'Created', width: 175, render: (r) => <Text style={reportStyles.td}>{fmtDate(r.created_at)}</Text> },
             { key: 'action', title: 'Action', width: 110, sortable: false, filterable: false, render: (r) => (
               <View style={styles.actions}>
                 <ActionIcon name="edit" onPress={() => { setNotice(null); setEditing(r); }} />

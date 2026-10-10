@@ -11,6 +11,7 @@ import { colors, radius } from '../theme';
 import buttonLabel from '../components/buttonLabel';
 import ConfirmDialog from '../components/ConfirmDialog';
 import FormBar from '../components/FormBar';
+import { fmtDateTime as fmtDate } from '../utils/dateTime';
 
 // SAP Fiori design tokens (scoped to this screen). Accent follows the app theme.
 const FIORI = {
@@ -25,10 +26,6 @@ const KYC_OPTIONS = [{ label: 'All', value: '' }, { label: 'Pending', value: 'pe
 const KYC_EDIT = [{ label: 'Pending', value: 'pending' }, { label: 'Verified', value: 'verified' }, { label: 'Rejected', value: 'rejected' }];
 const GENDER_OPTIONS = [{ label: 'Male', value: 'male' }, { label: 'Female', value: 'female' }, { label: 'Other', value: 'other' }];
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
-function fmtDate(s) {
-  if (!s) return '—'; const d = new Date(s); if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()}`;
-}
 // Fiori ObjectStatus: a coloured dot + semantic-coloured label.
 function KycBadge({ value }) {
   const c = value === 'verified' ? FIORI.good : value === 'rejected' ? FIORI.error : FIORI.warn;
@@ -465,7 +462,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
             { key: 'email', title: 'Email Id', width: 190, render: (row) => <Text style={styles.td} numberOfLines={1}>{row.email || '—'}</Text> },
             { key: 'wallet', title: 'Wallet', width: 110, render: (row) => <Text style={styles.td}>{money(row.wallet_balance)}</Text> },
             { key: 'plan', title: 'Plan', width: 140, render: (row) => <Text style={styles.td}>{row.plan_name || '—'}</Text> },
-            { key: 'join_date', title: 'Join Date', width: 125, render: (row) => <Text style={styles.td}>{fmtDate(row.join_date)}</Text> },
+            { key: 'join_date', title: 'Join Date', width: 175, render: (row) => <Text style={styles.td}>{fmtDate(row.join_date)}</Text> },
             { key: 'parent', title: 'Parent Id', width: 115, render: (row) => <Text style={styles.td}>{row.parent_code || '—'}</Text> },
             { key: 'created_by', title: 'Created By', width: 140, render: (row) => <View><Text style={styles.td} numberOfLines={1}>{row.created_by_code || '—'}</Text>{row.created_by_name ? <Text style={styles.sub} numberOfLines={1}>{row.created_by_name}</Text> : null}</View> },
             { key: 'status', title: 'Status', width: 95, render: (row) => <Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /> },
