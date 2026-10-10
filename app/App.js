@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { api } from './src/api/client';
+import { api, onSessionEnded } from './src/api/client';
 import { saveToken, clearToken, getThemeCache, setThemeCache } from './src/api/storage';
 import { colors, applyTheme } from './src/theme';
 
@@ -61,6 +61,15 @@ export default function App() {
     setUser(null);
     setStage('login');
   };
+
+  // Blocked by the admin (or session revoked): any API call answering 401 INACTIVE / TOKEN_REVOKED signs out,
+  // and while the app is open a quiet check every 30 s makes it happen even if the user does nothing.
+  useEffect(() => {
+    onSessionEnded(handleLogout);
+    if (stage !== 'app') return undefined;
+    const t = setInterval(() => { api.me().catch(() => {}); }, 30000);
+    return () => clearInterval(t);
+  }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   let content;
   if (!themeReady || stage === 'booting') {

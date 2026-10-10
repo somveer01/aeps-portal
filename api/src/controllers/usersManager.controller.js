@@ -328,6 +328,11 @@ async function update(req, res, next) {
       const plan = planId ? await db('plans').where({ id: planId }).first('user_type_id') : null;
       if (planId && (!plan || plan.user_type_id !== typeId)) fields.plan_id = null;
     }
+    // Blocking signs the user out for good: every token issued before now stops working, so a later
+    // unblock does not bring a stolen session back (the user logs in again).
+    const blocked = fields.is_active === false && existing.is_active !== false;
+    const unblocked = fields.is_active === true && existing.is_active === false;
+    if (blocked) fields.token_epoch = db.raw('token_epoch + 1');
     // A received package was made for the old type and given by the old parent.
     if (impact.packageCleared) fields.commission_package_id = null;
     const movedIds = moveTo ? impact.childrenMismatch.map((c) => c.id) : [];
@@ -344,6 +349,7 @@ async function update(req, res, next) {
     if (b.serviceAccess !== undefined) await permission.setUserServices(id, arr(b.serviceAccess), req.user.id);
 
     const who = { userId: req.user.id, username: req.user.username, ip: req.ip, userAgent: req.get('user-agent') };
+    if (blocked || unblocked) await audit.log({ ...who, event: blocked ? 'user_blocked' : 'user_unblocked', detail: { targetUserId: id } });
     if (impact.typeChanged) await audit.log({ ...who, event: 'user_type_changed', detail: { targetUserId: id, from: existing.user_type_id, to: typeId, packagesDeactivated: ownedIds } });
     if (impact.parentChanged) await audit.log({ ...who, event: 'user_parent_changed', detail: { targetUserId: id, from: existing.parent_id, to: parentId } });
     if (movedIds.length) await audit.log({ ...who, event: 'downline_moved', detail: { fromUserId: id, toUserId: moveTo, userIds: movedIds } });

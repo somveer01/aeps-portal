@@ -59,9 +59,15 @@ async function request(path, { method = 'GET', body, auth = false, idempotencyKe
     throw new ApiError('Cannot reach server. Is the API running?', 0, 'NETWORK');
   }
   const data = await res.json().catch(() => ({}));
+  // The account was blocked or the session revoked (password change, role change): sign out right away.
+  if (auth && res.status === 401 && (data.code === 'INACTIVE' || data.code === 'TOKEN_REVOKED') && sessionEndedHandler) sessionEndedHandler();
   if (!res.ok) throw new ApiError(data.error || 'Request failed', res.status, data.code, data);
   return data;
 }
+
+let sessionEndedHandler = null;
+// App.js registers what to do when the server says this login is no longer valid.
+export function onSessionEnded(fn) { sessionEndedHandler = fn; }
 
 export class ApiError extends Error {
   constructor(message, status, code, data = {}) {
