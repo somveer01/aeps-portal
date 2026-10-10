@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   field: { flexGrow: 1, flexBasis: '40%', minWidth: 220, gap: 6 },
   label: { fontSize: 13, fontWeight: '600', color: '#475569' },
-  input: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: colors.text, outlineStyle: 'none' },
+  input: { minHeight: 48, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: colors.text, outlineStyle: 'none' },
   docs: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 12 },
   docSlot: { width: 170, gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10 },
   docThumb: { width: '100%', height: 100, borderRadius: radius.sm, backgroundColor: '#f1f5f9' },

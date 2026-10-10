@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
   searchWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   searchLabel: { color: colors.muted },
   search: { borderWidth: 1, borderColor: FIORI.line, borderRadius: 4, paddingHorizontal: 12, paddingVertical: 8, minWidth: 220, color: FIORI.text, backgroundColor: '#fff', outlineStyle: 'none' },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 7, fontSize: 14, color: colors.text, outlineStyle: 'none' },
+  input: { minHeight: 48, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 7, fontSize: 14, color: colors.text, outlineStyle: 'none' },
   tr: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border },
   trAlt: { backgroundColor: '#f8fafc' },
   th: { backgroundColor: colors.primary, borderTopLeftRadius: radius.sm, borderTopRightRadius: radius.sm },

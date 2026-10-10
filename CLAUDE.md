@@ -113,6 +113,7 @@ Setup once: copy `.deploy.env.example` to `.deploy.env` (git-ignored) and set `D
 - Module routes are `/modules/<x>`; top-level ones are `/<x>` (e.g. `/company-banks`). Match them in `DashboardScreen.js`'s route chain.
 - The app is theme-mutation based: a theme change needs the app to reload to fully apply (web reload is automatic on save; native applies next launch).
 - `app/AGENTS.md` (via `app/CLAUDE.md`): **Expo has changed — read the versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing app code.** Stick to standard RN APIs used by existing screens.
+- **Form layout rules** (a Fund Transfer button once sat half outside its card): a field style with a percentage `flexBasis` (`field`, `col`, `ffield`...) may only be used for children of a row (`flexDirection: 'row', flexWrap: 'wrap'` grid) - inside a column the percentage becomes a HEIGHT. Standalone fields use `width` / `maxWidth`. Inputs and dropdowns share one height (`minHeight: 48`; `UI.js` input + selectBox). Put the submit button in its own row inside the Card, with the help text below it, never outside the Card. Check a new form in Classic and Modern, wide and narrow.
 - Dev-only env flags (`api/.env`, ignored when `NODE_ENV=production`): `DEV_MASTER_OTP`, `CAPTCHA_DEV_ECHO`.
 - Learning UI from screen recordings: extract frames with the bundled ffmpeg (see the `ffmpeg-for-recordings` note) and read the JPGs.
 

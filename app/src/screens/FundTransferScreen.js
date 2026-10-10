@@ -78,14 +78,14 @@ export default function FundTransferScreen({ network = false, onDone }) {
         <View style={styles.grid}>
           <View style={styles.field}><Text style={styles.label}>Amount *</Text>
             <TextInput value={amount} onChangeText={setAmount} keyboardType="numeric" placeholder="Enter amount" placeholderTextColor={colors.muted} style={styles.input} /></View>
+          <View style={styles.field}><Select label="Txn Type *" value={txnType} options={TXN_OPTIONS} onChange={setTxnType} searchable={false} /></View>
           <View style={styles.field}><Text style={styles.label}>Remark</Text>
             <TextInput value={remark} onChangeText={setRemark} placeholder="Enter remark" placeholderTextColor={colors.muted} style={styles.input} /></View>
-          <View style={styles.field}><Select label="Txn Type *" value={txnType} options={TXN_OPTIONS} onChange={setTxnType} searchable={false} /></View>
+          <View style={styles.field}><Text style={styles.label}>Transaction Password *</Text>
+            <TextInput value={txnPw} onChangeText={setTxnPw} secureTextEntry placeholder={network ? 'Your PIN or login password' : 'Your login password'} placeholderTextColor={colors.muted} style={styles.input} /></View>
         </View>
-        <View style={[styles.field, { maxWidth: 360 }]}><Text style={styles.label}>Transaction Password *</Text>
-          <TextInput value={txnPw} onChangeText={setTxnPw} secureTextEntry placeholder={network ? 'Your PIN or login password' : 'Your login password'} placeholderTextColor={colors.muted} style={styles.input} /></View>
 
-        <View style={{ flexDirection: 'row', marginTop: 16 }}>
+        <View style={styles.actions}>
           <Button title="SUBMIT" onPress={submit} loading={submitting} disabled={!receiver} style={{ minWidth: 180, paddingHorizontal: 24 }} />
         </View>
         {network ? (
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
   balancePill: { backgroundColor: colors.primarySoft || '#eef4ff', color: colors.primary, fontSize: 13, paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.md, overflow: 'hidden' },
   heading: { fontSize: 20, fontWeight: '700', color: colors.text },
   label: { fontSize: 13, fontWeight: '600', color: '#334155' },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: colors.text, outlineStyle: 'none' },
+  input: { minHeight: 48, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: colors.text, outlineStyle: 'none' },
   pickRow: { marginTop: 6, marginBottom: 4, maxWidth: 520 },
   receiver: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 14, marginVertical: 14, gap: 4 },
   receiverTitle: { color: colors.primary, fontWeight: '700', marginBottom: 6 },
@@ -119,6 +119,7 @@ const styles = StyleSheet.create({
   dKey: { color: colors.muted, width: 120, fontSize: 13.5 },
   dVal: { color: colors.text, fontWeight: '600', fontSize: 13.5, flex: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, rowGap: 14, marginTop: 6 },
-  field: { flexGrow: 1, flexBasis: '30%', minWidth: 220, gap: 6 },
-  hint: { color: colors.muted, fontSize: 12.5, marginTop: 12 },
+  field: { flexGrow: 1, flexBasis: '22%', minWidth: 200, gap: 6 }, // only ever used inside `grid` (a row): a % basis inside a column would become a height
+  actions: { flexDirection: 'row', alignItems: 'center', marginTop: 22 },
+  hint: { color: colors.muted, fontSize: 12.5, lineHeight: 18, marginTop: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border },
 });

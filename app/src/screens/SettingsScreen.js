@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontWeight: '600', color: '#334155' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20, rowGap: 16 },
   field: { flexGrow: 1, flexBasis: '30%', minWidth: 220, gap: 6 },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: colors.text, outlineStyle: 'none' },
+  input: { minHeight: 48, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: colors.text, outlineStyle: 'none' },
   textarea: { minHeight: 90, textAlignVertical: 'top' },
   imageRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   imgPreview: { width: 120, height: 48, borderRadius: radius.sm, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: colors.border },

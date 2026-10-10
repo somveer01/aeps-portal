@@ -101,7 +101,7 @@ export const reportStyles = {
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 14 },
   field: { flexGrow: 1, flexBasis: '22%', minWidth: 180, gap: 6 },
   label: { fontSize: 13, fontWeight: '600', color: '#475569' },
-  input: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.text, outlineStyle: 'none' },
+  input: { minHeight: 48, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.text, outlineStyle: 'none' },
   tr: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#eef2f7' },
   trAlt: { backgroundColor: '#f8fafc' },
   th: { backgroundColor: colors.primary, borderTopLeftRadius: radius.sm, borderTopRightRadius: radius.sm },
