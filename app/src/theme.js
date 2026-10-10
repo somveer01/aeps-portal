@@ -3,8 +3,9 @@
 // entries BEFORE screen StyleSheets are created (see App.js), so a saved
 // primary/secondary flows through the whole app.
 
-export const DEFAULT_PRIMARY = '#2563eb';
-export const DEFAULT_SECONDARY = '#2563eb';
+// Default theme ("Royal navy and gold"): used until the admin saves colours in Application Settings, and by "Reset theme to default".
+export const DEFAULT_PRIMARY = '#1e3a8a';
+export const DEFAULT_SECONDARY = '#b45309';
 
 export const colors = {
   bg: '#eef1f6',
@@ -19,8 +20,8 @@ export const colors = {
   onActive: '#ffffff',
   onPrimary: '#ffffff',
   primary: DEFAULT_PRIMARY,
-  primaryDark: '#1d4ed8',
-  primarySoft: '#eef4ff', // tinted primary wash (hover / active bg)
+  primaryDark: '#1a3379',
+  primarySoft: '#eef1fa', // tinted primary wash (hover / active bg)
   secondary: DEFAULT_SECONDARY,
   navy: '#2b2f77',
   navyDark: '#20234f',
@@ -32,15 +33,15 @@ export const colors = {
   sidebarText: '#475569',
   sidebarBorder: '#eef2f7',
   topbarBg: DEFAULT_PRIMARY,
-  topbarDark: '#1d4ed8',
+  topbarDark: '#1a3379',
   text: '#0f172a',
   muted: '#64748b',
   border: '#e6ebf2',
-  ring: 'rgba(37,99,235,0.14)', // focus ring (default-theme blue)
+  ring: 'rgba(30,58,138,0.14)', // focus ring (default-theme navy)
   danger: '#dc2626',
   dangerBg: '#fef2f2',
-  info: '#2563eb',
-  infoBg: '#eff6ff',
+  info: DEFAULT_PRIMARY,
+  infoBg: '#eef1fa',
   success: '#16a34a',
   successBg: '#ecfdf5',
   warning: '#d97706',

@@ -114,7 +114,7 @@ async function saveTheme(req, res, next) {
     const primary = String(req.body.primary || '').trim();
     const secondary = String(req.body.secondary || '').trim();
     if (!HEX.test(primary) || !HEX.test(secondary)) {
-      return res.status(400).json({ error: 'Colors must be valid hex (e.g. #2563eb)', code: 'INVALID_COLOR' });
+      return res.status(400).json({ error: 'Colors must be valid hex (e.g. #1e3a8a)', code: 'INVALID_COLOR' });
     }
     await settingsRepo.set(THEME_PRIMARY_KEY, primary);
     await settingsRepo.set(THEME_SECONDARY_KEY, secondary);

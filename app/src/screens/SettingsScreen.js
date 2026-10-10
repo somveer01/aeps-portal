@@ -6,17 +6,41 @@ import { pickImage } from '../api/imagePicker';
 import { setThemeCache } from '../api/storage';
 import { colors, radius, isHex, applyTheme, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../theme';
 
-const PRESETS = ['#2563eb', '#1d4ed8', '#0ea5e9', '#0891b2', '#059669', '#16a34a', '#ca8a04', '#ea580c', '#dc2626', '#db2777', '#7c3aed', '#4f46e5', '#0f172a', '#334155'];
+const PRESETS = [DEFAULT_PRIMARY, DEFAULT_SECONDARY, '#2563eb', '#1d4ed8', '#0ea5e9', '#0891b2', '#059669', '#16a34a', '#ca8a04', '#ea580c', '#dc2626', '#db2777', '#7c3aed', '#4f46e5', '#0f172a', '#334155'];
 const OTP_OPTIONS = [{ label: 'Activate', value: 'activate' }, { label: 'Deactivate', value: 'deactivate' }];
 
+// Any colour: a spectrum grid (12 hues x 5 lightness steps + greys) on every platform, and on the web the browser's full colour
+// dialog (click the big box: any colour, plus an eyedropper in Chrome / Edge). Hex typing, presets and logo colours still work.
+const hslToHex = (h, s, l) => {
+  const a = (s / 100) * Math.min(l / 100, 1 - l / 100);
+  const f = (n) => { const k = (n + h / 30) % 12; return Math.round(255 * (l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))); };
+  return `#${[f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+};
+const SPECTRUM = [30, 40, 50, 62, 75].map((l) => Array.from({ length: 12 }, (_, i) => hslToHex(i * 30, 78, l)));
+const GREYS = ['#000000', '#0f172a', '#334155', '#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0', '#ffffff'];
+const sixHex = (v) => { // <input type="color"> needs #rrggbb
+  if (!isHex(v)) return '#000000';
+  const h = v.trim().toLowerCase();
+  return h.length === 4 ? `#${h[1]}${h[1]}${h[2]}${h[2]}${h[3]}${h[3]}` : h;
+};
+
 function ColorPicker({ label, value, onChange, logoColors }) {
+  const [more, setMore] = useState(false);
+  const isSel = (c) => (value || '').toLowerCase() === c;
   return (
     <View style={{ gap: 8 }}>
       <Text style={styles.label}>{label}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <View style={[styles.swatchLg, { backgroundColor: isHex(value) ? value : '#e2e8f0' }]} />
-        <TextInput value={value} onChangeText={onChange} placeholder="#2563eb" autoCapitalize="none" placeholderTextColor={colors.muted} style={styles.hexInput} maxLength={7} />
+        <View style={[styles.swatchLg, { backgroundColor: isHex(value) ? value : '#e2e8f0' }]}>
+          {Platform.OS === 'web' ? React.createElement('input', {
+            type: 'color', value: sixHex(value), title: 'Choose any colour', 'aria-label': `${label}: choose any colour`,
+            onChange: (e) => onChange(String(e.target.value).toLowerCase()),
+            style: { position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', border: 0, padding: 0 },
+          }) : null}
+        </View>
+        <TextInput value={value} onChangeText={onChange} placeholder="#1e3a8a" autoCapitalize="none" placeholderTextColor={colors.muted} style={styles.hexInput} maxLength={7} />
       </View>
+      {Platform.OS === 'web' ? <Text style={styles.hint}>Click the colour box to choose any colour.</Text> : null}
       {logoColors && logoColors.length ? (
         <View style={{ gap: 4 }}>
           <Text style={styles.hint}>From your logo</Text>
@@ -29,9 +53,24 @@ function ColorPicker({ label, value, onChange, logoColors }) {
       ) : null}
       <View style={styles.swatchGrid}>
         {PRESETS.map((c) => (
-          <Pressable key={c} onPress={() => onChange(c)} style={[styles.swatch, { backgroundColor: c }, (value || '').toLowerCase() === c && styles.swatchSel]} />
+          <Pressable key={c} onPress={() => onChange(c)} style={[styles.swatch, { backgroundColor: c }, isSel(c) && styles.swatchSel]} />
         ))}
       </View>
+      <Pressable onPress={() => setMore((m) => !m)} hitSlop={6}>
+        <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12.5 }}>{more ? 'Hide all colours ▴' : 'More colours ▾'}</Text>
+      </Pressable>
+      {more ? (
+        <View style={{ gap: 6 }}>
+          {SPECTRUM.map((row, i) => (
+            <View key={i} style={styles.swatchGrid}>
+              {row.map((c) => <Pressable key={c} onPress={() => onChange(c)} style={[styles.swatch, { backgroundColor: c }, isSel(c) && styles.swatchSel]} />)}
+            </View>
+          ))}
+          <View style={styles.swatchGrid}>
+            {GREYS.map((c) => <Pressable key={c} onPress={() => onChange(c)} style={[styles.swatch, { backgroundColor: c, borderColor: isSel(c) ? colors.text : colors.border }]} />)}
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -285,7 +324,7 @@ const styles = StyleSheet.create({
   sugg: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   suggDot: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: colors.border },
   suggText: { color: colors.text, fontWeight: '700', fontSize: 13 },
-  swatchLg: { width: 40, height: 40, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
+  swatchLg: { width: 40, height: 40, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', position: 'relative' },
   swatchGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   swatch: { width: 26, height: 26, borderRadius: 6, borderWidth: 2, borderColor: 'transparent' },
   swatchSel: { borderColor: colors.text },
