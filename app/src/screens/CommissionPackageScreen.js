@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ScrollView } from 'react-native';
 import { Card, Button, Alert, Select, StatusBadge } from '../components/UI';
+import ActionIcon from '../components/ActionIcon';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
@@ -75,8 +76,8 @@ export default function CommissionPackageScreen() {
             { key: 'created_at', title: 'Created', width: 130, render: (r) => <Text style={reportStyles.td}>{fmtDate(r.created_at)}</Text> },
             { key: 'action', title: 'Action', width: 110, sortable: false, filterable: false, render: (r) => (
               <View style={styles.actions}>
-                <Pressable onPress={() => { setNotice(null); setEditing(r); }} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text></Pressable>
-                <Pressable onPress={() => { setDelError(null); setToDelete(r); }} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text></Pressable>
+                <ActionIcon name="edit" onPress={() => { setNotice(null); setEditing(r); }} />
+                <ActionIcon name="delete" onPress={() => { setDelError(null); setToDelete(r); }} />
               </View>
             ) },
           ]}

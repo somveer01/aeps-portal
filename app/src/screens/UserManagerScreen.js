@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ActivityIndicator, ScrollView, Platform,
 } from 'react-native';
 import { Card, Button, Alert, Select, DateField } from '../components/UI';
+import ActionIcon from '../components/ActionIcon';
 import UserPicker from '../components/UserPicker';
 import { api } from '../api/client';
 import DataGrid, { gridParams } from '../components/DataGrid';
@@ -469,14 +470,14 @@ export default function UserManagerScreen({ network = false, onDone }) {
             { key: 'ekyc', title: 'E-Kyc', width: 100, render: (row) => <KycBadge value={row.ekyc_status} /> },
             { key: 'kyc', title: 'Kyc', width: 100, render: (row) => <KycBadge value={row.kyc_status} /> },
             { key: 'package', title: 'Package', width: 140, render: (row) => <Text style={styles.td}>{row.commission_package_name || 'Admin default'}</Text> },
-            { key: 'action', title: 'Action', width: network ? 140 : 175, sortable: false, filterable: false, render: (row) => (
+            { key: 'action', title: 'Action', width: network ? 150 : 200, sortable: false, filterable: false, render: (row) => (
               <View style={styles.actions}>
                 {/* In the network panel money moves only to users directly under you. */}
-                {!network || row.parent_id === meId ? <Pressable onPress={() => openFund(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>💰</Text></Pressable> : null}
-                <Pressable onPress={() => setViewUser(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>👁️</Text></Pressable>
-                <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 15 }}>✏️</Text></Pressable>
-                {!network ? <Pressable onPress={() => openReset(row)} hitSlop={6}><Text style={{ fontSize: 15 }}>🔑</Text></Pressable> : null}
-                {!network ? <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 15 }}>🗑️</Text></Pressable> : null}
+                {!network || row.parent_id === meId ? <ActionIcon name="fund" onPress={() => openFund(row)} /> : null}
+                <ActionIcon name="view" onPress={() => setViewUser(row)} />
+                <ActionIcon name="edit" onPress={() => openEdit(row)} />
+                {!network ? <ActionIcon name="key" onPress={() => openReset(row)} /> : null}
+                {!network ? <ActionIcon name="delete" onPress={() => setToDelete(row)} /> : null}
               </View>
             ) },
           ]}
@@ -656,7 +657,7 @@ const styles = StyleSheet.create({
   td: { color: colors.text, fontSize: 13 },
   sub: { color: colors.muted, fontSize: 11.5, marginTop: 1 },
   cNo: { width: 36 }, cWide: { width: 130 }, cMob: { width: 105 }, cId: { width: 90 }, cType: { width: 110 }, cEmail: { width: 180 }, cWallet: { width: 80 }, cPlan: { width: 120 }, cDate: { width: 110 }, cParent: { width: 100 }, cCreated: { width: 130 }, cStatus: { width: 70 }, cKyc: { width: 85 }, cAction: { width: 130 },
-  actions: { flexDirection: 'row', gap: 12 },
+  actions: { flexDirection: 'row', gap: 6 },
   detailRow: { flexDirection: 'row', paddingVertical: 5 },
   detailLabel: { width: 130, color: colors.muted, fontSize: 13 },
   detailValue: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '600' },

@@ -56,7 +56,7 @@ For quick one-offs you can still write an ad-hoc in-process script to the scratc
 
 **Users table is dual-purpose:** `users` holds both the admin (role `admin`, `user_type_id` null) and **managed portal users** (retailers/distributors/employees — `user_type_id NOT NULL`, extended onboarding fields, `service_access`/`module_access` jsonb, `user_code` = settings `user_id_prefix` + seq, also the login username). Users Manager lists only managed users; wallet is adjusted via `POST /api/users/:id/fund`.
 
-**Reusable UI:** `app/src/components/UI.js` (`Button` incl. `navy` variant, `TextField` with eye toggle, `Select` searchable dropdown that opens a modal, `Alert`, `Card`), and `app/src/components/Icon.js` (inline-SVG icons keyed by the `menu_items.icon` name — add a `case` when introducing a new icon).
+**Reusable UI:** `app/src/components/UI.js` (`Button` incl. `navy` variant, `TextField` with eye toggle, `Select` searchable dropdown that opens a modal, `Alert`, `Card`), and `app/src/components/Icon.js` (inline-SVG icons keyed by the `menu_items.icon` name — add a `case` when introducing a new icon). Row action buttons in lists use `app/src/components/ActionIcon.js` (`<ActionIcon name="edit|delete|view|fund|key" onPress={...} />`, SVG + tint + hover) - never emoji.
 
 ## Hierarchy & commission rules
 

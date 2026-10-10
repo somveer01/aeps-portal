@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Pressable, TextInput, Modal, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
+import ActionIcon from '../components/ActionIcon';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
@@ -115,7 +116,7 @@ export default function CityMasterScreen() {
             { key: 'name', title: 'City', flex: 1, minWidth: 200 },
             { key: 'action', title: 'Action', width: 110, sortable: false, filterable: false, render: (row) => (
               <View style={styles.actions}>
-                <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text></Pressable>
+                <ActionIcon name="edit" onPress={() => openEdit(row)} />
               </View>
             ) },
           ]}

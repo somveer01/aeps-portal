@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ActivityIndicator, ScrollView, Image,
 } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
+import ActionIcon from '../components/ActionIcon';
 import { FioriPage, FioriHeader, FioriPanel, FioriToolbar, FioriSearch, FioriButton, FIORI } from '../components/Fiori';
 import { api, assetUrl } from '../api/client';
 import { pickImage } from '../api/imagePicker';
@@ -222,8 +223,8 @@ export default function ServiceMasterScreen() {
                     <View style={styles.svcFoot}>
                       <Text style={[styles.svcState, { color: row.is_active ? colors.success : colors.muted }]}>{row.is_active ? '● Active' : '○ Switched off'}</Text>
                       <View style={styles.actions}>
-                        <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text></Pressable>
-                        <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text></Pressable>
+                        <ActionIcon name="edit" onPress={() => openEdit(row)} />
+                        <ActionIcon name="delete" onPress={() => setToDelete(row)} />
                       </View>
                     </View>
                   </View>

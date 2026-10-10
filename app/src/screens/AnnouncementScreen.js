@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
+import ActionIcon from '../components/ActionIcon';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
@@ -108,8 +109,8 @@ export default function AnnouncementScreen() {
             { key: 'status', title: 'Status', width: 100, render: (row) => <Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /> },
             { key: 'action', title: 'Action', width: 110, sortable: false, filterable: false, render: (row) => (
               <View style={styles.actions}>
-                <Pressable onPress={() => openEdit(row)} hitSlop={6}><Text style={{ color: colors.primary, fontSize: 16 }}>✏️</Text></Pressable>
-                <Pressable onPress={() => setToDelete(row)} hitSlop={6}><Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text></Pressable>
+                <ActionIcon name="edit" onPress={() => openEdit(row)} />
+                <ActionIcon name="delete" onPress={() => setToDelete(row)} />
               </View>
             ) },
           ]}
