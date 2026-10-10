@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet, Platform } from 'react-native';
 import Icon from './Icon';
 import BrandLogo from './BrandLogo';
 import MenuSearch from './MenuSearch';
@@ -65,13 +65,20 @@ const glow = (tone) => ({ boxShadow: `0 0 0 3px ${rgba(tone, 0.28)}`, shadowColo
 
 export default function ModernSidebar({ menu, active, expanded, onToggle, onSelect, onSearchSelect, collapsed = false, drawer = false, onExpandBar }) {
   const w = collapsed ? MODERN_SIDEBAR_COLLAPSED_W : MODERN_SIDEBAR_W;
+  const scrollRef = useRef(null);
+  // Web: a thin, always-visible scrollbar so it is obvious that a long menu scrolls (the native one was hidden).
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !scrollRef.current || !scrollRef.current.getScrollableNode) return;
+    const node = scrollRef.current.getScrollableNode();
+    if (node && node.style) { node.style.scrollbarWidth = 'thin'; node.style.scrollbarColor = '#cbd5e1 transparent'; }
+  }, [collapsed]);
   return (
     <View style={[styles.wrap, { width: w }, drawer && styles.drawer]}>
       <View style={[styles.brand, collapsed && { paddingHorizontal: 0 }]}>
         <BrandLogo height={collapsed ? 36 : 38} maxWidth={w - 36} iconOnly={collapsed} />
       </View>
       {!collapsed ? <View style={styles.search}><MenuSearch menu={menu} onSelect={onSearchSelect} variant="sidebar" /></View> : null}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 8, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 8, paddingBottom: 24 }} showsVerticalScrollIndicator>
         {menu.map((node, i) => (
           <Item key={node.id} node={node} index={i} active={active} expanded={expanded} onToggle={onToggle} onSelect={onSelect} collapsed={collapsed} onExpandBar={onExpandBar} />
         ))}
