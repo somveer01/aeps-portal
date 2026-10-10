@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, TextInput, Switch, Modal, ActivityIndicator, ScrollView,
+  View, Text, StyleSheet, Pressable, TextInput, Switch, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
 import ActionIcon from '../components/ActionIcon';
+import ConfirmDialog from '../components/ConfirmDialog';
 import UserPicker from '../components/UserPicker';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
@@ -217,7 +218,7 @@ export default function CommissionSlotScreen() {
         </View>
       ) : null}
       {tab === 'matrix' ? (
-        <SlotMatrix slots={allSlots} services={allServices} userTypes={userTypes} error={error} onEdit={openEdit} onAdd={openAdd} />
+        <SlotMatrix slots={allSlots} services={allServices} userTypes={userTypes} error={error} onEdit={openEdit} onAdd={openAdd} onDelete={setToDelete} />
       ) : (
       <Card>
         <View style={styles.cardHead}>
@@ -258,24 +259,25 @@ export default function CommissionSlotScreen() {
       </Card>
       )}
 
-      <Modal visible={!!toDelete} transparent animationType="fade" onRequestClose={() => setToDelete(null)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Delete Commission Slot</Text>
-            <Text style={styles.para}>Delete the slot for <Text style={{ fontWeight: '700' }}>{toDelete?.service_name}</Text> ({toDelete?.user_type_name})? This cannot be undone.</Text>
-            <View style={styles.modalActions}>
-              <Button title="Cancel" variant="ghost" onPress={() => setToDelete(null)} style={{ flex: 1 }} />
-              <Button title="Delete" onPress={confirmDelete} loading={deleting} style={{ flex: 1, backgroundColor: colors.danger }} />
-            </View>
+      <ConfirmDialog
+        visible={!!toDelete} title="Remove Commission Slot" confirmText="Remove" loading={deleting}
+        message={toDelete ? (
+          <View style={{ gap: 10 }}>
+            <Text style={styles.para}>
+              Remove the {toDelete.txn_type === 'debit' ? 'charge' : 'commission'} slot for <Text style={{ fontWeight: '700' }}>{toDelete.service_name}</Text> ({toDelete.user_type_name}
+              {toDelete.operator ? `, ${toDelete.operator}` : ''}, {Number(toDelete.min_amount)}–{Number(toDelete.max_amount)})?
+            </Text>
+            <Text style={[styles.para, { color: colors.muted }]}>Past commission history stays as it is. From now on this slot no longer applies: a transaction that no other slot covers will pay no commission.</Text>
           </View>
-        </View>
-      </Modal>
+        ) : ''}
+        onConfirm={confirmDelete} onCancel={() => setToDelete(null)}
+      />
     </View>
   );
 }
 
 // Rows = services, columns = user types; each cell lists that type's slots for the service.
-function SlotMatrix({ slots, services, userTypes, error, onEdit, onAdd }) {
+function SlotMatrix({ slots, services, userTypes, error, onEdit, onAdd, onDelete }) {
   if (!slots) return <Card><ActivityIndicator color={colors.primary} /></Card>;
   const used = new Set(slots.map((r) => r.service_id));
   // Switched-on services, plus switched-off ones that still have slots.
@@ -288,7 +290,7 @@ function SlotMatrix({ slots, services, userTypes, error, onEdit, onAdd }) {
   };
   return (
     <Card>
-      <Text style={styles.matrixHint}>Commission for each user type, service-wise. Self = on own transactions, Chain = also on the downline's, Debit = charge taken from the user. Tap a slot to edit, + Add for that service and user type.</Text>
+      <Text style={styles.matrixHint}>Commission for each user type, service-wise. Self = on own transactions, Chain = also on the downline's, Debit = charge taken from the user. Tap a slot to edit, the bin icon on it removes it, + Add for that service and user type.</Text>
       {error ? <Alert type="error">{error}</Alert> : null}
       <ScrollView horizontal>
         <View style={{ minWidth: 220 + userTypes.length * 190 }}>
@@ -305,10 +307,13 @@ function SlotMatrix({ slots, services, userTypes, error, onEdit, onAdd }) {
               {userTypes.map((t) => (
                 <View key={t.id} style={[styles.cell, styles.mType, styles.mCell]}>
                   {cell(s, t).map((r) => (
-                    <Pressable key={r.id} onPress={() => onEdit(r)} style={[styles.chip, r.txn_type === 'debit' ? styles.chipDebit : r.chain_type === 'chain' ? styles.chipChain : styles.chipSelf, !r.is_active && styles.chipOff]}>
-                      <Text style={styles.chipText}>{chipLabel(r)}{r.operator ? ` · ${r.operator}` : ''}{!r.is_active ? ' (off)' : ''}</Text>
-                      <Text style={styles.chipSub}>{r.plan_name} · {Number(r.min_amount)}–{Number(r.max_amount)}{r.specific_user ? ` · ${r.specific_user}` : ''}</Text>
-                    </Pressable>
+                    <View key={r.id} style={[styles.chip, styles.chipRow, r.txn_type === 'debit' ? styles.chipDebit : r.chain_type === 'chain' ? styles.chipChain : styles.chipSelf, !r.is_active && styles.chipOff]}>
+                      <Pressable onPress={() => onEdit(r)} style={{ flex: 1 }}>
+                        <Text style={styles.chipText}>{chipLabel(r)}{r.operator ? ` · ${r.operator}` : ''}{!r.is_active ? ' (off)' : ''}</Text>
+                        <Text style={styles.chipSub}>{r.plan_name} · {Number(r.min_amount)}–{Number(r.max_amount)}{r.specific_user ? ` · ${r.specific_user}` : ''}</Text>
+                      </Pressable>
+                      <ActionIcon name="delete" label="Remove slot" onPress={() => onDelete(r)} />
+                    </View>
                   ))}
                   {gap(cell(s, t)) ? <Text style={styles.gapWarn}>{`⚠ Only ${gap(cell(s, t))} — other operators earn nothing`}</Text> : null}
                   {s.is_active ? <Pressable onPress={() => onAdd({ userTypeId: t.id, serviceId: s.id })} hitSlop={4}><Text style={styles.addLink}>+ Add</Text></Pressable> : null}
@@ -340,6 +345,7 @@ const styles = StyleSheet.create({
   chipChain: { backgroundColor: colors.infoBg, borderColor: '#bfdbfe' },
   chipDebit: { backgroundColor: colors.warningBg, borderColor: '#fde68a' },
   chipOff: { opacity: 0.5 },
+  chipRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   chipText: { color: colors.text, fontSize: 12.5, fontWeight: '700' },
   chipSub: { color: colors.muted, fontSize: 11, marginTop: 1 },
   addLink: { color: colors.primary, fontSize: 12, fontWeight: '700', paddingVertical: 2 },
