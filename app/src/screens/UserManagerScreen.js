@@ -227,12 +227,13 @@ export default function UserManagerScreen({ network = false, onDone }) {
   const allModuleRoutes = modules.map((m) => m.route);
   const toggleAll = (key, allVals) => setF((p) => ({ ...p, [key]: (p[key] || []).length === allVals.length ? [] : [...allVals] }));
 
+  const invalid = (msg) => setFormError(msg); // shown in the sticky bar at the top, wherever the page is scrolled
   const save = async () => {
-    if (!f.firstName.trim()) { setFormError('First name is required.'); return; }
-    if (!f.lastName.trim()) { setFormError('Last name is required.'); return; }
-    if (!/^\d{10}$/.test(f.mobile.trim())) { setFormError('Mobile must be 10 digits.'); return; }
-    if (!f.userTypeId) { setFormError('Please select an account type.'); return; }
-    if (!editing && f.password.length < 6) { setFormError('Password must be at least 6 characters.'); return; }
+    if (!f.firstName.trim()) { invalid('First name is required.'); return; }
+    if (!f.lastName.trim()) { invalid('Last name is required.'); return; }
+    if (!/^\d{10}$/.test(f.mobile.trim())) { invalid('Mobile must be 10 digits.'); return; }
+    if (!f.userTypeId) { invalid('Please select an account type.'); return; }
+    if (!editing && f.password.length < 6) { invalid('Password must be at least 6 characters.'); return; }
     setSaving(true); setFormError(null);
     const body = {
       firstName: f.firstName.trim(), middleName: f.middleName.trim(), lastName: f.lastName.trim(),
@@ -301,12 +302,16 @@ export default function UserManagerScreen({ network = false, onDone }) {
   if (view === 'form') {
     return (
       <View style={{ gap: 16 }}>
-        <View style={styles.formHeaderBar}>
-          <View style={{ flex: 1 }} />
-          <FioriButton title="← Back" variant="default" onPress={() => setView('list')} />
+        <View style={styles.formStickyBar}>
+          <View style={styles.formHeaderBar}>
+            <View style={{ flex: 1 }} />
+            <FioriButton title={saving ? 'Saving…' : editing ? 'Save' : 'Create User'} variant="emphasized" onPress={save} disabled={saving} />
+            <FioriButton title="Cancel" variant="default" onPress={() => setView('list')} />
+            <FioriButton title="← Back" variant="default" onPress={() => setView('list')} />
+          </View>
+          {formError ? <Alert type="error">{formError}</Alert> : null}
         </View>
         <Card>
-          {formError ? <Alert type="error">{formError}</Alert> : null}
 
           <Text style={styles.section}>Basic Details</Text>
           <View style={styles.grid}>
@@ -427,10 +432,6 @@ export default function UserManagerScreen({ network = false, onDone }) {
             <View style={[styles.switchField, { marginTop: 14 }]}><Text style={styles.label}>Active</Text><Switch value={f.active} onValueChange={(v) => set('active', v)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
           )}
 
-          <View style={styles.formActions}>
-            <Button title="Cancel" variant="ghost" onPress={() => setView('list')} style={{ minWidth: 120 }} />
-            <Button title={editing ? 'Save' : 'Create User'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
-          </View>
         </Card>
       </View>
     );
@@ -642,6 +643,8 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   foundText: { fontSize: 18, fontWeight: '700', color: colors.text },
   formHeaderBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+  // Save / Cancel / Back (and the error message) stay on screen while the long form scrolls (web; native just sits at the top)
+  formStickyBar: { gap: 8, paddingVertical: 8, ...Platform.select({ web: { position: 'sticky', top: 0, zIndex: 30, backgroundColor: colors.contentBg }, default: {} }) },
   formHeading: { fontSize: 20, fontWeight: '700', color: colors.text },
   formActions: { flexDirection: 'row', justifyContent: 'flex-start', gap: 12, marginTop: 20 },
   section: { fontSize: 15, fontWeight: '700', color: colors.text, marginTop: 18, marginBottom: 12, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: colors.border },

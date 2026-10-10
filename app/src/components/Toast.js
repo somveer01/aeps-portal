@@ -51,7 +51,7 @@ function Item({ t, onClose }) {
     return () => clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <Animated.View style={{ opacity: fade, transform: [{ translateY: fade.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }] }}>
+    <Animated.View style={{ opacity: fade, transform: [{ translateY: fade.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }}>
       <Pressable onPress={onClose} accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.item, { borderLeftColor: tone.color, backgroundColor: '#fff' }]}>
         <View style={[styles.iconDisc, { backgroundColor: tone.bg }]}><Icon name={tone.icon} size={18} color={tone.color} /></View>
         <View style={{ flex: 1 }}>
@@ -94,8 +94,9 @@ export function ToastHost() {
 
 const styles = StyleSheet.create({
   stack: Platform.select({
-    web: { position: 'fixed', top: 76, right: 16, zIndex: 100000, width: 380, maxWidth: '92%', gap: 10 },
-    default: { position: 'absolute', top: 48, left: 12, right: 12, zIndex: 100000, gap: 10 },
+    // bottom-right: top-right is where every screen keeps its action buttons (Save, + Add ..., Back)
+    web: { position: 'fixed', bottom: 24, right: 16, zIndex: 100000, width: 380, maxWidth: '92%', gap: 10 },
+    default: { position: 'absolute', bottom: 32, left: 12, right: 12, zIndex: 100000, gap: 10 },
   }),
   item: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, borderRadius: 12, borderLeftWidth: 5, borderWidth: 1, borderColor: '#e5e7eb', ...shadows.pop },
   iconDisc: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
