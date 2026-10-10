@@ -383,11 +383,11 @@ function MenuNode({ node, active, expanded, onToggle, onSelect, depth = 0 }) {
       >
         {isActive && <View style={styles.activeBar} />}
         <View style={[styles.iconChip, isActive && styles.iconChipActive, hover && !isActive && styles.iconChipHover]}>
-          <Icon name={node.icon} color={isActive ? '#fff' : colors.primary} />
+          <Icon name={node.icon} color={isActive ? colors.onActive : colors.primary} />
         </View>
         <Text style={[styles.linkText, isTop && styles.linkTextTop, isActive && styles.linkTextActive]} numberOfLines={1}>{node.title}</Text>
         {hasChildren && (
-          <Text style={[styles.caret, (open || isActive) && styles.caretOpen, isActive && { color: '#fff' }]}>⌄</Text>
+          <Text style={[styles.caret, (open || isActive) && styles.caretOpen, isActive && { color: colors.onActive }]}>⌄</Text>
         )}
       </Pressable>
       {open && (
@@ -468,14 +468,14 @@ const styles = StyleSheet.create({
 
   link: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 8, paddingLeft: 10, paddingRight: 12, marginHorizontal: 10, marginVertical: 1.5, borderRadius: 12, position: 'relative' },
   linkTop: { marginVertical: 2 },
-  linkActive: { backgroundColor: colors.secondary, ...shadows.card },
+  linkActive: { backgroundColor: colors.activeBg, ...shadows.card },
   linkHover: { backgroundColor: colors.primarySoft },
   linkText: { color: colors.sidebarText, flex: 1, fontSize: 13.5, fontWeight: '500' },
   linkTextTop: { fontSize: 14, fontWeight: '600', color: colors.text },
-  linkTextActive: { color: '#fff', fontWeight: '700' },
-  activeBar: { position: 'absolute', left: -10, top: 9, bottom: 9, width: 3.5, borderRadius: 4, backgroundColor: colors.secondary },
+  linkTextActive: { color: colors.onActive, fontWeight: '700' },
+  activeBar: { position: 'absolute', left: -10, top: 9, bottom: 9, width: 3.5, borderRadius: 4, backgroundColor: colors.activeBg },
   iconChip: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primarySoft },
-  iconChipActive: { backgroundColor: 'rgba(255,255,255,0.22)' },
+  iconChipActive: { backgroundColor: colors.onActive === '#ffffff' ? 'rgba(255,255,255,0.22)' : 'rgba(15,23,42,0.10)' },
   iconChipHover: { backgroundColor: '#ffffff' },
   childWrap: { marginLeft: 25, borderLeftWidth: 1.5, borderLeftColor: colors.sidebarBorder, paddingLeft: 2, marginTop: 1, marginBottom: 5 },
   caret: { color: colors.muted, fontSize: 15, transform: [{ rotate: '-90deg' }] },

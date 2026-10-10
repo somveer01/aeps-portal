@@ -184,9 +184,9 @@ function MenuNode({ node, active, expanded, onToggle, onSelect, depth = 0 }) {
       <Pressable onHoverIn={() => setHover(true)} onHoverOut={() => setHover(false)}
         onPress={() => (hasChildren ? onToggle(node.id) : onSelect(node))}
         style={[styles.link, { paddingLeft: 14 + depth * 14 }, isActive && styles.linkActive, hover && !isActive && styles.linkHover]}>
-        <Icon name={node.icon} color={isActive ? '#fff' : colors.primary} />
-        <Text style={[styles.linkText, isActive && { color: '#fff', fontWeight: '600' }]} numberOfLines={1}>{node.title}</Text>
-        {hasChildren && <Text style={[styles.caret, isActive && { color: '#fff' }]}>{expanded[node.id] ? '⌄' : '›'}</Text>}
+        <Icon name={node.icon} color={isActive ? colors.onActive : colors.primary} />
+        <Text style={[styles.linkText, isActive && { color: colors.onActive, fontWeight: '600' }]} numberOfLines={1}>{node.title}</Text>
+        {hasChildren && <Text style={[styles.caret, isActive && { color: colors.onActive }]}>{expanded[node.id] ? '⌄' : '›'}</Text>}
       </Pressable>
       {hasChildren && expanded[node.id] && node.children.map((c) => (
         <MenuNode key={c.id} node={c} active={active} expanded={expanded} onToggle={onToggle} onSelect={onSelect} depth={depth + 1} />
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   profile: { alignItems: 'center', paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
   profileBanner: { height: 72, alignSelf: 'stretch', backgroundColor: colors.primary, boxShadow: `inset 0 -30px 40px ${colors.primaryDark}` },
   avatarLg: { width: 86, height: 86, borderRadius: 43, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: -46, borderWidth: 4, borderColor: '#fff', ...shadows.card },
-  avatarLgText: { color: '#fff', fontWeight: '800', fontSize: 28 },
+  avatarLgText: { color: colors.onPrimary, fontWeight: '800', fontSize: 28 },
   profileName: { fontWeight: '800', color: colors.text, marginTop: 10, fontSize: 15.5 },
   roleRow: { flexDirection: 'row', gap: 4, marginTop: 2 },
   profileRole: { color: colors.muted, fontSize: 11.5, textTransform: 'uppercase', letterSpacing: 0.6 },
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   brandBand: { height: TOPBAR_HEIGHT, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, backgroundColor: colors.sidebarBg, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
   sideSearch: { paddingHorizontal: 12, paddingTop: 12, zIndex: 50 },
   link: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingRight: 12, marginHorizontal: 10, marginVertical: 1, borderRadius: 10 },
-  linkActive: { backgroundColor: colors.secondary, ...shadows.sm },
+  linkActive: { backgroundColor: colors.activeBg, ...shadows.sm },
   linkHover: { backgroundColor: colors.primarySoft },
   linkText: { color: colors.sidebarText, flex: 1, fontSize: 14, fontWeight: '500' },
   caret: { color: colors.muted, fontSize: 16 },

@@ -13,6 +13,11 @@ export const colors = {
   sidebar: '#0f172a',
   sidebarFg: '#cbd5e1',
   sidebarActive: DEFAULT_SECONDARY, // menu highlight = secondary
+  // Readable pairs, recomputed by applyTheme(): the active menu item uses the secondary colour unless that is too light
+  // to show on the white sidebar (then the primary), and every "text on a coloured background" picks black or white.
+  activeBg: DEFAULT_SECONDARY,
+  onActive: '#ffffff',
+  onPrimary: '#ffffff',
   primary: DEFAULT_PRIMARY,
   primaryDark: '#1d4ed8',
   primarySoft: '#eef4ff', // tinted primary wash (hover / active bg)
@@ -66,6 +71,21 @@ export function darken(hex, amt = 0.12) {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
+/** Relative luminance 0 (black) .. 1 (white) of a hex colour. */
+export function luminance(hex) {
+  if (!isHex(hex)) return 0;
+  let h = hex.trim().slice(1);
+  if (h.length === 3) h = h.split('').map((x) => x + x).join('');
+  const n = parseInt(h, 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+}
+
+/** Text colour that stays readable on a background of this colour: white on dark / mid colours, near-black on light ones. */
+export function onColor(hex) {
+  return luminance(hex) > 0.4 ? '#0f172a' : '#ffffff';
+}
+
 /**
  * Apply a theme by mutating the shared colors object. Call this at startup
  * (before screens render) and after the admin saves a new theme (followed by
@@ -81,6 +101,10 @@ export function applyTheme({ primary, secondary } = {}) {
   colors.info = p;
   colors.secondary = s;
   colors.sidebarActive = s; // menu highlight
+  colors.onPrimary = onColor(p);
+  // A white / very light secondary would vanish on the white sidebar (white active item, white text): fall back to the primary.
+  colors.activeBg = luminance(s) > 0.8 ? p : s;
+  colors.onActive = onColor(colors.activeBg);
   return { primary: p, secondary: s };
 }
 

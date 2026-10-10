@@ -92,6 +92,7 @@ export function Button({ title, onPress, loading, disabled, variant = 'primary',
   const bg = isGhost
     ? (pressed || hover ? '#f1f5f9' : 'transparent')
     : (pressed || hover ? dark : base);
+  const onBtn = isNavy ? '#fff' : colors.onPrimary; // readable on a light primary too
   return (
     <Pressable
       onPress={disabled || loading ? undefined : onPress}
@@ -107,9 +108,9 @@ export function Button({ title, onPress, loading, disabled, variant = 'primary',
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isGhost ? colors.text : '#fff'} />
+        <ActivityIndicator color={isGhost ? colors.text : onBtn} />
       ) : (
-        <Text style={[styles.btnText, isGhost && { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.btnText, { color: onBtn }, isGhost && { color: colors.text }]}>{title}</Text>
       )}
     </Pressable>
   );

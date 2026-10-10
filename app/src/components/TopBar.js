@@ -21,8 +21,9 @@ function tint(hex, a) {
 }
 
 export default function TopBar({ isWide, onMenu, menu, onSearchSelect, walletAmount, onWallet, photo, name, role, onUser }) {
-  const accent = Platform.OS === 'web' && colors.secondary !== colors.primary
-    ? { backgroundImage: `linear-gradient(90deg, ${colors.primary}, ${colors.secondary})` }
+  // activeBg = the secondary colour unless it is too light to see (then the primary), so the line never disappears.
+  const accent = Platform.OS === 'web' && colors.activeBg !== colors.primary
+    ? { backgroundImage: `linear-gradient(90deg, ${colors.primary}, ${colors.activeBg})` }
     : { backgroundColor: colors.primary };
 
   return (
