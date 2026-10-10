@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 import { Pager, reportStyles } from './AccountHistoryScreen';
+import FormBar from '../components/FormBar';
 
 // My Network → Commission Packages. A package sets what my direct downline earns per service.
 // The money comes out of my own share (the admin's total never changes); the most I can give
@@ -129,12 +130,9 @@ function PackageForm({ meta, pkg, onBack, onSaved }) {
 
   return (
     <View style={{ gap: 16 }}>
-      <View style={styles.headRow}>
-        <Text style={reportStyles.heading}>{pkg ? 'Edit Package' : 'New Package'}</Text>
-        <Button title="ALL PACKAGES" onPress={onBack} />
-      </View>
+      <FormBar heading={pkg ? 'Edit Package' : 'New Package'} saveTitle={pkg ? 'Save' : 'Create'} onSave={save} saving={saving}
+        onCancel={onBack} backTitle="ALL PACKAGES" onBack={onBack} error={error} />
       <Card>
-        <Alert>{error}</Alert>
         <View style={reportStyles.grid}>
           <View style={reportStyles.field}><Text style={reportStyles.label}>Package Name *</Text>
             <TextInput value={name} onChangeText={setName} placeholder="e.g. Gold Retailer" placeholderTextColor={colors.muted} style={reportStyles.input} /></View>
@@ -170,10 +168,6 @@ function PackageForm({ meta, pkg, onBack, onSaved }) {
           })}
         </View>
         </ScrollView>
-        <View style={styles.formActions}>
-          <Button title="Cancel" variant="ghost" onPress={onBack} style={{ minWidth: 120 }} />
-          <Button title={pkg ? 'Save' : 'Create'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
-        </View>
       </Card>
     </View>
   );

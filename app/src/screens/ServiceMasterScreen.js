@@ -8,6 +8,7 @@ import { FioriPage, FioriHeader, FioriPanel, FioriToolbar, FioriSearch, FioriBut
 import { api, assetUrl } from '../api/client';
 import { pickImage } from '../api/imagePicker';
 import { colors, radius } from '../theme';
+import FormBar from '../components/FormBar';
 
 const PAGE_SIZE = 12; // a 3- or 4-column card grid
 const TYPE_OPTIONS = [
@@ -145,12 +146,9 @@ export default function ServiceMasterScreen() {
   if (view === 'form') {
     return (
       <View style={{ gap: 16 }}>
-        <View style={styles.formHeaderBar}>
-          <View style={{ flex: 1 }} />
-          <FioriButton title="← Back" variant="default" onPress={() => setView('list')} />
-        </View>
+        <FormBar saveTitle={editing ? 'Save' : 'Create'} onSave={save} saving={saving}
+          onCancel={() => setView('list')} backTitle="← Back" onBack={() => setView('list')} error={formError} />
         <Card>
-          {formError ? <Alert type="error">{formError}</Alert> : null}
           <View style={styles.grid}>
             <View style={styles.field}><Text style={styles.label}>Service Title *</Text>
               <TextInput value={title} onChangeText={setTitle} placeholder="e.g. Mobile Recharge" placeholderTextColor={colors.muted} style={styles.modalInput} autoFocus /></View>
@@ -176,10 +174,6 @@ export default function ServiceMasterScreen() {
                 {icon ? <Pressable onPress={() => setIcon(null)} style={styles.iconRemove}><Text style={{ color: colors.danger, fontWeight: '600' }}>Remove</Text></Pressable> : null}
               </View>
             </View>
-          </View>
-          <View style={styles.formActions}>
-            <FioriButton title="Cancel" variant="transparent" onPress={() => setView('list')} />
-            <FioriButton title={saving ? 'Saving…' : editing ? 'Save' : 'Create'} onPress={save} disabled={saving} />
           </View>
         </Card>
       </View>

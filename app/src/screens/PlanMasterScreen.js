@@ -7,6 +7,7 @@ import ActionIcon from '../components/ActionIcon';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
+import FormBar from '../components/FormBar';
 
 const PAGE_SIZE = 10;
 function fmtDate(s) {
@@ -69,21 +70,14 @@ export default function PlanMasterScreen() {
   if (view === 'form') {
     return (
       <View style={{ gap: 16 }}>
-        <View style={styles.formHeaderBar}>
-          <Text style={styles.formHeading}>{editing ? 'Edit Plan' : 'Add New Plan'}</Text>
-          <Button title="ALL PLANS" onPress={() => setView('list')} style={{ paddingHorizontal: 18 }} />
-        </View>
+        <FormBar heading={editing ? 'Edit Plan' : 'Add New Plan'} saveTitle={editing ? 'Save' : 'Submit'} onSave={save} saving={saving}
+          onCancel={() => setView('list')} backTitle="ALL PLANS" onBack={() => setView('list')} error={formError} />
         <Card>
-          {formError ? <Alert type="error">{formError}</Alert> : null}
           <View style={styles.grid}>
             <View style={styles.field}><Select label="Select User Type *" value={userTypeId} options={utOptions} onChange={setUserTypeId} placeholder="Select a user type" /></View>
             <View style={styles.field}><Text style={styles.label}>Plan Name *</Text>
               <TextInput value={name} onChangeText={setName} placeholder="Enter plan title" placeholderTextColor={colors.muted} style={styles.modalInput} onSubmitEditing={save} /></View>
             <View style={[styles.field, styles.switchField]}><Text style={styles.label}>Active</Text><Switch value={active} onValueChange={setActive} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
-          </View>
-          <View style={styles.formActions}>
-            <Button title="Cancel" variant="ghost" onPress={() => setView('list')} style={{ minWidth: 120 }} />
-            <Button title={editing ? 'Save' : 'Submit'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
           </View>
         </Card>
       </View>

@@ -9,6 +9,7 @@ import UserPicker from '../components/UserPicker';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
+import FormBar from '../components/FormBar';
 
 const PAGE_SIZE = 10;
 const COMMISSION_OPTIONS = [
@@ -142,12 +143,9 @@ export default function CommissionSlotScreen() {
   if (view === 'form') {
     return (
       <View style={{ gap: 16 }}>
-        <View style={styles.formHeaderBar}>
-          <Text style={styles.formHeading}>{editing ? 'Edit Commission Slot' : 'Add Commission Slot'}</Text>
-          <Button title="ALL SLOTS" onPress={() => setView('list')} style={{ paddingHorizontal: 18 }} />
-        </View>
+        <FormBar heading={editing ? 'Edit Commission Slot' : 'Add Commission Slot'} saveTitle={editing ? 'Save' : 'Submit'} onSave={save} saving={saving}
+          onCancel={() => setView('list')} backTitle="ALL SLOTS" onBack={() => setView('list')} error={formError} />
         <Card>
-          {formError ? <Alert type="error">{formError}</Alert> : null}
           <View style={styles.grid}>
             {/* Row 1: User Type, Plan, Service, Commission Type */}
             <View style={styles.field}><Select label="User Type *" value={form.userTypeId} options={utOptions} onChange={(v) => setForm((f) => ({ ...f, userTypeId: v, specificUser: String(v) === String(f.userTypeId) ? f.specificUser : '' }))} placeholder="Select user type" /></View>
@@ -189,10 +187,6 @@ export default function CommissionSlotScreen() {
             <View style={[styles.field, styles.switchField]}><Text style={styles.label}>Active</Text><Switch value={form.active} onValueChange={(v) => set('active', v)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
           </View>
 
-          <View style={styles.formActions}>
-            <Button title="Cancel" variant="ghost" onPress={() => setView('list')} style={{ minWidth: 120 }} />
-            <Button title={editing ? 'Save' : 'Submit'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
-          </View>
         </Card>
       </View>
     );

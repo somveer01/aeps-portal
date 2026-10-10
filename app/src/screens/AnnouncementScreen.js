@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Card, Button, Alert, Select } from '../components/UI';
 import ActionIcon from '../components/ActionIcon';
+import FormBar from '../components/FormBar';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
@@ -67,21 +68,14 @@ export default function AnnouncementScreen() {
   if (view === 'form') {
     return (
       <View style={{ gap: 16 }}>
-        <View style={styles.formHeaderBar}>
-          <Text style={styles.formHeading}>{editing ? 'Edit Announcement' : 'Add Announcement'}</Text>
-          <Button title="ALL ANNOUNCEMENTS" onPress={() => setView('list')} style={{ paddingHorizontal: 18 }} />
-        </View>
+        <FormBar heading={editing ? 'Edit Announcement' : 'Add Announcement'} saveTitle={editing ? 'Save' : 'Create'} onSave={save} saving={saving}
+          onCancel={() => setView('list')} backTitle="ALL ANNOUNCEMENTS" onBack={() => setView('list')} error={formError} />
         <Card>
-          {formError ? <Alert type="error">{formError}</Alert> : null}
           <View style={styles.grid}>
             <View style={styles.field}><Select label="For User Type *" value={userTypeId} options={utOptions} onChange={setUserTypeId} placeholder="-- Choose --" /></View>
             <View style={[styles.field, styles.switchField]}><Text style={styles.label}>Active</Text><Switch value={active} onValueChange={setActive} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
             <View style={styles.fieldFull}><Text style={styles.label}>Announcement Message *</Text>
               <TextInput value={message} onChangeText={setMessage} multiline placeholder="Enter announcement message…" placeholderTextColor={colors.muted} style={[styles.input, styles.textarea]} autoFocus /></View>
-          </View>
-          <View style={styles.formActions}>
-            <Button title="Cancel" variant="ghost" onPress={() => setView('list')} style={{ minWidth: 120 }} />
-            <Button title={editing ? 'Save' : 'Create'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
           </View>
         </Card>
       </View>

@@ -7,6 +7,7 @@ import ActionIcon from '../components/ActionIcon';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
+import FormBar from '../components/FormBar';
 
 const PAGE_SIZE = 10;
 
@@ -60,12 +61,9 @@ export default function CompanyBankScreen() {
   if (view === 'form') {
     return (
       <View style={{ gap: 16 }}>
-        <View style={styles.formHeaderBar}>
-          <Text style={styles.formHeading}>{editing ? 'Edit Account' : 'Add New Account'}</Text>
-          <Button title="ALL BANKS" onPress={() => setView('list')} style={{ paddingHorizontal: 18 }} />
-        </View>
+        <FormBar heading={editing ? 'Edit Account' : 'Add New Account'} saveTitle={editing ? 'Save' : 'Create'} onSave={save} saving={saving}
+          onCancel={() => setView('list')} backTitle="ALL BANKS" onBack={() => setView('list')} error={formError} />
         <Card>
-          {formError ? <Alert type="error">{formError}</Alert> : null}
           <View style={styles.grid}>
             <View style={styles.field}><Select label="Bank Name *" value={f.bankId} options={bankOptions} onChange={(v) => set('bankId', v)} placeholder="-- Select Bank --" /></View>
             <View style={styles.field}><Text style={styles.label}>Account Holder *</Text>
@@ -75,10 +73,6 @@ export default function CompanyBankScreen() {
             <View style={styles.field}><Text style={styles.label}>IFSC Code *</Text>
               <TextInput value={f.ifscCode} onChangeText={(v) => set('ifscCode', v)} autoCapitalize="characters" placeholder="e.g. HDFC0001234" placeholderTextColor={colors.muted} style={styles.input} /></View>
             <View style={[styles.field, styles.switchField]}><Text style={styles.label}>Active</Text><Switch value={f.active} onValueChange={(v) => set('active', v)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
-          </View>
-          <View style={styles.formActions}>
-            <Button title="Cancel" variant="ghost" onPress={() => setView('list')} style={{ minWidth: 120 }} />
-            <Button title={editing ? 'Save' : 'Create'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
           </View>
         </Card>
       </View>

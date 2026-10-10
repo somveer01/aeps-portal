@@ -8,6 +8,7 @@ import { api, assetUrl } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { pickImage } from '../api/imagePicker';
 import { colors, radius } from '../theme';
+import FormBar from '../components/FormBar';
 
 const PAGE_SIZE = 10;
 const TYPE_OPTIONS = [
@@ -78,12 +79,9 @@ export default function ApplicationBannerScreen() {
   if (view === 'form') {
     return (
       <View style={{ gap: 16 }}>
-        <View style={styles.formHeaderBar}>
-          <Text style={styles.formHeading}>{editing ? 'Edit Banner' : 'Add Banner'}</Text>
-          <Button title="ALL BANNERS" onPress={() => setView('list')} style={{ paddingHorizontal: 18 }} />
-        </View>
+        <FormBar heading={editing ? 'Edit Banner' : 'Add Banner'} saveTitle={editing ? 'Save' : 'Create'} onSave={save} saving={saving}
+          onCancel={() => setView('list')} backTitle="ALL BANNERS" onBack={() => setView('list')} error={formError} />
         <Card>
-          {formError ? <Alert type="error">{formError}</Alert> : null}
           <View style={styles.grid}>
             <View style={styles.field}><Text style={styles.label}>Banner Title *</Text>
               <TextInput value={title} onChangeText={setTitle} placeholder="e.g. Mobile Recharge" placeholderTextColor={colors.muted} style={styles.input} autoFocus /></View>
@@ -100,10 +98,6 @@ export default function ApplicationBannerScreen() {
                 </View>
               </View>
             </View>
-          </View>
-          <View style={styles.formActions}>
-            <Button title="Cancel" variant="ghost" onPress={() => setView('list')} style={{ minWidth: 120 }} />
-            <Button title={editing ? 'Save' : 'Create'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
           </View>
         </Card>
       </View>

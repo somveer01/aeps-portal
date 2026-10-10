@@ -8,6 +8,7 @@ import { FioriPage, FioriHeader, FioriPanel, FioriToolbar, FioriSearch, FioriBut
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
+import FormBar from '../components/FormBar';
 
 const PAGE_SIZE = 10;
 
@@ -98,12 +99,9 @@ export default function UserTypeMasterScreen() {
   if (view === 'form') {
     return (
       <View style={{ gap: 16 }}>
-        <View style={styles.formHeaderBar}>
-          <View style={{ flex: 1 }} />
-          <FioriButton title="← Back" variant="default" onPress={() => setView('list')} />
-        </View>
+        <FormBar saveTitle={editing ? 'Save' : 'Create'} onSave={save} saving={saving}
+          onCancel={() => setView('list')} backTitle="← Back" onBack={() => setView('list')} error={formError} />
         <Card>
-          {formError ? <Alert type="error">{formError}</Alert> : null}
           <View style={styles.grid}>
             <View style={styles.field}><Text style={styles.label}>User Type Name *</Text>
               <TextInput value={name} onChangeText={setName} placeholder="e.g. Distributor" placeholderTextColor={colors.muted} style={styles.modalInput} autoFocus onSubmitEditing={save} /></View>
@@ -111,10 +109,6 @@ export default function UserTypeMasterScreen() {
             <View style={[styles.field, styles.switchField]}><Text style={styles.label}>Active</Text><Switch value={active} onValueChange={setActive} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
           </View>
           <Text style={styles.hint}>Parent Type is the user type directly above this one (e.g. Retailer → Distributor). Users of the parent type get a My Network panel where they can create users of this type, send them balance and see their reports.</Text>
-          <View style={styles.formActions}>
-            <FioriButton title="Cancel" variant="transparent" onPress={() => setView('list')} />
-            <FioriButton title={saving ? 'Saving…' : editing ? 'Save' : 'Create'} onPress={save} disabled={saving} />
-          </View>
         </Card>
       </View>
     );

@@ -7,6 +7,7 @@ import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { pickImage } from '../api/imagePicker';
 import { colors, radius } from '../theme';
 import { Fld, Pager, reportStyles } from './AccountHistoryScreen';
+import FormBar from '../components/FormBar';
 
 const PAGE_SIZE = 10;
 const STATUS_OPTIONS = [{ label: 'All', value: '' }, { label: 'Pending', value: 'pending' }, { label: 'Approved', value: 'approved' }, { label: 'Rejected', value: 'rejected' }];
@@ -84,12 +85,9 @@ export default function PayoutBankScreen() {
   if (view === 'form') {
     return (
       <View style={{ gap: 16 }}>
-        <View style={styles.formHeaderBar}>
-          <Text style={styles.formHeading}>{editing ? 'Edit Payout Bank' : 'Add Payout Bank'}</Text>
-          <Button title="ALL PAYOUT BANKS" onPress={() => setView('list')} style={{ paddingHorizontal: 18 }} />
-        </View>
+        <FormBar heading={editing ? 'Edit Payout Bank' : 'Add Payout Bank'} saveTitle={editing ? 'Save' : 'Create'} onSave={save} saving={saving}
+          onCancel={() => setView('list')} backTitle="ALL PAYOUT BANKS" onBack={() => setView('list')} error={formError} />
         <Card>
-          {formError ? <Alert type="error">{formError}</Alert> : null}
           <View style={styles.fgrid}>
             <View style={styles.ffield}><UserPicker label="User *" value={f.userId} onChange={(v) => setForm('userId', v)} clearable={false} placeholder="-- Select User --" /></View>
             <View style={styles.ffield}><Text style={styles.label}>Bank Name *</Text><TextInput value={f.bankName} onChangeText={(v) => setForm('bankName', v)} placeholder="e.g. HDFC Bank" placeholderTextColor={colors.muted} style={styles.input} /></View>
@@ -107,10 +105,6 @@ export default function PayoutBankScreen() {
                 </View>
               </View>
             </View>
-          </View>
-          <View style={styles.formActions}>
-            <Button title="Cancel" variant="ghost" onPress={() => setView('list')} style={{ minWidth: 120 }} />
-            <Button title={editing ? 'Save' : 'Create'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
           </View>
         </Card>
       </View>

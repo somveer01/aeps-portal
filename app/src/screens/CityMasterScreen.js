@@ -7,6 +7,7 @@ import ActionIcon from '../components/ActionIcon';
 import { api } from '../api/client';
 import DataGrid, { useGrid, useGridReload } from '../components/DataGrid';
 import { colors, radius } from '../theme';
+import FormBar from '../components/FormBar';
 
 const PAGE_SIZE = 10;
 
@@ -70,20 +71,13 @@ export default function CityMasterScreen() {
   if (view === 'form') {
     return (
       <View style={{ gap: 16 }}>
-        <View style={styles.formHeaderBar}>
-          <Text style={styles.formHeading}>{editing ? 'Edit City' : 'New City'}</Text>
-          <Button title="ALL CITIES" onPress={() => setView('list')} style={{ paddingHorizontal: 18 }} />
-        </View>
+        <FormBar heading={editing ? 'Edit City' : 'New City'} saveTitle={editing ? 'Save' : 'Create'} onSave={save} saving={saving}
+          onCancel={() => setView('list')} backTitle="ALL CITIES" onBack={() => setView('list')} error={formError} />
         <Card>
-          {formError ? <Alert type="error">{formError}</Alert> : null}
           <View style={styles.grid}>
             <View style={styles.field}><Select label="State *" value={stateId} options={stateOptions} onChange={setStateId} placeholder="Select a state" /></View>
             <View style={styles.field}><Text style={styles.label}>City Name *</Text>
               <TextInput value={name} onChangeText={setName} placeholder="e.g. Bengaluru" placeholderTextColor={colors.muted} style={styles.modalInput} onSubmitEditing={save} /></View>
-          </View>
-          <View style={styles.formActions}>
-            <Button title="Cancel" variant="ghost" onPress={() => setView('list')} style={{ minWidth: 120 }} />
-            <Button title={editing ? 'Save' : 'Create'} onPress={save} loading={saving} style={{ minWidth: 150 }} />
           </View>
         </Card>
       </View>

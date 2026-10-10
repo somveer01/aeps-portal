@@ -10,6 +10,7 @@ import DataGrid, { gridParams } from '../components/DataGrid';
 import { colors, radius } from '../theme';
 import buttonLabel from '../components/buttonLabel';
 import ConfirmDialog from '../components/ConfirmDialog';
+import FormBar from '../components/FormBar';
 
 // SAP Fiori design tokens (scoped to this screen). Accent follows the app theme.
 const FIORI = {
@@ -302,15 +303,8 @@ export default function UserManagerScreen({ network = false, onDone }) {
   if (view === 'form') {
     return (
       <View style={{ gap: 16 }}>
-        <View style={styles.formStickyBar}>
-          <View style={styles.formHeaderBar}>
-            <View style={{ flex: 1 }} />
-            <FioriButton title={saving ? 'Saving…' : editing ? 'Save' : 'Create User'} variant="emphasized" onPress={save} disabled={saving} />
-            <FioriButton title="Cancel" variant="default" onPress={() => setView('list')} />
-            <FioriButton title="← Back" variant="default" onPress={() => setView('list')} />
-          </View>
-          {formError ? <Alert type="error">{formError}</Alert> : null}
-        </View>
+        <FormBar saveTitle={editing ? 'Save' : 'Create User'} onSave={save} saving={saving}
+          onCancel={() => setView('list')} backTitle="← Back" onBack={() => setView('list')} error={formError} />
         <Card>
 
           <Text style={styles.section}>Basic Details</Text>

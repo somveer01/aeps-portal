@@ -6,6 +6,7 @@ import { pickImage } from '../api/imagePicker';
 import { setThemeCache } from '../api/storage';
 import { toast } from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
+import FormBar from '../components/FormBar';
 import { colors, radius, isHex, applyTheme, resolveTheme, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../theme';
 
 const PRESETS = [DEFAULT_PRIMARY, DEFAULT_SECONDARY, '#2563eb', '#1d4ed8', '#0ea5e9', '#0891b2', '#059669', '#16a34a', '#ca8a04', '#ea580c', '#dc2626', '#db2777', '#7c3aed', '#4f46e5', '#0f172a', '#334155'];
@@ -245,8 +246,8 @@ export default function SettingsScreen() {
 
   return (
     <View style={{ gap: 16 }}>
+      <FormBar saveTitle="Save Settings" onSave={saveAll} saving={saving} error={error} />
       <Alert type="info">{info}</Alert>
-      <Alert type="error">{error}</Alert>
 
       {/* General */}
       <Card>
@@ -355,11 +356,6 @@ export default function SettingsScreen() {
           {banner ? <Button title="Remove" variant="ghost" onPress={() => setConfirmBanner(true)} disabled={bannerBusy} style={{ flex: 1 }} /> : null}
         </View>
       </Card>
-
-      {/* Save */}
-      <View style={styles.saveBar}>
-        <Button title="SAVE SETTINGS" onPress={saveAll} loading={saving} style={{ minWidth: 200, paddingHorizontal: 24 }} />
-      </View>
 
       <ConfirmDialog
         visible={confirmBanner} title="Remove Login Banner"
