@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { api, onSessionEnded } from './src/api/client';
 import { saveToken, clearToken, getThemeCache, setThemeCache } from './src/api/storage';
 import { colors, applyTheme } from './src/theme';
+import { ToastHost } from './src/components/Toast';
 
 // Web (desktop) only: render the whole app ~15% more compact, so 100% browser
 // zoom shows the density that used to need 85%. Chromium/Safari honour `zoom`.
@@ -105,6 +106,7 @@ export default function App() {
     <View style={styles.root}>
       <StatusBar style="auto" />
       {content}
+      <ToastHost />
     </View>
   );
 }

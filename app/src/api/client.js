@@ -3,6 +3,7 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { getToken } from './storage';
+import { notify } from './feedback';
 
 const API_PORT = 3000;
 
@@ -41,7 +42,9 @@ export function idemKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-async function request(path, { method = 'GET', body, auth = false, idempotencyKey } = {}) {
+// Every non-GET call also shows its confirmation / error message (api/feedback.js). Options: silent (say nothing), message (own success text).
+async function request(path, { method = 'GET', body, auth = false, idempotencyKey, silent = false, message } = {}) {
+  const say = method !== 'GET';
   const headers = { 'Content-Type': 'application/json' };
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
   if (auth) {
@@ -56,12 +59,19 @@ async function request(path, { method = 'GET', body, auth = false, idempotencyKe
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (e) {
-    throw new ApiError('Cannot reach server. Is the API running?', 0, 'NETWORK');
+    const err = new ApiError('Cannot reach server. Is the API running?', 0, 'NETWORK');
+    if (say) notify({ method, path, body, error: err, silent });
+    throw err;
   }
   const data = await res.json().catch(() => ({}));
   // The account was blocked or the session revoked (password change, role change): sign out right away.
   if (auth && res.status === 401 && (data.code === 'INACTIVE' || data.code === 'TOKEN_REVOKED') && sessionEndedHandler) sessionEndedHandler();
-  if (!res.ok) throw new ApiError(data.error || 'Request failed', res.status, data.code, data);
+  if (!res.ok) {
+    const err = new ApiError(data.error || 'Request failed', res.status, data.code, data);
+    if (say) notify({ method, path, body, error: err, silent });
+    throw err;
+  }
+  if (say) notify({ method, path, body, data, silent, message });
   return data;
 }
 
@@ -149,7 +159,7 @@ export const api = {
   clearLoginBanner: () => request('/api/settings/login-banner', { method: 'DELETE', auth: true }),
   saveTheme: (primary, secondary) => request('/api/settings/theme', { method: 'POST', body: { primary, secondary }, auth: true }),
   getAppSettings: () => request('/api/settings/app', { auth: true }),
-  saveAppSettings: (settings) => request('/api/settings/app', { method: 'POST', body: settings, auth: true }),
+  saveAppSettings: (settings) => request('/api/settings/app', { method: 'POST', body: settings, auth: true, silent: true }), // SettingsScreen words the message (the page reloads)
   // Theme colours picked from an uploaded logo ('/uploads/...'): { primary, secondary, palette } (nulls when the logo has no colour).
   logoColors: (path) => request('/api/settings/logo-colors', { method: 'POST', body: { path }, auth: true }),
 

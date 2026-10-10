@@ -4,6 +4,7 @@ import { Card, Button, Alert, Select } from '../components/UI';
 import { api, assetUrl } from '../api/client';
 import { pickImage } from '../api/imagePicker';
 import { setThemeCache } from '../api/storage';
+import { toast } from '../components/Toast';
 import { colors, radius, isHex, applyTheme, resolveTheme, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../theme';
 
 const PRESETS = [DEFAULT_PRIMARY, DEFAULT_SECONDARY, '#2563eb', '#1d4ed8', '#0ea5e9', '#0891b2', '#059669', '#16a34a', '#ca8a04', '#ea580c', '#dc2626', '#db2777', '#7c3aed', '#4f46e5', '#0f172a', '#334155'];
@@ -218,7 +219,8 @@ export default function SettingsScreen() {
       await setThemeCache(theme);
       applyTheme(theme);
       setInfo('Application settings saved.');
-      if (Platform.OS === 'web') setTimeout(() => window.location.reload(), 500);
+      if (Platform.OS === 'web') { toast.flash('success', 'Settings saved successfully. The new look is applied.'); setTimeout(() => window.location.reload(), 500); }
+      else toast.success('Settings saved successfully. Restart the app to see the new look.');
     } catch (e) { setError(e.message || 'Could not save'); } finally { setSaving(false); }
   };
 
@@ -228,7 +230,7 @@ export default function SettingsScreen() {
       const picked = await pickImage(); if (!picked) return;
       setBannerBusy(true);
       const { loginBanner } = await api.uploadLoginBanner(picked);
-      setBanner(assetUrl(loginBanner)); setInfo('Login banner updated.');
+      setBanner(assetUrl(loginBanner)); setInfo('Login banner updated.'); toast.success('Login banner updated successfully.');
     } catch (e) { setError(e.message || 'Upload failed'); } finally { setBannerBusy(false); }
   };
   const removeBanner = async () => {
