@@ -7,6 +7,7 @@ const permission = require('../services/servicePermission.service');
 const reportsRepo = require('../repositories/reports.repo');
 const commissionSlotRepo = require('../repositories/commissionSlot.repo');
 const networkRepo = require('../repositories/network.repo');
+const dashboardCtl = require('./dashboard.controller');
 
 const clean = (v) => String(v || '').trim();
 
@@ -41,6 +42,68 @@ async function summary(req, res, next) {
       name: u ? u.full_name : '', shopName: u ? u.shop_name : '', userCode: u ? u.user_code : '', userTypeName: (u && u.user_type_name) || 'Retailer',
       today: { count: Number(today.c || 0), amount: Number(today.amt || 0) },
       commissionToday: Number(commToday.amt || 0),
+    });
+  } catch (err) { return next(err); }
+}
+
+// Services whose successful amount counts as money sent to a bank (same rule as the admin dashboard).
+const PAYOUT_SERVICES = ['%money transfer%', '%move to bank%', '%dmt%'];
+
+// GET /api/retailer/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD  (Modern dashboard of every managed user)
+// Same blocks as the admin `range`, but strictly the caller's own data: own service transactions, own wallet refunds, commission the
+// caller earned (level 0 = own business, level > 0 = from the downline), approved fund requests the caller received, money the caller sent
+// to banks. Types that may have a downline also get `network` (the whole downline's successful volume, commission earned from it, head count).
+async function dashboard(req, res, next) {
+  try {
+    const rng = dashboardCtl.parseRange(req.query || {});
+    if (rng.error) return res.status(400).json({ error: rng.error, code: 'INVALID_DATE' });
+    const { from, to } = rng;
+    const me = req.user.id;
+    const num = (v) => Number(v || 0);
+    const between = (qb, col) => {
+      if (from) qb.whereRaw(`${col}::date >= ?`, [from]);
+      if (to) qb.whereRaw(`${col}::date <= ?`, [to]);
+      return qb;
+    };
+    const sum = (col) => db.raw(`COALESCE(sum(${col}), 0) as amt`);
+    const cnt = db.raw('count(*)::int as cnt');
+
+    const statusRows = await between(db('service_transactions').where('user_id', me), 'created_at')
+      .groupBy('status').select('status', cnt, sum('amount'));
+    const pick = (s) => { const r = statusRows.find((x) => x.status === s); return { count: r ? r.cnt : 0, amount: r ? num(r.amt) : 0 }; };
+    const refund = await between(db('account_transactions').where({ user_id: me, type: 'credit' }).andWhere('remark', 'ilike', 'Refund%'), 'created_at')
+      .first(cnt, sum('amount'));
+
+    const earned = (level) => between(db('commission_ledger').where({ user_id: me, wallet_txn_type: 'credit' })
+      .modify((q) => (level === 0 ? q.where('level', 0) : q.where('level', '>', 0))), 'created_at').first(sum('net_amount'));
+    const own = num((await earned(0)).amt);
+    const fromNetwork = num((await earned(1)).amt);
+
+    const payIn = await between(db('fund_requests').where({ user_id: me, status: 'approved' }), 'COALESCE(acted_at, updated_at)').first(cnt, sum('amount'));
+    const payOut = await between(db('service_transactions').where({ user_id: me, status: 'success' })
+      .andWhere((w) => PAYOUT_SERVICES.forEach((p) => w.orWhere('service', 'ilike', p))), 'created_at').first(cnt, sum('amount'));
+    const topServices = await between(db('service_transactions').where({ user_id: me, status: 'success' }), 'created_at')
+      .groupBy('service').orderByRaw('sum(amount) desc').limit(5).select('service', db.raw('count(*)::int as count'), db.raw('COALESCE(sum(amount), 0) as amount'));
+    const salesTrend = await dashboardCtl.salesTrendFor({ from, to }, (q) => q.where('user_id', me));
+
+    let network = null;
+    if (await networkRepo.canHaveDownline(req.user.userTypeId)) {
+      const ids = networkRepo.downlineIds(me);
+      const vol = await between(db('service_transactions').whereIn('user_id', ids).where('status', 'success'), 'created_at').first(cnt, sum('amount'));
+      const heads = await db('users').whereIn('id', ids).first(db.raw('count(*)::int as total'), db.raw('count(*) FILTER (WHERE is_active)::int as active'));
+      network = { volume: { count: vol.cnt, amount: num(vol.amt) }, commission: fromNetwork, users: { total: heads.total, active: heads.active } };
+    }
+
+    const success = pick('success');
+    return res.json({
+      from, to,
+      statusBreakdown: { success, pending: pick('pending'), failed: pick('failed'), refund: { count: refund.cnt, amount: num(refund.amt) } },
+      commission: { own, network: fromNetwork, total: own + fromNetwork },
+      payIn: { count: payIn.cnt, amount: num(payIn.amt) },
+      payOut: { count: payOut.cnt, amount: num(payOut.amt) },
+      salesTrend, salesTotal: success.amount,
+      topServices: topServices.map((r) => ({ service: r.service, count: r.count, amount: num(r.amount) })),
+      network,
     });
   } catch (err) { return next(err); }
 }
@@ -187,4 +250,4 @@ async function myCommissionSlab(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { summary, serviceStats, catalogue, operators, accountHistory, serviceReport, gstReport, tdsReport, commissionReport, commissionSummary, myCommissionSlab };
+module.exports = { summary, dashboard, serviceStats, catalogue, operators, accountHistory, serviceReport, gstReport, tdsReport, commissionReport, commissionSummary, myCommissionSlab };

@@ -18,6 +18,27 @@ function parseRange(q) {
   return { from, to };
 }
 
+// Sales trend: successful amount per day over the range (at most 92 days, ending at "to"); no range = the last 14 days.
+// `scope(qb)` narrows service_transactions (a user or a downline); the admin passes nothing.
+async function salesTrendFor({ from, to }, scope) {
+  const end = to ? new Date(`${to}T00:00:00Z`) : new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+  let start = from ? new Date(`${from}T00:00:00Z`) : new Date(end.getTime() - 13 * 86400000);
+  if ((end - start) / 86400000 + 1 > MAX_TREND_DAYS) start = new Date(end.getTime() - (MAX_TREND_DAYS - 1) * 86400000);
+  const s = start.toISOString().slice(0, 10); const e = end.toISOString().slice(0, 10);
+  const q = db('service_transactions').where('status', 'success');
+  if (scope) scope(q);
+  const days = await q.whereRaw('created_at::date >= ?', [s]).whereRaw('created_at::date <= ?', [e])
+    .groupByRaw('created_at::date')
+    .select(db.raw("to_char(created_at::date, 'YYYY-MM-DD') as d"), db.raw('count(*)::int as cnt'), db.raw('COALESCE(sum(amount), 0) as amt'));
+  const byDay = Object.fromEntries(days.map((r) => [r.d, r]));
+  const out = [];
+  for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
+    const key = new Date(t).toISOString().slice(0, 10);
+    out.push({ date: key, count: byDay[key] ? byDay[key].cnt : 0, amount: byDay[key] ? num(byDay[key].amt) : 0 });
+  }
+  return out;
+}
+
 // Everything the "Modern" dashboard shows for a date range (no range = all time; the chart then shows the last 14 days).
 // Success / pending / failed come from service_transactions, a refund is a wallet credit the pipeline wrote for a failed service,
 // commission in = what the company earned (provider commission + charges), out = commission paid to users, net = margin,
@@ -50,21 +71,7 @@ async function rangeStats({ from, to }) {
     .groupBy('service').orderByRaw('sum(amount) desc').limit(5)
     .select('service', db.raw('count(*)::int as count'), db.raw('COALESCE(sum(amount), 0) as amount'));
 
-  // Sales trend: successful amount per day over the range (at most 92 days, ending at "to"); no range = the last 14 days.
-  const end = to ? new Date(`${to}T00:00:00Z`) : new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
-  let start = from ? new Date(`${from}T00:00:00Z`) : new Date(end.getTime() - 13 * 86400000);
-  if ((end - start) / 86400000 + 1 > MAX_TREND_DAYS) start = new Date(end.getTime() - (MAX_TREND_DAYS - 1) * 86400000);
-  const s = start.toISOString().slice(0, 10); const e = end.toISOString().slice(0, 10);
-  const days = await db('service_transactions').where('status', 'success')
-    .whereRaw('created_at::date >= ?', [s]).whereRaw('created_at::date <= ?', [e])
-    .groupByRaw('created_at::date')
-    .select(db.raw("to_char(created_at::date, 'YYYY-MM-DD') as d"), db.raw('count(*)::int as cnt'), db.raw('COALESCE(sum(amount), 0) as amt'));
-  const byDay = Object.fromEntries(days.map((r) => [r.d, r]));
-  const salesTrend = [];
-  for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
-    const key = new Date(t).toISOString().slice(0, 10);
-    salesTrend.push({ date: key, count: byDay[key] ? byDay[key].cnt : 0, amount: byDay[key] ? num(byDay[key].amt) : 0 });
-  }
+  const salesTrend = await salesTrendFor({ from, to });
 
   const success = pick('success');
   return {
@@ -220,4 +227,4 @@ async function adminSummary(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { adminSummary };
+module.exports = { adminSummary, parseRange, salesTrendFor };

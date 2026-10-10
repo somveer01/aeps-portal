@@ -4,11 +4,12 @@ import Avatar from '../components/Avatar';
 import AppShell, { ScreenTitle } from '../shell/AppShell';
 import useShellCore from '../shell/useShellCore';
 import { api } from '../api/client';
-import { colors, shadows } from '../theme';
+import { colors, shadows, ui } from '../theme';
 
 import ProfileScreen from './ProfileScreen';
 import TxnPinScreen from './TxnPinScreen';
 import RetailerDashboard from './retailer/RetailerDashboard';
+import ModernRetailerDashboard from './retailer/ModernRetailerDashboard';
 import ServicesScreen from './retailer/ServicesScreen';
 import MobileRechargeScreen from './retailer/MobileRechargeScreen';
 import DthRechargeScreen from './retailer/DthRechargeScreen';
@@ -35,6 +36,7 @@ const money = (v) => (v == null ? '₹0.00' : `₹${Number(v).toFixed(2)}`);
 // is the shared AppShell; this file only knows these routes -> screens and where the wallet balance comes from.
 export default function RetailerShell({ user, onLogout }) {
   const core = useShellCore({ expandAll: false });
+  const modern = ui.layout === 'modern';
   const { active, profile, setProfile } = core;
   const [summary, setSummary] = useState(null);
 
@@ -50,7 +52,7 @@ export default function RetailerShell({ user, onLogout }) {
   const back = () => go('/services', 'Services');
   const renderContent = () => {
     const r = active.route;
-    if (r === '/') return <RetailerDashboard onOpen={go} />;
+    if (r === '/') return modern ? <ModernRetailerDashboard onOpen={go} /> : <RetailerDashboard onOpen={go} />;
     if (r === '/services') return <ServicesScreen onOpen={(route, title) => go(route, title)} />;
     if (r === '/services/mobile-recharge') return <MobileRechargeScreen onBack={back} onDone={loadSummary} />;
     if (r === '/services/dth-recharge') return <DthRechargeScreen onBack={back} onDone={loadSummary} />;
@@ -134,7 +136,7 @@ export default function RetailerShell({ user, onLogout }) {
           { key: 'slab', label: 'My Commission Slab', icon: 'commission', onPress: () => go('/my-commission-slab', 'My Commission Slab') },
         ],
       }}
-      title={<ScreenTitle panel="retailer" text={active.title} />}
+      title={modern && active.route === '/' ? null : <ScreenTitle panel="retailer" text={active.title} />}
     >
       {renderContent()}
     </AppShell>
