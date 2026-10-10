@@ -74,7 +74,6 @@ export default function RetailerShell({ user, onLogout }) {
           <Text style={styles.profileRole}>{summary?.userTypeName || 'Retailer'}</Text>
           {summary?.kycStatus === 'verified' ? <Text style={styles.kyc}>· KYC ✓</Text> : summary?.kycStatus === 'rejected' ? <Text style={styles.kycRej}>· KYC ✗</Text> : <Text style={styles.kycPend}>· KYC ⏳</Text>}
         </View>
-        <View style={styles.balances}><Text style={styles.balanceLine}>Balance: <Text style={styles.balanceAmt}>{money(summary?.balance)}</Text></Text></View>
       </View>
       <View style={styles.sideSearch}>
         <MenuSearch menu={menu} onSelect={onSearchSelect} variant="sidebar" />
@@ -222,9 +221,6 @@ const styles = StyleSheet.create({
   kyc: { color: colors.success, fontSize: 11.5, fontWeight: '700' },
   kycPend: { color: colors.warning, fontSize: 11.5, fontWeight: '700' },
   kycRej: { color: colors.danger, fontSize: 11.5, fontWeight: '700' },
-  balances: { marginTop: 12, backgroundColor: colors.primarySoft, borderRadius: radius.md, paddingVertical: 8, paddingHorizontal: 16 },
-  balanceLine: { color: colors.muted, fontSize: 12, fontWeight: '600' },
-  balanceAmt: { color: colors.primary, fontWeight: '800', fontSize: 14 },
   sideSearch: { paddingHorizontal: 12, paddingTop: 12, zIndex: 50 },
   topSearch: { flex: 1, maxWidth: 420, marginLeft: 12 },
   link: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingRight: 12, marginHorizontal: 10, marginVertical: 1, borderRadius: 10 },

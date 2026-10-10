@@ -113,14 +113,10 @@ export default function DashboardScreen({ user, onLogout }) {
 
   const Sidebar = (
     <View style={[styles.sidebar, !isWide && styles.drawer]}>
-      {/* Profile: wallet band aligned with the topbar, then admin name */}
-      {/* Company logo (Application Settings -> Branding & Logos), same height as the topbar so they line up */}
+      {/* Company logo (Application Settings -> Branding & Logos), same height as the topbar so they line up.
+          The wallet balance is in the topbar pill and the account menu, not here. */}
       <View style={styles.brandBand}><BrandLogo height={32} maxWidth={200} /></View>
       <View style={styles.profile}>
-        <View style={styles.walletCard}>
-          <Text style={styles.walletLabel}>WALLET BALANCE</Text>
-          <Text style={styles.walletAmt}>{money(balance)}</Text>
-        </View>
         <View style={styles.profileInfo}>
           <Text style={styles.profileName}>{user.fullName || user.username}</Text>
           <Text style={styles.profileRole}>{user.role}</Text>
@@ -476,10 +472,6 @@ const styles = StyleSheet.create({
 
   brandBand: { height: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, backgroundColor: colors.sidebarBg, borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
   profile: { borderBottomWidth: 1, borderBottomColor: colors.sidebarBorder },
-  // Blue wallet band: same height as the topbar so the two align into one header strip.
-  walletCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.primary, height: 48, paddingHorizontal: 16, ...shadows.card },
-  walletLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 10.5, fontWeight: '700', letterSpacing: 0.6 },
-  walletAmt: { color: '#fff', fontWeight: '800', fontSize: 17, letterSpacing: -0.2 },
   profileInfo: { alignItems: 'center', paddingTop: 12, paddingBottom: 14, paddingHorizontal: 14 },
   profileName: { fontWeight: '800', color: colors.text, fontSize: 15 },
   profileRole: { color: colors.muted, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 1 },
