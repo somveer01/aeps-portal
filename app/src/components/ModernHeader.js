@@ -37,9 +37,11 @@ export default function ModernHeader({ isWide, onToggle, appName, balanceText, o
         <Text style={[styles.walletText, { color: colors.onPrimary }]}>{balanceText}</Text>
       </Pressable>
 
-      <Pressable onPress={onSettings} style={({ hovered }) => [styles.iconBtn, hovered && styles.hover]} accessibilityLabel="Application settings">
-        <Icon name="settings" size={20} color="#64748b" />
-      </Pressable>
+      {onSettings ? (
+        <Pressable onPress={onSettings} style={({ hovered }) => [styles.iconBtn, hovered && styles.hover]} accessibilityLabel="Application settings">
+          <Icon name="settings" size={20} color="#64748b" />
+        </Pressable>
+      ) : null}
 
       <Pressable onPress={onUser} style={({ hovered }) => [styles.user, hovered && styles.hover]} accessibilityLabel="Account menu">
         <Avatar photo={photo} name={name} size={36} />

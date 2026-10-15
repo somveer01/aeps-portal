@@ -34,7 +34,6 @@ import TxnPinScreen from './TxnPinScreen';
 import RetailerPanelScreen from './RetailerPanelScreen';
 import SupportTicketScreen from './SupportTicketScreen';
 import ServicePermissionScreen from './ServicePermissionScreen';
-import ProfileScreen from './ProfileScreen';
 import ModernDashboard from './ModernDashboard';
 import AppShell, { ScreenTitle } from '../shell/AppShell';
 import useShellCore from '../shell/useShellCore';
@@ -143,10 +142,6 @@ export default function DashboardScreen({ user, onLogout }) {
               <AdminWalletAddScreen />
             ) : active.route === '/admin-wallet/all' ? (
               <AdminWalletListScreen />
-            ) : active.route === '/profile' ? (
-              <ProfileScreen onChanged={setProfile} onLogout={onLogout}
-                goTo={(route) => selForm({ title: route === '/change-password' ? 'Change Password' : route === '/txn-pin' ? 'Transaction PIN' : 'Wallet Transactions', route })}
-                routes={{ password: '/change-password', pin: '/txn-pin', statement: '/admin-wallet/all' }} statementLabel="Wallet transactions" />
             ) : active.route === '/change-password' ? (
               <ChangePasswordScreen onDone={onLogout} />
             ) : active.route === '/txn-pin' ? (
@@ -278,18 +273,9 @@ export default function DashboardScreen({ user, onLogout }) {
       )}
       accountMenu={{
         profile: profile || { fullName: user.fullName || user.username, role: user.role, userCode: user.username },
-        balance,
-        onRefresh: () => api.adminWallet.balance().then((r) => setBalance(r.balance)),
-        walletAction: { label: 'Add Fund', onPress: () => selForm({ title: 'Add Fund', route: '/admin-wallet/add' }) },
-        onManage: () => selForm({ title: 'My Profile', route: '/profile' }),
         onLogout: doLogout,
-        items: [
-          { key: 'profile', label: 'My Profile', icon: 'user', onPress: () => selForm({ title: 'My Profile', route: '/profile' }) },
-          { key: 'password', label: 'Change Password', icon: 'lock', onPress: () => selForm({ title: 'Change Password', route: '/change-password' }) },
-          { key: 'pin', label: 'Transaction PIN', icon: 'key', onPress: () => selForm({ title: 'Transaction PIN', route: '/txn-pin' }) },
-          { key: 'settings', label: 'Application Settings', icon: 'settings', onPress: () => selForm({ title: 'Application Settings', route: '/modules/settings' }) },
-          { key: 'banners', label: 'Application Banners', icon: 'image', onPress: () => selForm({ title: 'Application Banners', route: '/modules/application-banners' }) },
-        ],
+        // The admin is not in Users Manager, so their own name / email is edited here (same users row, PUT /api/account/profile).
+        onSaveProfile: async (body) => { const r = await api.account.updateProfile(body); setProfile(r.profile); return r.profile; },
       }}
       title={modern && active.route === '/' ? null : <ScreenTitle panel="admin" text={active.title} module={moduleOf(core.menu, active.route)} />}
     >

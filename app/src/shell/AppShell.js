@@ -11,9 +11,9 @@ import { colors, ui } from '../theme';
 // + account menu, in the Classic or the Modern layout (Application Settings -> Layout style). A panel passes only what is its own:
 //   panel            'admin' | 'retailer' (small Classic differences: row style, header height, where the search sits)
 //   core             the object from useShellCore()
-//   header           { name, photo, role, brandText, balanceText, onWallet, onSettings, onUser }
+//   header           { name, photo, role, brandText, balanceText, onWallet, onSettings (optional gear), onUser }
 //   profileBlock     the Classic sidebar's profile area (admin: name + role, retailer: avatar card)
-//   accountMenu      { profile, balance, onRefresh, walletAction, onManage, onLogout, items }
+//   accountMenu      { profile, onLogout, onSaveProfile (admin only: edit own name / email in the popover) }
 //   onSelect         open a menu item (the panel also refreshes its wallet balance there)
 //   title            node shown above the screen (or null)
 //   children         the screen for the active route
@@ -76,12 +76,8 @@ export default function AppShell({ panel, core, header, profileBlock, accountMen
         visible={userMenu}
         onClose={() => setUserMenu(false)}
         profile={accountMenu.profile}
-        balance={accountMenu.balance}
-        onRefresh={accountMenu.onRefresh}
-        walletAction={accountMenu.walletAction}
-        onManage={accountMenu.onManage}
         onLogout={accountMenu.onLogout}
-        items={accountMenu.items}
+        onSaveProfile={accountMenu.onSaveProfile}
       />
     </View>
   );

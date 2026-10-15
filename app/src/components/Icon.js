@@ -61,6 +61,8 @@ export default function Icon({ name, size = 18, color = '#cbd5e1' }) {
       body = (<><Rect x="4" y="10" width="16" height="11" rx="2" {...p} /><Path d="M8 10V7a4 4 0 0 1 8 0v3" {...p} /><Circle cx="12" cy="15.5" r="1.3" {...p} /></>); break;
     case 'logout':
       body = (<><Path d="M15 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h9" {...p} /><Path d="M18 15l3-3-3-3M21 12H10" {...p} /></>); break;
+    case 'edit':
+      body = (<><Path d="M12 20h9" {...p} /><Path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" {...p} /></>); break;
     case 'search':
       body = (<><Circle cx="11" cy="11" r="7" {...p} /><Path d="M21 21l-4.3-4.3" {...p} /></>); break;
     case 'settings':

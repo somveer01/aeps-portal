@@ -6,7 +6,6 @@ import useShellCore from '../shell/useShellCore';
 import { api } from '../api/client';
 import { colors, shadows, ui } from '../theme';
 
-import ProfileScreen from './ProfileScreen';
 import TxnPinScreen from './TxnPinScreen';
 import RetailerDashboard from './retailer/RetailerDashboard';
 import ModernRetailerDashboard from './retailer/ModernRetailerDashboard';
@@ -83,13 +82,6 @@ export default function RetailerShell({ user, onLogout }) {
     if (r === '/commission-report') return <RetailerReportScreen key="commission" kind="commission" />;
     if (r === '/my-commission-slab') return <MyCommissionSlabScreen />;
     if (r === '/support-ticket') return <SupportTicketScreen />;
-    if (r === '/profile') {
-      return (
-        <ProfileScreen onChanged={(p) => { setProfile(p); loadSummary(); }} onLogout={onLogout}
-          goTo={(route) => go(route, route === '/account-settings' ? 'Change Password' : route === '/txn-pin' ? 'Transaction PIN' : 'Account History')}
-          routes={{ password: '/account-settings', pin: '/txn-pin', statement: '/account-history' }} statementLabel="Account history" />
-      );
-    }
     if (r === '/txn-pin') return <TxnPinScreen />;
     if (r === '/kyc') return <KycScreen onDone={loadSummary} />;
     if (r === '/account-settings') {
@@ -107,7 +99,6 @@ export default function RetailerShell({ user, onLogout }) {
       header={{
         name, photo: profile?.photo, role: typeName, brandText: `Welcome to AEPS Portal — ${typeName}`, balanceText: money(summary?.balance),
         onWallet: () => go('/account-history', 'Account History'),
-        onSettings: () => go('/profile', 'My Profile'),
         onUser: () => { core.setUserMenu(true); loadSummary(); },
       }}
       profileBlock={(
@@ -123,18 +114,7 @@ export default function RetailerShell({ user, onLogout }) {
       )}
       accountMenu={{
         profile: profile || { fullName: summary?.name || user.fullName || user.username, userTypeName: typeName, userCode: summary?.userCode || user.username },
-        balance: summary?.balance,
-        onRefresh: () => api.retailer.summary().then(setSummary),
-        walletAction: { label: 'Fund Request', onPress: () => go('/fund-request', 'Fund Request') },
-        onManage: () => go('/profile', 'My Profile'),
         onLogout: doLogout,
-        items: [
-          { key: 'profile', label: 'My Profile', icon: 'user', onPress: () => go('/profile', 'My Profile') },
-          { key: 'password', label: 'Change Password', icon: 'lock', onPress: () => go('/account-settings', 'Change Password') },
-          { key: 'pin', label: 'Transaction PIN', icon: 'key', onPress: () => go('/txn-pin', 'Transaction PIN') },
-          { key: 'kyc', label: 'KYC', icon: 'shield', onPress: () => go('/kyc', 'KYC') },
-          { key: 'slab', label: 'My Commission Slab', icon: 'commission', onPress: () => go('/my-commission-slab', 'My Commission Slab') },
-        ],
       }}
       title={modern && active.route === '/' ? null : <ScreenTitle panel="retailer" text={active.title} />}
     >
