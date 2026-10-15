@@ -93,7 +93,7 @@ test('promote a retailer to distributor: needs a parent that can hold a distribu
   assert.equal(r.plan_id, null, 'the Retailer plan is removed');
   assert.equal(r.commission_package_id, null, 'the package from the old parent is removed');
   assert.equal(r.token_epoch, (before1.token_epoch || 0) + 1, 'signed out');
-  assert.equal(r.created_by, before1.created_by, 'creator (fund-request approver) is unchanged');
+  assert.equal(r.created_by, before1.created_by, 'creator is unchanged');
   // The promoted user now has a network panel and may create Retailers.
   const meta = await api(BASE, signFor(r)).get('/api/network/meta');
   assert.equal(meta.s, 200);
@@ -158,8 +158,9 @@ test('demote with moveChildrenTo: children move, owned packages switch off, hist
   assert.equal(l.user_id, users.D1);
   assert.equal(l.level, 1);
   assert.equal(l.source_user_id, users.R2, 'past commission is never rewritten');
-  // The fund-request approver stays the creator even though the parent changed.
-  assert.equal((await fundRequest.approverFor(users.R2)).id, users.D1);
+  // Fund requests always go to the admin (2026-10-15 rule), whatever the creator or parent.
+  const firstAdmin = await db('users').where({ role: 'admin' }).orderBy('id').first('id');
+  assert.equal((await fundRequest.approverFor(users.R2)).id, firstAdmin.id);
   assert.ok(await db('audit_log').where({ event: 'downline_moved' }).whereRaw("detail->>'fromUserId' = ?", [String(users.D1)]).first());
 });
 

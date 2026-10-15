@@ -3,24 +3,19 @@
 const db = require('../config/db');
 
 /**
- * Fund requests. Any managed user (retailer, distributor, master distributor) asks for
- * wallet balance; the user who created them approves it:
- *   - approver is the admin: the requester deposited into a company bank, so approval
- *     credits their wallet (new money into the system);
- *   - approver is a distributor / MD: the requester paid them directly, so approval is a
- *     zero-sum move from the approver's wallet to the requester's.
+ * Fund requests. Any managed user (retailer, distributor, super distributor, employee) asks for wallet
+ * balance after depositing into one of the COMPANY bank accounts (chosen on the request), and the ADMIN
+ * approves every request (owner's decision, 2026-10-15): approval credits the requester's wallet - new
+ * money into the system. Distributors no longer approve their users' requests (to move their own balance
+ * down they use Fund Transfer). `act` keeps the old zero-sum branch only for a request that somehow still
+ * names a non-admin approver; migration 20261015110000 moved the pending ones to the admin.
  */
 const err = (status, code, message) => Object.assign(new Error(message), { status, code });
 const MODES = ['NEFT', 'IMPS', 'RTGS', 'UPI', 'Cash', 'Cheque'];
 const round2 = (n) => Math.round(n * 100) / 100;
 
-// Who approves this user's requests: their creator, or the admin when unknown.
-async function approverFor(userId) {
-  const u = await db('users').where({ id: userId }).first('created_by');
-  if (u && u.created_by) {
-    const c = await db('users').where({ id: u.created_by }).first('id', 'role', 'user_code', 'username', 'full_name');
-    if (c) return c;
-  }
+// Who approves fund requests: always the admin, whoever created the requester.
+async function approverFor() {
   return db('users').where({ role: 'admin' }).orderBy('id').first('id', 'role', 'user_code', 'username', 'full_name');
 }
 
@@ -38,13 +33,12 @@ async function create(userId, b) {
   const proof = String(b.proofImage || '').trim();
   if (proof && !/^\/uploads\/[\w.-]+$/.test(proof)) throw err(400, 'INVALID_PROOF', 'Upload the payment proof again');
 
-  const approver = await approverFor(userId);
-  let companyBankId = null;
-  if (approver.role === 'admin') {
-    companyBankId = parseInt(b.companyBankId, 10) || null;
-    if (!companyBankId || !(await db('company_banks').where({ id: companyBankId, is_active: true }).first('id'))) {
-      throw err(400, 'INVALID_BANK', 'Choose the company bank you deposited into');
-    }
+  const approver = await approverFor();
+  if (!approver) throw err(500, 'NO_ADMIN', 'No admin account to approve the request');
+  // Every requester deposits into a company bank account and names it here.
+  const companyBankId = parseInt(b.companyBankId, 10) || null;
+  if (!companyBankId || !(await db('company_banks').where({ id: companyBankId, is_active: true }).first('id'))) {
+    throw err(400, 'INVALID_BANK', 'Choose the company bank you deposited into');
   }
   if (utr && await db('fund_requests').whereRaw('upper(trim(receipt_no)) = ?', [utr]).whereIn('status', ['pending', 'approved']).first('id')) {
     throw err(409, 'DUPLICATE_UTR', 'This UTR / reference number is already used in another request');

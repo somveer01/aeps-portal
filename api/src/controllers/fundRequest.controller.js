@@ -8,9 +8,10 @@ const svc = require('../services/fundRequest.service');
 const txnAuth = require('../services/txnAuth.service');
 
 /**
- * Fund requests for every managed user (retailer, distributor, master distributor) and
- * approval by whoever created them. All lists return the admin /api/fund-requests shape
- * so the admin Fund Requests screen is reused for "mine" and "network" modes.
+ * Fund requests for every managed user (retailer, distributor, super distributor): each request names a
+ * company bank and the ADMIN approves all of them. All lists return the admin /api/fund-requests shape so
+ * the admin Fund Requests screen is reused for "mine" mode. The network list / act endpoints stay for old
+ * data, but new requests never name a distributor as approver (its menu row is hidden).
  */
 const clean = (v) => String(v || '').trim();
 const intOrNull = (v) => (v ? parseInt(v, 10) || null : null);
@@ -28,8 +29,8 @@ function listFilters(req) {
 // GET /api/my/fund-request/meta — who approves my requests, and where to deposit.
 async function myMeta(req, res, next) {
   try {
-    const approver = await svc.approverFor(req.user.id);
-    const isAdmin = approver.role === 'admin';
+    const approver = await svc.approverFor();
+    const isAdmin = !!approver && approver.role === 'admin';
     const banks = isAdmin
       ? await db('company_banks').where({ is_active: true }).orderBy('id').select('id', 'bank_name', 'account_holder', 'account_no', 'ifsc_code')
       : [];

@@ -71,7 +71,11 @@ For quick one-offs you can still write an ad-hoc in-process script to the scratc
   (menu + `/api/network/*` gate) uses the same rule. The seed builds SD -> D -> R on a fresh DB; an existing DB keeps its tree.
 - The creator becomes the **parent** (`parent_id`) and `created_by`. The admin form: no parent picked = the admin; a picked
   parent must be of a type above the new user's type (`PARENT_TYPE_MISMATCH`); types with no parent type always sit under
-  the admin. `fund requests` are approved by `created_by` (unchanged).
+  the admin. **Fund requests always go to the ADMIN** (owner's decision 2026-10-15, `services/fundRequest.service.js`
+  `approverFor`): every managed user picks an active company bank on the request (required, `INVALID_BANK`), the admin
+  approves in Fund Requests and the requester's wallet is credited (new money; no wallet is debited). Distributors no
+  longer approve their users' requests - "My Network -> Fund Requests" is hidden and old pending ones were handed to the
+  admin (`20261015110000_fund_requests_admin_only.js`); they move their own balance down with Fund Transfer.
 - **Changing a user's type or parent** (admin, `PUT /api/users/:id`, preview `GET /api/users/:id/change-impact`): the
   new type must fit under the parent; direct children that no longer fit must be moved (`moveChildrenTo`, else
   `409 DOWNLINE_TYPE_MISMATCH`); a foreign plan and the received commission package are cleared, owned packages that no
