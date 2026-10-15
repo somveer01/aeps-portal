@@ -36,12 +36,13 @@ function generate() {
     // eslint-disable-next-line no-console
     console.log(`[DEV CAPTCHA] id=${captchaId.slice(0, 8)} answer=${captcha.text}`);
   }
-  // svg-captcha silently forces color=true whenever a `background` is set
-  // (see its lib/index.js), which can render the letters in a light,
-  // hard-to-read shade. Force the character glyphs to solid black — only
-  // <path fill="#hex" ...> (the letters) match; the background <rect> and
-  // the fill="none" noise lines are left untouched.
-  const svg = captcha.data.replace(/<path fill="#[0-9a-fA-F]{3,6}"/g, '<path fill="#000000"');
+  // The whole captcha is black on its light background (the owner's choice: letters AND noise lines).
+  // svg-captcha silently forces color=true whenever a `background` is set (see its lib/index.js), so it
+  // paints the letters (<path fill="#hex">) and the noise lines (<path stroke="#hex" fill="none">) in
+  // random colours: force both to solid black. The background <rect> keeps its colour.
+  const svg = captcha.data
+    .replace(/<path fill="#[0-9a-fA-F]{3,6}"/g, '<path fill="#000000"')
+    .replace(/stroke="#[0-9a-fA-F]{3,6}"/g, 'stroke="#000000"');
   return { captchaId, svg };
 }
 
