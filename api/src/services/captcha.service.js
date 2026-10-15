@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const fs = require('fs');
 const svgCaptcha = require('svg-captcha');
 const env = require('../config/env');
 
@@ -13,6 +14,22 @@ const env = require('../config/env');
  * NOTE: this in-memory store is fine for a single API instance (dev / small
  * deploys). For multi-instance production, back it with Redis or a DB table.
  */
+// Letters must be SOLID black (the owner's choice). svg-captcha's bundled font is an outline style with white
+// inside every letter, so draw with the first solid bold font found: DejaVu Sans Bold (installed in the API
+// Docker image, also on most Linux / CI machines), else Arial Bold on a Windows / macOS dev machine.
+// No font found -> the bundled font stays (still black, but hollow) and a warning is logged once.
+const SOLID_FONTS = [
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+  'C:/Windows/Fonts/arialbd.ttf',
+  '/Library/Fonts/Arial Bold.ttf',
+  '/System/Library/Fonts/Supplemental/Arial Bold.ttf',
+];
+const fontInUse = SOLID_FONTS.find((f) => { try { return fs.existsSync(f); } catch { return false; } }) || null;
+if (fontInUse) svgCaptcha.loadFont(fontInUse);
+// eslint-disable-next-line no-console
+else console.warn('[captcha] no solid font found - using the bundled outline font');
+const FONT_SIZE = fontInUse ? 40 : 56; // a bold font is wider: 40 keeps 5 letters apart in the 150 px box
+
 const TTL_MS = 5 * 60 * 1000;
 const store = new Map(); // captchaId -> { answer, expiresAt }
 
@@ -29,6 +46,7 @@ function generate() {
     color: false,
     ignoreChars: '0o1ilI',
     background: '#f2f4f8',
+    fontSize: FONT_SIZE,
   });
   const captchaId = crypto.randomBytes(16).toString('hex');
   store.set(captchaId, { answer: captcha.text.toLowerCase(), expiresAt: Date.now() + TTL_MS });
@@ -55,4 +73,4 @@ function verify(captchaId, input) {
   return String(input || '').trim().toLowerCase() === rec.answer;
 }
 
-module.exports = { generate, verify };
+module.exports = { generate, verify, fontInUse };

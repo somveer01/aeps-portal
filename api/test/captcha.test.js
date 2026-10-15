@@ -18,6 +18,14 @@ test('every captcha is black: letters and noise lines, never a colour', () => {
   }
 });
 
+test('letters are drawn with a solid font whenever one is installed (not the hollow bundled one)', () => {
+  const fs = require('fs');
+  const candidates = ['/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 'C:/Windows/Fonts/arialbd.ttf', '/Library/Fonts/Arial Bold.ttf', '/System/Library/Fonts/Supplemental/Arial Bold.ttf'];
+  const available = candidates.find((f) => fs.existsSync(f));
+  if (available) assert.equal(captcha.fontInUse, available);
+  else assert.equal(captcha.fontInUse, null, 'no solid font on this machine: the bundled font is the fallback');
+});
+
 test('the answer still verifies once (the colour change does not touch the text)', () => {
   const { captchaId } = captcha.generate();
   assert.equal(captcha.verify(captchaId, 'wrong-answer'), false);
