@@ -5,6 +5,7 @@ const userRepo = require('../repositories/user.repo');
 const { MIN_PASSWORD, generatePassword } = require('../utils/password');
 const { parseGrid } = require('../utils/gridQuery');
 const repo = require('../repositories/usersManager.repo');
+const fundRepo = require('../repositories/fundTransfer.repo');
 const userTypeRepo = require('../repositories/userType.repo');
 const planRepo = require('../repositories/plan.repo');
 const settingsRepo = require('../repositories/settings.repo');
@@ -375,17 +376,19 @@ async function changeImpactPreview(req, res, next) {
 }
 
 // POST /api/users/:id/fund  { amount, type: 'credit'|'debit', remark }
+// Same zero-sum move as the Fund Transfer screen: credit takes the amount from the ADMIN wallet and adds it to the user,
+// debit takes it back from the user into the admin wallet. Ledger rows on both sides + a fund_transfers record.
 async function fund(req, res, next) {
   try {
     const id = parseInt(req.params.id, 10);
-    const user = await repo.findFull(id);
-    if (!user) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
+    const user = Number.isInteger(id) ? await repo.findFull(id) : null;
+    if (!user || !user.user_type_id) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
     const amount = Number(req.body.amount);
-    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Enter a valid amount', code: 'INVALID_AMOUNT' });
-    const delta = req.body.type === 'debit' ? -amount : amount;
-    const ok = await repo.adjustWalletGuarded(id, delta); // atomic; refuses overdraw
-    if (!ok) return res.status(400).json({ error: 'Insufficient wallet balance', code: 'INSUFFICIENT' });
-    await audit.log({ userId: req.user.id, username: req.user.username, event: 'user_wallet_fund', detail: { targetUserId: id, amount, type: delta < 0 ? 'debit' : 'credit' }, ip: req.ip, userAgent: req.get('user-agent') });
+    if (!Number.isFinite(amount) || amount <= 0 || Math.abs(Math.round(amount * 100) - amount * 100) > 1e-6) return res.status(400).json({ error: 'Enter a valid amount (up to 2 decimals)', code: 'INVALID_AMOUNT' });
+    const transferType = req.body.type === 'debit' ? 'debit' : 'credit';
+    const result = await fundRepo.transfer({ fromUserId: req.user.id, toUserId: id, amount, transferType, remark: String(req.body.remark || '').trim() });
+    if (!result.ok) return res.status(400).json({ error: result.error, code: 'TRANSFER_FAILED' });
+    await audit.log({ userId: req.user.id, username: req.user.username, event: 'user_wallet_fund', detail: { targetUserId: id, amount, type: transferType }, ip: req.ip, userAgent: req.get('user-agent') });
     return res.json({ row: await repo.findFull(id) });
   } catch (err) { return next(err); }
 }

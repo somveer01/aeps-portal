@@ -45,7 +45,7 @@ async function create(req, res, next) {
     const amount = Number(req.body.amount);
     const transferType = req.body.txnType === 'debit' ? 'debit' : (req.body.txnType === 'credit' ? 'credit' : null);
     if (!transferType) return res.status(400).json({ error: 'Choose a transaction type (credit/debit)', code: 'INVALID_TXN_TYPE' });
-    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Enter a valid amount', code: 'INVALID_AMOUNT' });
+    if (!Number.isFinite(amount) || amount <= 0 || Math.abs(Math.round(amount * 100) - amount * 100) > 1e-6) return res.status(400).json({ error: 'Enter a valid amount (up to 2 decimals)', code: 'INVALID_AMOUNT' });
 
     // Resolve receiver by id or user_code.
     let toUserId = req.body.userId ? parseInt(req.body.userId, 10) : null;

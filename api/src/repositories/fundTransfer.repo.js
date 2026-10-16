@@ -3,6 +3,8 @@
 const db = require('../config/db');
 const { applyGridFilters, applyGridSortFirst, DATE_COL } = require('../utils/gridQuery');
 
+const round2 = (n) => Math.round(n * 100) / 100;
+
 // Sortable / filterable grid columns (keys = the app's DataGrid column keys).
 const GRID = {
   from: { sort: 'fu.user_code', filter: "concat_ws(' ', coalesce(fu.user_code, 'admin'), coalesce(fu.full_name, 'admin'))" },
@@ -47,27 +49,31 @@ module.exports = {
   // the same amount (and vice-versa for a debit), each side guarded ≥0.
   // Writes an account_transactions ledger row on BOTH sides + one
   // fund_transfers record. Returns { ok, error, id }.
-  async transfer({ fromUserId, toUserId, amount, transferType, remark, senderLabel = 'admin' }) {
+  async transfer({ fromUserId, toUserId, amount: rawAmount, transferType, remark, senderLabel = 'admin' }) {
+    const amount = round2(Number(rawAmount));
+    if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: 'Enter a valid amount' };
+    // Paying yourself would write both wallet updates onto one row and lose the amount.
+    if (fromUserId && Number(fromUserId) === Number(toUserId)) return { ok: false, error: 'Sender and receiver cannot be the same user' };
     return db.transaction(async (trx) => {
       const receiver = await trx('users').where({ id: toUserId }).forUpdate().first('wallet_balance', 'full_name');
       if (!receiver) return { ok: false, error: 'Receiver not found' };
 
       let sender = null;
       if (fromUserId) {
-        sender = await trx('users').where({ id: fromUserId }).forUpdate().first('wallet_balance', 'full_name');
+        sender = await trx('users').where({ id: fromUserId }).forUpdate().first('wallet_balance', 'full_name', 'role');
         if (!sender) return { ok: false, error: 'Sender not found' };
       }
 
       const receiverBefore = Number(receiver.wallet_balance);
       const delta = transferType === 'debit' ? -amount : amount; // effect on the receiver
-      const receiverAfter = receiverBefore + delta;
+      const receiverAfter = round2(receiverBefore + delta);
       if (receiverAfter < 0) return { ok: false, error: 'Insufficient receiver balance for debit' };
 
       let senderBefore = null;
       let senderAfter = null;
       if (sender) {
         senderBefore = Number(sender.wallet_balance);
-        senderAfter = senderBefore - delta; // sender moves opposite to the receiver
+        senderAfter = round2(senderBefore - delta); // sender moves opposite to the receiver
         if (senderAfter < 0) return { ok: false, error: `Insufficient ${senderLabel === 'admin' ? 'admin ' : ''}wallet balance for this transfer` };
       }
 
@@ -83,6 +89,14 @@ module.exports = {
           user_id: fromUserId, service_name: 'Fund Transfer', type: transferType === 'debit' ? 'credit' : 'debit',
           remark: remark || `Fund ${transferType} — ${receiver.full_name}`, amount, before_balance: senderBefore, updated_balance: senderAfter,
         });
+        // The admin's own Wallet History (Admin Wallet screen) must show every move of the admin wallet, not only the manual top-ups.
+        if (sender.role === 'admin') {
+          await trx('admin_wallet_transactions').insert({
+            admin_id: fromUserId, amount, txn_type: transferType === 'debit' ? 'credit' : 'debit',
+            remark: remark || `Fund ${transferType === 'debit' ? 'taken back from' : 'sent to'} ${receiver.full_name}`,
+            before_balance: senderBefore, updated_balance: senderAfter,
+          });
+        }
       }
 
       const [row] = await trx('fund_transfers').insert({

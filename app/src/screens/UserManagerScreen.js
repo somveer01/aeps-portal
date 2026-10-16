@@ -508,7 +508,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
                 <TextInput value={fundPin} onChangeText={setFundPin} secureTextEntry placeholder="Transaction PIN / login password" placeholderTextColor={colors.muted} style={styles.input} />
                 <Text style={styles.hint}>Credit moves money from your wallet to this user; debit takes it back into your wallet.</Text>
               </>
-            ) : null}
+            ) : <Text style={styles.hint}>Credit moves money from your admin wallet to this user; debit takes it back into your admin wallet. Top up your admin wallet from Admin Wallet if it runs low.</Text>}
             <View style={styles.modalActions}>
               <Button title="Cancel" variant="ghost" onPress={() => setFundUser(null)} style={{ flex: 1 }} />
               <Button title={fundType === 'debit' ? 'Debit' : 'Credit'} onPress={submitFund} loading={funding} style={{ flex: 1, backgroundColor: fundType === 'debit' ? colors.danger : colors.success }} />
@@ -592,7 +592,7 @@ export default function UserManagerScreen({ network = false, onDone }) {
       {/* Must stay AFTER the Fund modal: modals stack in tree order, so before it this confirm opened hidden behind the fund form (looked stuck) */}
       <ConfirmDialog
         visible={fundConfirm} danger={fundType === 'debit'} title={fundType === 'debit' ? 'Confirm Deduction' : 'Confirm Credit'}
-        message={fundUser ? `${fundType === 'debit' ? 'Deduct' : 'Add'} ${money(fundAmount)} ${fundType === 'debit' ? 'from' : 'to'} ${fundUser.name} (${fundUser.user_code})'s wallet?${network ? (fundType === 'debit' ? ' The amount comes back to your wallet.' : ' The amount is taken from your wallet.') : ''}` : ''}
+        message={fundUser ? `${fundType === 'debit' ? 'Deduct' : 'Add'} ${money(fundAmount)} ${fundType === 'debit' ? 'from' : 'to'} ${fundUser.name} (${fundUser.user_code})'s wallet? ${fundType === 'debit' ? `The amount comes back to your ${network ? '' : 'admin '}wallet.` : `The amount is taken from your ${network ? '' : 'admin '}wallet.`}` : ''}
         confirmText={fundType === 'debit' ? 'Deduct Now' : 'Add Now'} onConfirm={doFund} onCancel={() => setFundConfirm(false)}
       />
     </View>

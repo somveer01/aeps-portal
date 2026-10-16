@@ -54,16 +54,20 @@ async function add(req, res, next) {
     const amount = Number(req.body.amount);
     const txnType = req.body.txnType === 'debit' ? 'debit' : (req.body.txnType === 'credit' ? 'credit' : null);
     if (!txnType) return res.status(400).json({ error: 'Choose a transaction type (credit/debit)', code: 'INVALID_TXN_TYPE' });
-    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Enter a valid amount', code: 'INVALID_AMOUNT' });
+    if (!Number.isFinite(amount) || amount <= 0 || Math.abs(Math.round(amount * 100) - amount * 100) > 1e-6) return res.status(400).json({ error: 'Enter a valid amount (up to 2 decimals)', code: 'INVALID_AMOUNT' });
     const remark = clean(req.body.remark);
     if (remark.length < 1) return res.status(400).json({ error: 'Remark is required', code: 'NO_REMARK' });
 
     const result = await db.transaction(async (trx) => {
       const u = await trx('users').where({ id: req.user.id }).forUpdate().first('wallet_balance');
       const before = Number(u.wallet_balance);
-      const after = txnType === 'debit' ? before - amount : before + amount;
+      const after = Math.round((txnType === 'debit' ? before - amount : before + amount) * 100) / 100;
       if (after < 0) return { ok: false, error: 'Insufficient wallet balance for debit' };
       await trx('users').where({ id: req.user.id }).update({ wallet_balance: after, updated_at: trx.fn.now() });
+      // Account History carries every move of the admin wallet too (fund transfers already do), so its balances chain.
+      await trx('account_transactions').insert({
+        user_id: req.user.id, service_name: 'Admin Wallet', type: txnType, remark, amount, before_balance: before, updated_balance: after,
+      });
       const [row] = await trx('admin_wallet_transactions').insert({
         admin_id: req.user.id, amount, txn_type: txnType, remark,
         before_balance: before, updated_balance: after,

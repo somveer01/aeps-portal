@@ -8,7 +8,7 @@ import { colors, radius } from '../theme';
 const TXN_OPTIONS = [{ label: 'Credit', value: 'credit' }, { label: 'Debit', value: 'debit' }];
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
 
-export default function AdminWalletAddScreen() {
+export default function AdminWalletAddScreen({ onDone }) {
   const [amount, setAmount] = useState('');
   const [txnType, setTxnType] = useState('');
   const [remark, setRemark] = useState('');
@@ -34,6 +34,7 @@ export default function AdminWalletAddScreen() {
       const r = await api.adminWallet.add({ amount: Number(amount), txnType, remark: remark.trim() });
       setDone(`Wallet updated. New balance: ${money(r.balance)}`);
       setBalance(r.balance);
+      if (onDone) onDone(); // header wallet pill
       setAmount(''); setTxnType(''); setRemark('');
     } catch (e) { setError(e.message); } finally { setLoading(false); setConfirm(false); }
   };

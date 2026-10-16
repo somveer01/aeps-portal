@@ -117,7 +117,7 @@ export default function DashboardScreen({ user, onLogout }) {
             ) : active.route === '/company-banks' ? (
               <CompanyBankScreen />
             ) : active.route === '/users-manager' ? (
-              <UserManagerScreen />
+              <UserManagerScreen onDone={refreshBalance} />
             ) : active.route === '/account-history' ? (
               <AccountHistoryScreen />
             ) : active.route === '/service-report' ? (
@@ -127,7 +127,7 @@ export default function DashboardScreen({ user, onLogout }) {
             ) : active.route === '/payout-banks' ? (
               <PayoutBankScreen />
             ) : active.route === '/fund-transfer' ? (
-              <FundTransferScreen />
+              <FundTransferScreen onDone={refreshBalance} />
             ) : active.route === '/fund-transfers' ? (
               <FundTransferListScreen />
             ) : active.route === '/pan-verify' ? (
@@ -151,7 +151,7 @@ export default function DashboardScreen({ user, onLogout }) {
             ) : active.route === '/admin-margin' ? (
               <AdminMarginScreen />
             ) : active.route === '/admin-wallet/add' ? (
-              <AdminWalletAddScreen />
+              <AdminWalletAddScreen onDone={refreshBalance} />
             ) : active.route === '/admin-wallet/all' ? (
               <AdminWalletListScreen />
             ) : active.route === '/change-password' ? (

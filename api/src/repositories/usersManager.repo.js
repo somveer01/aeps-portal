@@ -105,13 +105,4 @@ module.exports = {
     if (p.module_access !== undefined) p.module_access = p.module_access ? JSON.stringify(p.module_access) : null;
     return trx('users').where({ id }).update(p);
   },
-  // Atomically adjust wallet, refusing debits that would go negative.
-  // Returns true if a row was updated, false otherwise (insufficient balance).
-  adjustWalletGuarded(id, delta) {
-    return db('users')
-      .where({ id })
-      .andWhereRaw('wallet_balance + ? >= 0', [delta])
-      .update({ wallet_balance: db.raw('wallet_balance + ?', [delta]), updated_at: db.fn.now() })
-      .then((count) => count > 0);
-  },
 };
