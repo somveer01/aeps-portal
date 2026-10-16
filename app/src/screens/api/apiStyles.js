@@ -1,7 +1,7 @@
 // Shared look of the API Management screens (API Configuration, SP Keys, Product Switch, Customer Switch).
 // Same tokens as the other master screens, so Classic / Modern and the saved theme colours apply.
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, Linking, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Linking, Platform, ActivityIndicator } from 'react-native';
 import { colors, radius } from '../../theme';
 
 export const COMMISSION_TYPES = [
@@ -37,6 +37,21 @@ export function Chip({ text, tone = 'muted' }) {
   return <View style={[s.chip, { backgroundColor: t.bg }]}><Text style={[s.chipText, { color: t.fg }]} numberOfLines={1}>{text}</Text></View>;
 }
 
+// Cards instead of a grid (Product Switch, Customer Switch): a wrapping row of equal-ish cards. The grid is a row, so the
+// cards may use a flexBasis; on a phone each card takes the full width. `changed` = unsaved edit (amber), `off` = dimmed.
+export function CardGrid({ children, loading, empty }) {
+  if (loading) return <View style={s.cardsEmpty}><ActivityIndicator color={colors.primary} /></View>;
+  const items = React.Children.toArray(children);
+  if (!items.length) return <View style={s.cardsEmpty}><Text style={{ color: colors.muted }}>{empty || 'Nothing to show.'}</Text></View>;
+  return <View style={s.cardsWrap}>{items}</View>;
+}
+export function ItemCard({ children, changed, off, onPress }) {
+  const Wrap = onPress ? Pressable : View;
+  return (
+    <Wrap onPress={onPress} style={[s.itemCard, changed && s.itemCardChanged, off && { opacity: 0.65 }]}>{children}</Wrap>
+  );
+}
+
 // An http(s) address shown as a link that opens in a new tab (web) / the browser app (native). Never carries the
 // username or password: the partner's own page asks for them.
 export const isWebUrl = (v) => /^https?:\/\/[^\s]+$/i.test(String(v || '').trim());
@@ -56,6 +71,18 @@ export function ExternalLink({ url, children, style, numberOfLines = 1 }) {
 
 export const s = StyleSheet.create({
   link: { color: colors.primary, textDecorationLine: 'underline', fontWeight: '600' },
+  cardsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  cardsEmpty: { padding: 30, alignItems: 'center' },
+  itemCard: { flexGrow: 1, flexBasis: 300, minWidth: 240, maxWidth: 460, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, gap: 12 },
+  itemCardChanged: { backgroundColor: '#fffbeb', borderColor: '#f59e0b' },
+  cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  cardName: { color: colors.text, fontSize: 15.5, fontWeight: '700', flexShrink: 1 },
+  cardLabel: { fontSize: 12, fontWeight: '700', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
+  statRow: { flexDirection: 'row', gap: 8 },
+  stat: { flex: 1, backgroundColor: colors.primarySoft, borderRadius: radius.sm, paddingVertical: 8, paddingHorizontal: 10, gap: 2 },
+  statNum: { color: colors.text, fontSize: 18, fontWeight: '800' },
+  statLbl: { color: colors.muted, fontSize: 11.5, fontWeight: '600' },
   actionBar: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, rowGap: 14 },
   field: { flexGrow: 1, flexBasis: '46%', minWidth: 220, gap: 6 },

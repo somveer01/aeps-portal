@@ -2,13 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, Switch } from 'react-native';
 import { Card, Alert, Select } from '../../components/UI';
 import ActionIcon from '../../components/ActionIcon';
-import DataGrid from '../../components/DataGrid';
 import FormBar from '../../components/FormBar';
 import UserPicker from '../../components/UserPicker';
 import { api } from '../../api/client';
 import { colors } from '../../theme';
 import { fmtDateTime } from '../../utils/dateTime';
-import { s, Pager, Chip } from './apiStyles';
+import { s, Pager, Chip, CardGrid, ItemCard } from './apiStyles';
 
 // Customer Switch: for ONE user (customer), the API each service goes through (else the Product Switch API) and
 // whether the service is on for them. The on / off is the same per-user setting as Service Permissions, so the two
@@ -77,33 +76,38 @@ export default function CustomerSwitchScreen() {
             <TextInput value={filter} onChangeText={setFilter} placeholder="Search service…" placeholderTextColor={colors.muted} style={s.search} />
           </View>
           {changed.length ? <Text style={[s.dirty, { marginBottom: 10 }]}>{changed.length} unsaved change(s)</Text> : null}
-          <DataGrid
-            rows={shown} loading={loading} rowKey={(r) => r.service_id} emptyText="No services."
-            rowStyle={(r) => (changed.includes(r) ? { backgroundColor: '#fffbeb' } : null)}
-            columns={[
-              { key: 'title', title: 'Service', flex: 1, minWidth: 170, render: (r) => (
-                <View style={{ gap: 2 }}>
-                  <Text style={[s.td, { fontWeight: '600' }]}>{r.title}</Text>
-                  <Text style={s.tdMuted}>{r.category_name || ''}</Text>
-                </View>
-              ) },
-              { key: 'api', title: 'API for this user', width: 290, render: (r) => (
-                <View style={{ width: '100%' }}>
-                  <Select value={r.provider_id} searchable={false} onChange={(v) => setRow(r.service_id, { provider_id: v })}
-                    options={[{ label: `Default (${r.default_provider_name || 'Mock'})`, value: DEFAULT },
-                      ...providers.filter((p) => r.ready_provider_ids.includes(p.id) || p.id === r.provider_id).map((p) => ({ label: `${p.name}${p.is_active ? '' : ' - off'}`, value: p.id }))]} />
-                </View>
-              ) },
-              { key: 'saved', title: 'Saved', width: 170, render: (r) => {
-                const o = orig[r.service_id]; if (!o) return null;
-                return o.provider_id ? <Chip text={nameOf(o.provider_id)} tone="success" /> : <Chip text="Default" tone="muted" />;
-              } },
-              { key: 'type_default', title: 'Type Default', width: 120, render: (r) => <Text style={s.tdMuted}>{r.type_default ? 'On' : 'Off'}</Text> },
-              { key: 'status', title: 'On For User', width: 110, render: (r) => (
-                <Switch value={!!r.enabled} onValueChange={(v) => setRow(r.service_id, { enabled: v })} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" />
-              ) },
-            ]}
-          />
+          <CardGrid loading={loading} empty="No services.">
+            {shown.map((r) => {
+              const o = orig[r.service_id] || {};
+              return (
+                <ItemCard key={r.service_id} changed={changed.includes(r)} off={!r.enabled}>
+                  <View style={s.cardTop}>
+                    <View style={{ flexShrink: 1, gap: 4 }}>
+                      <Text style={s.cardName}>{r.title}</Text>
+                      <Chip text={r.category_name || 'No category'} tone="muted" />
+                    </View>
+                    <View style={{ alignItems: 'center', gap: 2 }}>
+                      <Switch value={!!r.enabled} onValueChange={(v) => setRow(r.service_id, { enabled: v })} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" />
+                      <Text style={s.tdMuted}>{r.enabled ? 'On for user' : 'Off for user'}</Text>
+                    </View>
+                  </View>
+                  <View style={{ gap: 6 }}>
+                    <Text style={s.cardLabel}>API for this user</Text>
+                    <Select value={r.provider_id} searchable={false} onChange={(v) => setRow(r.service_id, { provider_id: v })}
+                      options={[{ label: `Default (${r.default_provider_name || 'Mock'})`, value: DEFAULT },
+                        ...providers.filter((p) => r.ready_provider_ids.includes(p.id) || p.id === r.provider_id).map((p) => ({ label: `${p.name}${p.is_active ? '' : ' - off'}`, value: p.id }))]} />
+                  </View>
+                  <View style={s.cardFoot}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={s.tdMuted}>Saved:</Text>
+                      {o.provider_id ? <Chip text={nameOf(o.provider_id)} tone="success" /> : <Chip text="Default" tone="muted" />}
+                    </View>
+                    <Text style={s.tdMuted}>Type default: {r.type_default ? 'On' : 'Off'}</Text>
+                  </View>
+                </ItemCard>
+              );
+            })}
+          </CardGrid>
         </Card>
       </View>
     );
@@ -129,23 +133,28 @@ export default function CustomerSwitchScreen() {
             <TextInput value={q} onChangeText={setQ} placeholder="Search…" placeholderTextColor={colors.muted} style={s.search} /></View>
         </View>
         {error ? <Alert type="error">{error}</Alert> : null}
-        <DataGrid
-          rows={list} loading={loadingList} emptyText="No user has settings of their own yet."
-          columns={[
-            { key: 'user', title: 'User', flex: 1, minWidth: 200, render: (r) => (
-              <View style={{ gap: 2 }}>
-                <Text style={[s.td, { fontWeight: '600' }]}>{r.full_name}</Text>
-                <Text style={s.tdMuted}>{r.user_code}</Text>
+        <CardGrid loading={loadingList} empty="No user has settings of their own yet.">
+          {list.map((r) => (
+            <ItemCard key={r.id} onPress={() => openUser(r.id)}>
+              <View style={s.cardTop}>
+                <View style={{ flexShrink: 1, gap: 4 }}>
+                  <Text style={s.cardName}>{r.full_name}</Text>
+                  <Text style={s.tdMuted}>{r.user_code}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                  <Chip text={r.user_type_name || 'User'} tone="primary" />
+                  <ActionIcon name="edit" onPress={() => openUser(r.id)} />
+                </View>
               </View>
-            ) },
-            { key: 'user_type_name', title: 'User Type', width: 150 },
-            { key: 'api_overrides', title: 'Own API', width: 110, render: (r) => <Text style={s.td}>{r.api_overrides}</Text> },
-            { key: 'blocked', title: 'Switched Off', width: 120, render: (r) => <Text style={[s.td, r.blocked ? { color: colors.danger, fontWeight: '700' } : null]}>{r.blocked}</Text> },
-            { key: 'extra_allowed', title: 'Extra On', width: 100, render: (r) => <Text style={s.td}>{r.extra_allowed}</Text> },
-            { key: 'updated_at', title: 'Updated', width: 175, render: (r) => <Text style={s.tdMuted}>{r.updated_at ? fmtDateTime(r.updated_at) : '—'}</Text> },
-            { key: 'action', title: 'Action', width: 80, render: (r) => <View style={s.actions}><ActionIcon name="edit" onPress={() => openUser(r.id)} /></View> },
-          ]}
-        />
+              <View style={s.statRow}>
+                <View style={s.stat}><Text style={s.statNum}>{r.api_overrides}</Text><Text style={s.statLbl}>Own API</Text></View>
+                <View style={s.stat}><Text style={[s.statNum, r.blocked ? { color: colors.danger } : null]}>{r.blocked}</Text><Text style={s.statLbl}>Switched off</Text></View>
+                <View style={s.stat}><Text style={s.statNum}>{r.extra_allowed}</Text><Text style={s.statLbl}>Extra on</Text></View>
+              </View>
+              <Text style={s.tdMuted}>Updated {r.updated_at ? fmtDateTime(r.updated_at) : '—'}</Text>
+            </ItemCard>
+          ))}
+        </CardGrid>
         <Pager page={page} total={total} pageSize={PAGE_SIZE} onPage={(p) => loadList({ page: p })} />
       </Card>
     </View>

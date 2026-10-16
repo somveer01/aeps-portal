@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, Switch } from 'react-native';
 import { Card, Alert, Select } from '../../components/UI';
-import DataGrid from '../../components/DataGrid';
 import FormBar from '../../components/FormBar';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { api } from '../../api/client';
 import { colors } from '../../theme';
 import { fmtDateTime } from '../../utils/dateTime';
-import { s, Chip } from './apiStyles';
+import { s, Chip, CardGrid, ItemCard } from './apiStyles';
 
 // Product Switch: which API each service (product) goes through, and the service on / off (the same switch as in
 // Service Master). An API is offered for a service only once it has an SP key for it (the mock API needs none).
@@ -70,25 +69,36 @@ export default function ProductSwitchScreen() {
         </View>
         {error ? <Alert type="error">{error}</Alert> : null}
         {changed.length ? <Text style={[s.dirty, { marginBottom: 10 }]}>{changed.length} unsaved change(s)</Text> : null}
-        <DataGrid
-          rows={rows} loading={loading} rowKey={(r) => r.service_id} emptyText="No services found."
-          rowStyle={(r) => (changed.includes(r) ? { backgroundColor: '#fffbeb' } : null)}
-          columns={[
-            { key: 'title', title: 'Service', flex: 1, minWidth: 180, render: (r) => <Text style={[s.td, { fontWeight: '600' }]}>{r.title}</Text> },
-            { key: 'category_name', title: 'Category', width: 150, render: (r) => <Text style={s.tdMuted}>{r.category_name || '—'}</Text> },
-            { key: 'api', title: 'API', width: 280, render: (r) => (
-              <View style={{ width: '100%' }}><Select value={r.provider_id} options={optionsFor(r)} onChange={(v) => setRow(r.service_id, { provider_id: v })} searchable={false} /></View>
-            ) },
-            { key: 'now', title: 'Saved API', width: 170, render: (r) => {
-              const o = orig[r.service_id]; if (!o) return null;
-              return <Chip text={nameOf(o.provider_id)} tone={o.provider_id === defaultId ? 'muted' : 'success'} />;
-            } },
-            { key: 'updated_at', title: 'Updated', width: 175, render: (r) => <Text style={s.tdMuted}>{r.updated_at ? fmtDateTime(r.updated_at) : '—'}</Text> },
-            { key: 'status', title: 'Service On', width: 100, render: (r) => (
-              <Switch value={!!r.is_active} onValueChange={(v) => setRow(r.service_id, { is_active: v })} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" />
-            ) },
-          ]}
-        />
+        <CardGrid loading={loading} empty="No services found.">
+          {rows.map((r) => {
+            const o = orig[r.service_id] || {};
+            return (
+              <ItemCard key={r.service_id} changed={changed.includes(r)} off={!r.is_active}>
+                <View style={s.cardTop}>
+                  <View style={{ flexShrink: 1, gap: 4 }}>
+                    <Text style={s.cardName}>{r.title}</Text>
+                    <Chip text={r.category_name || 'No category'} tone="muted" />
+                  </View>
+                  <View style={{ alignItems: 'center', gap: 2 }}>
+                    <Switch value={!!r.is_active} onValueChange={(v) => setRow(r.service_id, { is_active: v })} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" />
+                    <Text style={s.tdMuted}>{r.is_active ? 'Service on' : 'Service off'}</Text>
+                  </View>
+                </View>
+                <View style={{ gap: 6 }}>
+                  <Text style={s.cardLabel}>API</Text>
+                  <Select value={r.provider_id} options={optionsFor(r)} onChange={(v) => setRow(r.service_id, { provider_id: v })} searchable={false} />
+                </View>
+                <View style={s.cardFoot}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={s.tdMuted}>Saved:</Text>
+                    <Chip text={nameOf(o.provider_id)} tone={o.provider_id === defaultId ? 'muted' : 'success'} />
+                  </View>
+                  <Text style={s.tdMuted}>{r.updated_at ? fmtDateTime(r.updated_at) : 'Not changed yet'}</Text>
+                </View>
+              </ItemCard>
+            );
+          })}
+        </CardGrid>
       </Card>
       <ConfirmDialog visible={confirmOff} title="Switch off services?" confirmText="Save and switch off"
         message={`${turningOff.map((r) => r.title).join(', ')} will stop for every user until switched on again (same as the Service Master switch).`}
