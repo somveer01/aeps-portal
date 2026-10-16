@@ -2,7 +2,7 @@
 
 const db = require('../config/db');
 const env = require('../config/env');
-const providers = require('./providers.service');
+const providerRouter = require('./providerRouter.service');
 const { finalize } = require('./txnPipeline.service');
 
 /**
@@ -28,7 +28,8 @@ async function withJobLock(key, fn) {
 // Ask the provider about one pending transaction; settle it if the answer is final.
 async function checkOne(txn) {
   await db('service_transactions').where({ id: txn.id }).update({ check_count: db.raw('check_count + 1'), last_checked_at: db.fn.now() });
-  const res = await providers.status({ clientRef: txn.client_ref, providerRef: txn.reference_id, service: txn.service, amount: Number(txn.amount) });
+  const api = await providerRouter.apiForProviderId(txn.provider_id); // the API this transaction went through
+  const res = await api.status({ clientRef: txn.client_ref, providerRef: txn.reference_id, service: txn.service, amount: Number(txn.amount) });
   if (!res || !['success', 'failed'].includes(res.status)) return { id: txn.id, status: 'pending', changed: false };
   const f = await finalize(txn.id, res.status, { source: 'status_check', providerRef: res.providerRef || null });
   return { id: txn.id, status: f.status, changed: f.changed };
@@ -60,8 +61,15 @@ async function runReconciliation(date, runBy = null) {
     const runId = typeof runRow === 'object' ? runRow.id : runRow;
     try {
       const ours = await db('service_transactions').whereNotNull('client_ref').whereRaw('created_at::date = ?', [date])
-        .select('id', 'client_ref', 'status', 'amount', 'service');
-      const theirs = await providers.report({ date, ourRows: ours });
+        .select('id', 'client_ref', 'status', 'amount', 'service', 'provider_id');
+      // Each API reports only its own transactions: ask every API that was used that day.
+      const theirs = [];
+      for (const providerId of [...new Set(ours.map((o) => o.provider_id || null))]) {
+        // eslint-disable-next-line no-await-in-loop
+        const api = await providerRouter.apiForProviderId(providerId);
+        // eslint-disable-next-line no-await-in-loop
+        theirs.push(...await api.report({ date, ourRows: ours.filter((o) => (o.provider_id || null) === providerId) }));
+      }
       const byRef = new Map(theirs.map((p) => [p.clientRef, p]));
       const items = []; let matched = 0; let autoFixed = 0;
 

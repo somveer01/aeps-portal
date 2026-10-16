@@ -430,6 +430,30 @@ export const api = {
   },
 
   // Company Banks
+  // API Management: external APIs, SP keys, which API a service / user goes through.
+  apiProviders: {
+    list: (params = {}) => request(`/api/api-providers?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
+    options: () => request('/api/api-providers/options', { auth: true }),
+    create: (body) => request('/api/api-providers', { method: 'POST', body, auth: true }),
+    update: (id, body) => request(`/api/api-providers/${id}`, { method: 'PUT', body, auth: true }),
+    remove: (id) => request(`/api/api-providers/${id}`, { method: 'DELETE', auth: true }),
+    test: (id) => request(`/api/api-providers/${id}/test`, { method: 'POST', auth: true, silent: true }),
+  },
+  spKeys: {
+    services: (providerId) => request(`/api/api-sp-keys/services?providerId=${providerId}`, { auth: true }),
+    get: (providerId, serviceId) => request(`/api/api-sp-keys?providerId=${providerId}&serviceId=${serviceId}`, { auth: true }),
+    save: (body) => request('/api/api-sp-keys', { method: 'PUT', body, auth: true }),
+  },
+  productSwitch: {
+    list: (params = {}) => request(`/api/product-switch?${qs(params)}`, { auth: true }),
+    save: (rows) => request('/api/product-switch', { method: 'PUT', body: { rows }, auth: true }),
+  },
+  customerSwitch: {
+    list: (params = {}) => request(`/api/customer-switch?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
+    get: (userId) => request(`/api/customer-switch/${userId}`, { auth: true }),
+    save: (userId, rows) => request(`/api/customer-switch/${userId}`, { method: 'PUT', body: { rows }, auth: true }),
+  },
+
   companyBanks: {
     list: (params = {}) => request(`/api/company-banks?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     create: (body) => request('/api/company-banks', { method: 'POST', body, auth: true }),

@@ -107,7 +107,10 @@ async function viaChildOf(viewerId, sourceIds) {
 const MARGIN_GRID = {
   service_name: 'x.service_name', user: { sort: 'u.full_name', filter: USER_TEXT }, amount: 'x.amount', provider_commission: 'x.provider_commission',
   charges_collected: 'x.charges_collected', commission_paid: 'x.commission_paid', margin: 'x.margin', created_at: DATE_COL('x.created_at'),
+  provider: { sort: 'ap.name', filter: "concat_ws(' ', ap.name, ap.code)" }, operator: 'x.operator',
 };
+// Admin margin rows with the API the transaction went through (API Management; null for older rows).
+const marginJoins = () => withUser('admin_margins')().leftJoin('api_providers as ap', 'ap.id', 'x.provider_id');
 
 module.exports = {
   ACCOUNT_GRID, SERVICE_GRID, FUND_REQUEST_GRID, COMMISSION_GRID, MARGIN_GRID,
@@ -188,8 +191,8 @@ module.exports = {
   // Admin margin per successful transaction, plus totals over the whole filter.
   async adminMargins(f) {
     const filter = (qb) => { applyCommon(qb, f); if (f.service) qb.where('x.service_name', f.service); };
-    const page = await paginate(withUser('admin_margins'), ['x.*', ...USER_COLS], filter, f);
-    const t = await withUser('admin_margins')().where(filter).where((qb) => applyGridFilters(qb, f.grid))
+    const page = await paginate(marginJoins, ['x.*', ...USER_COLS, 'ap.name as provider_name'], filter, f);
+    const t = await marginJoins().where(filter).where((qb) => applyGridFilters(qb, f.grid))
       .sum({ amount: 'x.amount', provider_commission: 'x.provider_commission', charges_collected: 'x.charges_collected', commission_paid: 'x.commission_paid', margin: 'x.margin' })
       .first();
     const totals = Object.fromEntries(Object.entries(t || {}).map(([k, v]) => [k, Number(v || 0)]));

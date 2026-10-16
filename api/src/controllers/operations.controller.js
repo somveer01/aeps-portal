@@ -7,6 +7,7 @@ const env = require('../config/env');
 const audit = require('../repositories/audit.repo');
 const { finalize } = require('../services/txnPipeline.service');
 const recon = require('../services/reconciliation.service');
+const secretBox = require('../utils/secretBox');
 
 /**
  * Pending transactions and reconciliation: the provider callback (webhook) and the
@@ -17,11 +18,19 @@ const meta = (req) => ({ ip: req.ip, userAgent: req.get('user-agent') });
 const pageOf = (q) => ({ page: Math.max(1, parseInt(q.page, 10) || 1), pageSize: Math.min(100, Math.max(1, parseInt(q.pageSize, 10) || 10)) });
 const send = (e, res, next) => (e.status && e.code ? res.status(e.status).json({ error: e.message, code: e.code }) : next(e));
 
-// POST /api/provider-callback  (no login; signed)  header x-signature = hex HMAC-SHA256(secret, raw body)
-// body { clientRef, status: 'success'|'failed'|'pending', providerRef? }
+// POST /api/provider-callback        (no login; signed with PROVIDER_CALLBACK_SECRET)
+// POST /api/provider-callback/:code  (one API's own callback; signed with the callback secret saved in API Configuration,
+//                                     and it may only settle transactions that went through that API)
+// header x-signature = hex HMAC-SHA256(secret, raw body); body { clientRef, status: 'success'|'failed'|'pending', providerRef? }
 async function providerCallback(req, res, next) {
   try {
-    const secret = env.providerCallbackSecret;
+    let secret = env.providerCallbackSecret;
+    let api = null;
+    if (req.params.code) {
+      api = await db('api_providers').where({ code: clean(req.params.code).toUpperCase() }).first('id', 'callback_secret_enc');
+      if (!api) return res.status(404).json({ error: 'Unknown API', code: 'NOT_FOUND' });
+      secret = secretBox.decrypt(api.callback_secret_enc) || (env.isLive || env.isProd ? null : env.providerCallbackSecret);
+    }
     if (!secret) return res.status(503).json({ error: 'Callbacks are not configured', code: 'CALLBACK_NOT_CONFIGURED' });
     const expected = crypto.createHmac('sha256', secret).update(req.rawBody || Buffer.alloc(0)).digest('hex');
     const given = clean(req.get('x-signature')).toLowerCase();
@@ -29,8 +38,8 @@ async function providerCallback(req, res, next) {
     if (!ok) return res.status(401).json({ error: 'Bad signature', code: 'BAD_SIGNATURE' });
 
     const { clientRef, status, providerRef } = req.body || {};
-    const t = await db('service_transactions').where({ client_ref: clean(clientRef) }).first('id', 'status');
-    if (!t) return res.status(404).json({ error: 'Unknown clientRef', code: 'NOT_FOUND' });
+    const t = await db('service_transactions').where({ client_ref: clean(clientRef) }).first('id', 'status', 'provider_id');
+    if (!t || (api && t.provider_id !== api.id)) return res.status(404).json({ error: 'Unknown clientRef', code: 'NOT_FOUND' });
     if (status === 'pending') return res.json({ ok: true, changed: false, status: t.status });
     if (!['success', 'failed'].includes(status)) return res.status(400).json({ error: 'status must be success, failed or pending', code: 'INVALID_STATUS' });
 

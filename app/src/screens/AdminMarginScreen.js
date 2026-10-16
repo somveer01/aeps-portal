@@ -56,7 +56,7 @@ export default function AdminMarginScreen() {
         <Tile label="Commission Paid" value={money(totals?.commission_paid)} />
         <Tile label="Admin Margin" value={money(totals?.margin)} color={marginColor(totals?.margin)} strong />
       </View>
-      <Text style={styles.note}>Margin = provider commission + service charges collected − commission paid to users and their upline (incl. GST). Set each service's provider commission in Service Master. A red value means that service pays out more than the provider gives.</Text>
+      <Text style={styles.note}>Margin = provider commission + service charges collected − commission paid to users and their upline (incl. GST). Provider commission comes from API Management → SP Keys & Commission for the API the transaction went through (else the service's rate in Service Master). A red value means that service pays out more than the provider gives.</Text>
 
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
@@ -66,6 +66,7 @@ export default function AdminMarginScreen() {
           columns={[
             { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
             { key: 'service_name', title: 'Service', width: 150 },
+            { key: 'provider', title: 'API / Operator', width: 170, render: (r) => <View><Text style={styles.td}>{r.provider_name || '—'}</Text><Text style={styles.sub}>{r.operator || 'All operators'}</Text></View> },
             { key: 'user', title: 'User', width: 180, render: (r) => <View><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code}</Text></View> },
             { key: 'amount', title: 'Amount', width: 115, render: (r) => <Text style={styles.td}>{money(r.amount)}</Text> },
             { key: 'provider_commission', title: 'Provider Comm.', width: 135, render: (r) => <Text style={styles.td}>{money(r.provider_commission)}</Text> },

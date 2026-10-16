@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 
 const env = require('./config/env');
+const db = require('./config/db');
 const apiRoutes = require('./routes/api.routes');
 const { UPLOAD_DIR } = require('./middleware/upload');
 
@@ -38,18 +39,27 @@ app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 
 // Health check — reports run mode, active adapters, and version so it's clear
 // which implementations are live without reading the code.
-app.get('/api/health', (req, res) => res.json({
-  ok: true,
-  service: 'aeps-api',
-  version: env.version,
-  mode: env.appMode,
-  adapters: {
-    sms: env.isLive ? env.sms.provider : 'dev',
-    kyc: env.isLive ? 'live' : 'mock',
-    email: env.isLive ? 'smtp' : 'dev',
-    db: 'postgres',
-  },
-}));
+// `providers` lists the APIs from API Management and the adapter each one really runs on (always mock in mock mode).
+app.get('/api/health', async (req, res) => {
+  let providers = [];
+  try {
+    providers = (await db('api_providers').orderBy('id').select('code', 'adapter', 'is_active'))
+      .map((p) => ({ code: p.code, adapter: p.adapter, active: p.is_active, runsOn: env.isLive ? p.adapter : 'mock' }));
+  } catch (e) { providers = null; } // database not reachable / not migrated: health still answers
+  res.json({
+    ok: true,
+    service: 'aeps-api',
+    version: env.version,
+    mode: env.appMode,
+    adapters: {
+      sms: env.isLive ? env.sms.provider : 'dev',
+      kyc: env.isLive ? 'live' : 'mock',
+      email: env.isLive ? 'smtp' : 'dev',
+      db: 'postgres',
+    },
+    providers,
+  });
+});
 
 app.use('/api', apiRoutes);
 

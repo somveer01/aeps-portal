@@ -15,29 +15,8 @@ const CHAIN_TYPES = ['self', 'chain'];
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : NaN; };
 const meta = (req) => ({ ip: req.ip, userAgent: req.get('user-agent') });
 
-// What a slot's "operator" can be for each service: an operator from the operators master, or the
-// transfer mode for money services. Services not listed here have no choice (all operators only).
-const OPERATOR_SOURCES = {
-  'mobile recharge': { service: 'mobile' },
-  'dth recharge': { service: 'dth' },
-  'bill payment': { service: 'bbps' },
-  'lic payment': { service: 'bbps', category: 'Insurance' },
-  'fastag recharge': { service: 'fastag' },
-  'gas booking': { service: 'gas' },
-  'money transfer': { modes: ['IMPS', 'NEFT'] },
-  'move to bank': { modes: ['IMPS', 'NEFT'] },
-};
-
-/** { kind: 'operator'|'mode'|null, options: [names] } for a service id. */
-async function operatorOptions(serviceId) {
-  const svc = serviceId ? await serviceRepo.findById(serviceId) : null;
-  const src = svc && OPERATOR_SOURCES[String(svc.title).trim().toLowerCase()];
-  if (!src) return { kind: null, options: [] };
-  if (src.modes) return { kind: 'mode', options: src.modes };
-  const q = db('operators').where({ is_active: true, service: src.service });
-  if (src.category) q.where({ category: src.category });
-  return { kind: 'operator', options: (await q.orderBy('name').select('name')).map((r) => r.name) };
-}
+// What a slot's "operator" can be for each service (shared with API Management's SP Keys).
+const { operatorOptions } = require('../services/operatorOptions');
 
 /** Normalises the operator to the master's spelling; returns { error } when it is not a choice for the service. */
 async function checkOperator(serviceId, operator) {

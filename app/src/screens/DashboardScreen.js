@@ -35,6 +35,10 @@ import RetailerPanelScreen from './RetailerPanelScreen';
 import SupportTicketScreen from './SupportTicketScreen';
 import ServicePermissionScreen from './ServicePermissionScreen';
 import ModernDashboard from './ModernDashboard';
+import ApiConfigurationScreen from './api/ApiConfigurationScreen';
+import SpKeysScreen from './api/SpKeysScreen';
+import ProductSwitchScreen from './api/ProductSwitchScreen';
+import CustomerSwitchScreen from './api/CustomerSwitchScreen';
 import AppShell, { ScreenTitle } from '../shell/AppShell';
 import useShellCore from '../shell/useShellCore';
 import { api } from '../api/client';
@@ -96,6 +100,14 @@ export default function DashboardScreen({ user, onLogout }) {
               <PlanMasterScreen />
             ) : active.route === '/modules/commission-slots' ? (
               <CommissionSlotScreen />
+            ) : active.route === '/modules/api-configuration' ? (
+              <ApiConfigurationScreen />
+            ) : active.route === '/modules/api-sp-keys' ? (
+              <SpKeysScreen />
+            ) : active.route === '/modules/product-switch' ? (
+              <ProductSwitchScreen />
+            ) : active.route === '/modules/customer-switch' ? (
+              <CustomerSwitchScreen />
             ) : active.route === '/modules/application-banners' ? (
               <ApplicationBannerScreen />
             ) : active.route === '/modules/ticket-departments' ? (

@@ -10,6 +10,7 @@ const TONES = {
   view: { fg: '#475569', bg: '#f1f5f9', hover: '#e2e8f0', label: 'View' },
   fund: { fg: '#059669', bg: '#ecfdf5', hover: '#d1fae5', label: 'Fund wallet' },
   key: { fg: '#d97706', bg: '#fffbeb', hover: '#fef3c7', label: 'Reset password' },
+  test: { fg: '#0d9488', bg: '#f0fdfa', hover: '#ccfbf1', label: 'Test connection' },
 };
 
 function Glyph({ name, color }) {
@@ -25,6 +26,8 @@ function Glyph({ name, color }) {
       return (<><Path d="M20 12V8H6a2 2 0 0 1 0-4h12v4" {...p} /><Path d="M4 6v12a2 2 0 0 0 2 2h14v-4" {...p} /><Path d="M18 12a2 2 0 0 0 0 4h4v-4z" {...p} /></>);
     case 'key':
       return (<><Circle cx="7.5" cy="15.5" r="4.5" {...p} /><Path d="M10.7 12.3 21 2M16 7l3 3M14 9l2 2" {...p} /></>);
+    case 'test': // lightning bolt
+      return (<Path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" {...p} />);
     default:
       return null;
   }

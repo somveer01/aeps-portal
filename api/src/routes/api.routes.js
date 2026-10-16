@@ -31,6 +31,7 @@ const kyc = require('../controllers/kyc.controller');
 const ops = require('../controllers/operations.controller');
 const servicePermission = require('../controllers/servicePermission.controller');
 const commissionPackage = require('../controllers/commissionPackage.controller');
+const apiMgmt = require('../controllers/apiManagement.controller');
 const { kycUpload } = require('../middleware/upload');
 // Multer errors (wrong type / too big) come back as a 400 with a clear message.
 const kycFile = (req, res, next) => kycUpload.single('image')(req, res, (e) => (e ? res.status(400).json({ error: e.code === 'LIMIT_FILE_SIZE' ? 'Photo must be 5 MB or smaller' : e.message, code: 'INVALID_FILE' }) : next()));
@@ -109,6 +110,22 @@ router.get('/commission-slots/chain-gaps', requireAdmin, commissionSlot.chainGap
 router.post('/commission-slots', requireAdmin, commissionSlot.create);
 router.put('/commission-slots/:id', requireAdmin, commissionSlot.update);
 router.delete('/commission-slots/:id', requireAdmin, commissionSlot.remove);
+
+// API Management: external APIs, SP keys, which API each service / user goes through (admin).
+router.get('/api-providers', requireAdmin, apiMgmt.listProviders);
+router.get('/api-providers/options', requireAdmin, apiMgmt.providerOptions);
+router.post('/api-providers', requireAdmin, apiMgmt.createProvider);
+router.put('/api-providers/:id', requireAdmin, apiMgmt.updateProvider);
+router.delete('/api-providers/:id', requireAdmin, apiMgmt.removeProvider);
+router.post('/api-providers/:id/test', requireAdmin, apiMgmt.testProvider);
+router.get('/api-sp-keys/services', requireAdmin, apiMgmt.spKeyServices);
+router.get('/api-sp-keys', requireAdmin, apiMgmt.getSpKeys);
+router.put('/api-sp-keys', requireAdmin, apiMgmt.saveSpKeys);
+router.get('/product-switch', requireAdmin, apiMgmt.productSwitch);
+router.put('/product-switch', requireAdmin, apiMgmt.saveProductSwitch);
+router.get('/customer-switch', requireAdmin, apiMgmt.customerSwitchList);
+router.get('/customer-switch/:userId', requireAdmin, apiMgmt.customerSwitchGet);
+router.put('/customer-switch/:userId', requireAdmin, apiMgmt.customerSwitchSave);
 
 // Modules → Application Banners (admin CRUD).
 router.get('/banners', requireAdmin, banner.list);
@@ -277,6 +294,7 @@ router.put('/kyc-requests/:id', requireAdmin, kyc.adminAct);
 
 // Pending transactions, provider callback (HMAC-signed, no login) and reconciliation.
 router.post('/provider-callback', ops.providerCallback);
+router.post('/provider-callback/:code', ops.providerCallback);
 router.get('/pending-transactions', requireAdmin, ops.listPending);
 router.post('/pending-transactions/check', requireAdmin, ops.checkAll);
 router.post('/pending-transactions/:id/check', requireAdmin, ops.checkOneTxn);

@@ -92,4 +92,6 @@ const live = {
 
 const providers = env.isLive ? live : mock;
 providers.err = err;
+// The live stubs, for an API whose adapter is not written yet (services/providers/index.js).
+providers.liveStub = live;
 module.exports = providers;

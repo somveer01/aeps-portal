@@ -15,6 +15,7 @@ const ENTITY = {
   banners: 'Banner', announcements: 'Announcement', 'ticket-departments': 'Ticket department', 'service-categories': 'Service category',
   'user-types': 'User type', services: 'Service', plans: 'Plan', 'commission-slots': 'Commission slot', 'payout-banks': 'Payout bank',
   'company-banks': 'Company bank', cities: 'City', users: 'User', packages: 'Commission package', tickets: 'Ticket', 'fund-transfers': 'Fund transfer',
+  'api-providers': 'API',
 };
 
 // Money transactions: path -> what it is called. The result is worded from the receipt the API returns.
@@ -76,6 +77,9 @@ export function successMessage({ method, path, body, data }) {
   if (/\/reconciliation\/runs$/.test(path)) return { type: 'success', text: 'Reconciliation completed.' };
   if (/\/reconciliation\/items\/\d+$/.test(path)) return { type: 'success', text: 'Marked as resolved.' };
   if (/\/payout-banks\/\d+$/.test(path) && method === 'PUT' && b && Object.keys(b).length === 1 && 'status' in b) return { type: 'success', text: 'Status updated successfully.' };
+  if (/\/api-sp-keys$/.test(path)) return { type: 'success', text: 'SP keys and commission saved successfully.' };
+  if (/\/product-switch$/.test(path)) return { type: 'success', text: 'Product Switch saved successfully.' };
+  if (/\/customer-switch\/\d+$/.test(path)) return { type: 'success', text: 'Customer Switch saved successfully.' };
 
   // Generic create / update / delete
   const ent = entityOf(path);

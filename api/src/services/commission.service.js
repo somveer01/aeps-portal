@@ -2,6 +2,7 @@
 
 const db = require('../config/db');
 const serviceGuard = require('./serviceGuard.service');
+const providerRouter = require('./providerRouter.service');
 
 /**
  * Commission engine. For a successful service transaction it pays:
@@ -265,24 +266,45 @@ async function payUplines({ trx, nodes, serviceName, amount, serviceTransactionI
 /**
  * Record what the company keeps on one successful transaction:
  *   margin = provider commission + charges collected from the user − commission paid out.
- * Provider commission comes from the service (Service Master). A negative margin means
- * the slabs pay out more than the provider pays for this service.
+ * Provider commission = the SP Keys row of the API the transaction went through (API Management:
+ * percent / flat = it pays us, surcharge / surcharge_percent = it charges us, so negative); with no
+ * such row, the service's rate from Service Master as before. A negative margin means the slabs
+ * pay out more than the provider pays for this service.
  */
-async function recordAdminMargin({ trx, serviceTransactionId, userId, serviceName, amount, chargesCollected = 0, commissionPaid = 0 }) {
+async function providerCommissionFor({ trx, providerId, serviceName, amount, operator, mode }) {
+  if (providerId) {
+    const routed = await serviceGuard.findService(serviceName, trx); // alias-aware (FASTag → Fastag Recharge)
+    const product = routed ? await providerRouter.productFor(trx, providerId, routed.id, { operator, mode }) : null;
+    if (product) return rateOf(product, amount);
+  }
   const svc = await trx('services').whereRaw('lower(title) = lower(?)', [serviceName])
     .first('provider_commission_type', 'provider_commission_value');
   const value = svc ? Number(svc.provider_commission_value) : 0;
-  const providerCommission = round2(svc && svc.provider_commission_type === 'amount' ? value : (Number(amount) * value) / 100);
+  return round2(svc && svc.provider_commission_type === 'amount' ? value : (Number(amount) * value) / 100);
+}
+
+// What one SP Keys row is worth on `amount`: positive = the API pays us, negative = it charges us.
+function rateOf(product, amount) {
+  const v = Number(product.commission_value);
+  const pct = (Number(amount) * v) / 100;
+  return round2({ percent: pct, flat: v, surcharge: -v, surcharge_percent: -pct }[product.commission_type] || 0);
+}
+
+async function recordAdminMargin({
+  trx, serviceTransactionId, userId, serviceName, amount, providerId = null, operator = null, mode = null, chargesCollected = 0, commissionPaid = 0,
+}) {
+  const providerCommission = await providerCommissionFor({ trx, providerId, serviceName, amount, operator, mode });
   const margin = round2(providerCommission + Number(chargesCollected) - Number(commissionPaid));
   await trx('admin_margins').insert({
     service_transaction_id: serviceTransactionId, user_id: userId, service_name: serviceName, amount,
     provider_commission: providerCommission, charges_collected: round2(chargesCollected), commission_paid: round2(commissionPaid), margin,
+    provider_id: providerId, operator: operator || null,
   });
   return { providerCommission, margin };
 }
 
 module.exports = {
-  computeAmounts, findSlab, recordServiceCommission, distributeChainCommission, recordAdminMargin,
+  computeAmounts, findSlab, recordServiceCommission, distributeChainCommission, recordAdminMargin, providerCommissionFor, rateOf,
   packageItemFor, resolveShares, payUplines,
   DEFAULT_GST, DEFAULT_TDS, MAX_CHAIN_LEVELS,
 };

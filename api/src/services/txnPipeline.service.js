@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const db = require('../config/db');
 const commission = require('./commission.service');
 const serviceGuard = require('./serviceGuard.service');
+const providerRouter = require('./providerRouter.service');
 
 const err = (status, code, message) => Object.assign(new Error(message), { status, code });
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -21,7 +22,8 @@ const newClientRef = () => `TX${Date.now().toString(36).toUpperCase()}${crypto.r
  *     through finalize();
  *   → failure: refund everything debited and record a failed row.
  *
- * Runs in one DB transaction. `providerCall(clientRef)` is the mock/live adapter call.
+ * Runs in one DB transaction. `providerCall(clientRef, route)` is the adapter call; `route` (providerRouter) names
+ * the API picked for this service / user and carries its `api`, `spKey` and `providerId` (saved on the row).
  */
 async function run({ user, service, operator = null, mode = null, target = null, amount, charge = 0, providerCall, remark }) {
   const base = Number(amount) + Number(charge);
@@ -33,7 +35,9 @@ async function run({ user, service, operator = null, mode = null, target = null,
     const userCode = u.user_code || u.username;
     // KYC, service on, service access, daily limit — checked under the wallet lock so
     // two concurrent requests cannot both slip under the daily limit.
-    await serviceGuard.check({ trx, userId: user.id, serviceName: service, amount });
+    const svc = await serviceGuard.check({ trx, userId: user.id, serviceName: service, amount });
+    // Which API this goes through (Customer Switch → Product Switch → Mock), before any money moves.
+    const route = await providerRouter.resolve({ trx, userId: user.id, serviceName: service, service: svc, operator, mode });
 
     // The user's own slab decides whether they earn (credit) or pay a service charge (debit).
     const slab = await commission.findSlab({
@@ -66,11 +70,14 @@ async function run({ user, service, operator = null, mode = null, target = null,
     await trx('users').where({ id: user.id }).update({ wallet_balance: afterDebit, updated_at: trx.fn.now() });
 
     const clientRef = newClientRef();
-    const txnBase = { user_id: user.id, service, operator, target, amount, client_ref: clientRef, debit_amount: totalDebit, service_charge: serviceCharge, mode };
+    const txnBase = {
+      user_id: user.id, service, operator, target, amount, client_ref: clientRef, debit_amount: totalDebit, service_charge: serviceCharge, mode,
+      provider_id: route.providerId, sp_key: route.spKey,
+    };
 
     let provider;
     try {
-      provider = await providerCall(clientRef);
+      provider = await providerCall(clientRef, route);
     } catch (e) {
       // Refund + record failure (still commit so the refund + failed row persist).
       await trx('users').where({ id: user.id }).update({ wallet_balance: before, updated_at: trx.fn.now() });
@@ -101,7 +108,7 @@ async function run({ user, service, operator = null, mode = null, target = null,
 
     const settled = await settleSuccess(trx, {
       userId: user.id, userTypeId: u.user_type_id, slab, service, operator, mode, amount, serviceTransactionId,
-      serviceCharge, balanceNow: afterDebit, chargeWallet: serviceCharge > 0 ? { before: afterAmount, after: afterDebit } : null,
+      providerId: route.providerId, serviceCharge, balanceNow: afterDebit, chargeWallet: serviceCharge > 0 ? { before: afterAmount, after: afterDebit } : null,
     });
     return { ...receipt, commission: settled.ownCommission, balance: settled.finalBalance };
   });
@@ -147,7 +154,7 @@ async function settleSuccess(trx, c) {
   const chainPaid = chain.reduce((s, x) => s + x.net, 0);
   await commission.recordAdminMargin({
     trx, serviceTransactionId: c.serviceTransactionId, userId: c.userId, serviceName: c.service, amount: c.amount,
-    chargesCollected: Number(c.serviceCharge || 0), commissionPaid: round2(ownCommission + chainPaid),
+    providerId: c.providerId || null, operator: c.operator, mode: c.mode, chargesCollected: Number(c.serviceCharge || 0), commissionPaid: round2(ownCommission + chainPaid),
   });
   return { finalBalance, ownCommission };
 }
@@ -192,7 +199,7 @@ async function finalize(serviceTransactionId, outcome, { source, providerRef = n
     // A debit slab's charge was taken when the transaction started (t.service_charge).
     await settleSuccess(trx, {
       userId: t.user_id, userTypeId: u.user_type_id, slab, service: t.service, operator: t.operator, mode: t.mode,
-      amount: Number(t.amount), serviceTransactionId: t.id, serviceCharge: Number(t.service_charge || 0), balanceNow,
+      amount: Number(t.amount), serviceTransactionId: t.id, providerId: t.provider_id, serviceCharge: Number(t.service_charge || 0), balanceNow,
       chargeWallet: slab && slab.txn_type === 'debit' ? { before: balanceNow, after: balanceNow } : null,
     });
     return { changed: true, status: 'success', row: { ...t, ...done } };
