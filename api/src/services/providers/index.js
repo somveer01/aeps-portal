@@ -28,7 +28,7 @@ const needsSpKey = (adapter) => !!(ADAPTERS[adapter] || ADAPTERS.custom).needsSp
 function configOf(row) {
   let extra = {};
   try { extra = row.extra_enc ? JSON.parse(secretBox.decrypt(row.extra_enc)) : {}; } catch (e) { extra = {}; }
-  return { code: row.code, baseUrl: row.base_url, username: row.username, token: secretBox.decrypt(row.secret_enc), extra };
+  return { code: row.code, baseUrl: row.base_url, username: row.username, password: secretBox.decrypt(row.password_enc), token: secretBox.decrypt(row.secret_enc), extra };
 }
 
 /** The callable API for a provider row (null row = the default). */

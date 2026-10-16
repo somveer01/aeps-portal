@@ -62,7 +62,7 @@ test('API Configuration: token stored encrypted, only a mask comes back; validat
   const a = await A();
   const created = await a.post('/api/api-providers', {
     name: 'Test API A', code: CODE_A, adapter: 'custom', baseUrl: 'https://api.example.test/v1', username: 'demo-user',
-    token: 'tok-SECRET-9876', callbackSecret: 'cb-secret-xyz', description: 'test',
+    password: 'pw-SECRET-xyz!', token: 'tok-SECRET-9876', callbackSecret: 'cb-secret-xyz', description: 'test',
   });
   assert.equal(created.s, 201, JSON.stringify(created.b));
   P.A = created.b.row.id;
@@ -70,7 +70,12 @@ test('API Configuration: token stored encrypted, only a mask comes back; validat
   assert.equal(created.b.row.has_callback_secret, true);
   assert.ok(!JSON.stringify(created.b).includes('tok-SECRET-9876'), 'the token never comes back');
   assert.ok(!JSON.stringify(created.b).includes('cb-secret-xyz'), 'nor the callback secret');
+  assert.ok(!JSON.stringify(created.b).includes('pw-SECRET-xyz!'), 'nor the password');
+  assert.equal(created.b.row.has_password, true, 'only "a password is saved"');
+  assert.equal(created.b.row.base_url, 'https://api.example.test/v1');
   const row = await db('api_providers').where({ id: P.A }).first();
+  assert.notEqual(row.password_enc, 'pw-SECRET-xyz!');
+  assert.equal(secretBox.decrypt(row.password_enc), 'pw-SECRET-xyz!', 'password decrypts back on the server');
   assert.notEqual(row.secret_enc, 'tok-SECRET-9876');
   assert.equal(secretBox.decrypt(row.secret_enc), 'tok-SECRET-9876', 'decrypts back on the server');
 
@@ -79,8 +84,12 @@ test('API Configuration: token stored encrypted, only a mask comes back; validat
   assert.ok(list.b.adapters.some((x) => x.key === 'mock'));
 
   // Editing without a token keeps the saved one.
-  const edit = await a.put(`/api/api-providers/${P.A}`, { name: 'Test API A2', token: '' });
+  const edit = await a.put(`/api/api-providers/${P.A}`, { name: 'Test API A2', token: '', password: '' });
   assert.equal(edit.s, 200);
+  assert.equal(secretBox.decrypt((await db('api_providers').where({ id: P.A }).first()).password_enc), 'pw-SECRET-xyz!', 'empty password keeps the saved one');
+  assert.equal((await a.put(`/api/api-providers/${P.A}`, { password: 'new-pw-1' })).s, 200);
+  assert.equal(secretBox.decrypt((await db('api_providers').where({ id: P.A }).first()).password_enc), 'new-pw-1', 'a new password replaces it');
+  assert.ok(!JSON.stringify(await db('audit_log').where({ event: 'api_provider_updated' }).orderBy('id', 'desc').first('detail')).includes('new-pw-1'), 'audit log never holds the password');
   assert.equal(secretBox.decrypt((await db('api_providers').where({ id: P.A }).first()).secret_enc), 'tok-SECRET-9876');
 
   assert.equal((await a.post('/api/api-providers', { name: 'Dup', code: CODE_A.toLowerCase(), adapter: 'custom' })).b.code, 'DUPLICATE_CODE');

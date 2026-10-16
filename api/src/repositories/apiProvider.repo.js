@@ -20,6 +20,7 @@ function view(r) {
   return {
     id: r.id, name: r.name, code: r.code, adapter: r.adapter, base_url: r.base_url, username: r.username,
     token_masked: secretBox.mask(r.secret_hint), has_token: !!r.secret_enc, has_callback_secret: !!r.callback_secret_enc,
+    has_password: !!r.password_enc, // only "a password is saved": no hint of the password itself
     description: r.description, is_active: r.is_active, updated_at: r.updated_at, created_at: r.created_at,
     services_routed: r.services_routed !== undefined ? Number(r.services_routed) : undefined,
     sp_keys: r.sp_keys !== undefined ? Number(r.sp_keys) : undefined,
@@ -54,13 +55,13 @@ module.exports = {
   async create(f, by) {
     const [row] = await db(TABLE).insert({
       name: f.name, code: f.code, adapter: f.adapter, base_url: f.baseUrl || null, username: f.username || null,
-      secret_enc: secretBox.encrypt(f.token), secret_hint: secretBox.hintOf(f.token),
+      secret_enc: secretBox.encrypt(f.token), secret_hint: secretBox.hintOf(f.token), password_enc: secretBox.encrypt(f.password),
       callback_secret_enc: secretBox.encrypt(f.callbackSecret), description: f.description || null,
       is_active: f.isActive !== false, updated_by: by,
     }).returning('id');
     return typeof row === 'object' ? row.id : row;
   },
-  // Only the fields given change; an empty token / callback secret keeps the saved one.
+  // Only the fields given change; an empty token / password / callback secret keeps the saved one.
   async update(id, f, by) {
     const patch = { updated_at: db.fn.now(), updated_by: by };
     if (f.name !== undefined) patch.name = f.name;
@@ -71,6 +72,7 @@ module.exports = {
     if (f.description !== undefined) patch.description = f.description || null;
     if (f.isActive !== undefined) patch.is_active = !!f.isActive;
     if (f.token) { patch.secret_enc = secretBox.encrypt(f.token); patch.secret_hint = secretBox.hintOf(f.token); }
+    if (f.password) patch.password_enc = secretBox.encrypt(f.password);
     if (f.callbackSecret) patch.callback_secret_enc = secretBox.encrypt(f.callbackSecret);
     await db(TABLE).where({ id }).update(patch);
   },

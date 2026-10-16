@@ -1,7 +1,7 @@
 // Shared look of the API Management screens (API Configuration, SP Keys, Product Switch, Customer Switch).
 // Same tokens as the other master screens, so Classic / Modern and the saved theme colours apply.
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Linking, Platform } from 'react-native';
 import { colors, radius } from '../../theme';
 
 export const COMMISSION_TYPES = [
@@ -37,7 +37,25 @@ export function Chip({ text, tone = 'muted' }) {
   return <View style={[s.chip, { backgroundColor: t.bg }]}><Text style={[s.chipText, { color: t.fg }]} numberOfLines={1}>{text}</Text></View>;
 }
 
+// An http(s) address shown as a link that opens in a new tab (web) / the browser app (native). Never carries the
+// username or password: the partner's own page asks for them.
+export const isWebUrl = (v) => /^https?:\/\/[^\s]+$/i.test(String(v || '').trim());
+export function ExternalLink({ url, children, style, numberOfLines = 1 }) {
+  const u = String(url || '').trim();
+  if (!isWebUrl(u)) return <Text style={style || s.td} numberOfLines={numberOfLines}>{children || u || '—'}</Text>;
+  const web = Platform.OS === 'web';
+  return (
+    <Text
+      accessibilityRole="link" numberOfLines={numberOfLines} style={[style || s.td, s.link]}
+      {...(web ? { href: u, hrefAttrs: { target: '_blank', rel: 'noopener noreferrer' } } : { onPress: () => Linking.openURL(u) })}
+    >
+      {children || u}
+    </Text>
+  );
+}
+
 export const s = StyleSheet.create({
+  link: { color: colors.primary, textDecorationLine: 'underline', fontWeight: '600' },
   actionBar: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, rowGap: 14 },
   field: { flexGrow: 1, flexBasis: '46%', minWidth: 220, gap: 6 },

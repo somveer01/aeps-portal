@@ -54,6 +54,10 @@ function readProvider(body, existing) {
     f.token = clean(b.token);
     if (f.token.length > 2000) return err('INVALID_TOKEN', 'Token / key is too long');
   }
+  if (b.password !== undefined) {
+    f.password = String(b.password); // not trimmed: a password may start or end with a space
+    if (f.password.length > 500) return err('INVALID_PASSWORD', 'Password is too long');
+  }
   if (b.callbackSecret !== undefined) {
     f.callbackSecret = clean(b.callbackSecret);
     if (f.callbackSecret.length > 500) return err('INVALID_SECRET', 'Callback secret is too long');
@@ -64,7 +68,8 @@ function readProvider(body, existing) {
 }
 
 // What changed, for the audit log: field names only - token / secret values are never logged.
-const changedFields = (f) => Object.keys(f).map((k) => (k === 'token' ? 'token (changed)' : k === 'callbackSecret' ? 'callback secret (changed)' : k));
+const SECRET_FIELDS = { token: 'token (changed)', password: 'password (changed)', callbackSecret: 'callback secret (changed)' };
+const changedFields = (f) => Object.keys(f).map((k) => SECRET_FIELDS[k] || k);
 
 async function listProviders(req, res, next) {
   try {

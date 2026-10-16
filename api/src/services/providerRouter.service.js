@@ -16,7 +16,7 @@ const serviceGuard = require('./serviceGuard.service');
  * Returns { providerId, providerCode, providerName, adapter, spKey, product, api } - `api` is what providerCall uses.
  */
 const err = (status, code, message) => Object.assign(new Error(message), { status, code });
-const PROVIDER_COLS = ['id', 'name', 'code', 'adapter', 'base_url', 'username', 'secret_enc', 'extra_enc', 'is_active'];
+const PROVIDER_COLS = ['id', 'name', 'code', 'adapter', 'base_url', 'username', 'password_enc', 'secret_enc', 'extra_enc', 'is_active'];
 
 const lc = (v) => String(v || '').trim().toLowerCase();
 

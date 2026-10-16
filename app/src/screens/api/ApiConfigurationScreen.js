@@ -9,12 +9,13 @@ import { toast } from '../../components/Toast';
 import { api } from '../../api/client';
 import { colors } from '../../theme';
 import { fmtDateTime } from '../../utils/dateTime';
-import { s, Pager, Chip } from './apiStyles';
+import { s, Pager, Chip, ExternalLink, isWebUrl } from './apiStyles';
 
 // API Configuration: the external APIs the portal can send transactions to (name, code, how it is connected,
-// endpoint, username, token / key, callback secret). Tokens are never shown again after saving - only "••••1234".
+// endpoint, username, password, token / key, callback secret). Tokens and passwords are never shown again after
+// saving - only "••••1234" for a token and "Saved" for a password. The endpoint is a link that opens the partner's page.
 const PAGE_SIZE = 10;
-const EMPTY = { name: '', code: '', adapter: 'custom', baseUrl: '', username: '', token: '', callbackSecret: '', description: '', active: true };
+const EMPTY = { name: '', code: '', adapter: 'custom', baseUrl: '', username: '', password: '', token: '', callbackSecret: '', description: '', active: true };
 
 export default function ApiConfigurationScreen() {
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
@@ -44,7 +45,7 @@ export default function ApiConfigurationScreen() {
   const openAdd = () => { setEditing(null); setF(EMPTY); setFormError(null); setView('form'); };
   const openEdit = (r) => {
     setEditing(r);
-    setF({ name: r.name, code: r.code, adapter: r.adapter, baseUrl: r.base_url || '', username: r.username || '', token: '', callbackSecret: '', description: r.description || '', active: r.is_active });
+    setF({ name: r.name, code: r.code, adapter: r.adapter, baseUrl: r.base_url || '', username: r.username || '', password: '', token: '', callbackSecret: '', description: r.description || '', active: r.is_active });
     setFormError(null); setView('form');
   };
 
@@ -58,7 +59,8 @@ export default function ApiConfigurationScreen() {
         name: f.name.trim(), code: f.code.trim().toUpperCase(), adapter: f.adapter, baseUrl: f.baseUrl.trim(), username: f.username.trim(),
         description: f.description.trim(), isActive: f.active,
       };
-      // Empty token / secret on edit = keep the saved one.
+      // Empty password / token / secret on edit = keep the saved one.
+      if (f.password) body.password = f.password;
       if (f.token.trim()) body.token = f.token.trim();
       if (f.callbackSecret.trim()) body.callbackSecret = f.callbackSecret.trim();
       if (editing) await api.apiProviders.update(editing.id, body); else await api.apiProviders.create(body);
@@ -109,9 +111,13 @@ export default function ApiConfigurationScreen() {
               )}
               <Text style={s.help}>The code that talks to this API. Until it is written for a new partner, choose "Integration pending": the API can be set up now and goes live once the connection is added.</Text></View>
             <View style={s.field}><Text style={s.label}>Endpoint URL</Text>
-              <TextInput value={f.baseUrl} onChangeText={(v) => set('baseUrl', v)} autoCapitalize="none" placeholder="https://api.partner.example/v1" placeholderTextColor={colors.muted} style={s.input} /></View>
+              <TextInput value={f.baseUrl} onChangeText={(v) => set('baseUrl', v)} autoCapitalize="none" placeholder="https://api.partner.example/v1" placeholderTextColor={colors.muted} style={s.input} />
+              {isWebUrl(f.baseUrl) ? <ExternalLink url={f.baseUrl.trim()}>Open this address in a new tab ↗</ExternalLink> : null}</View>
             <View style={s.field}><Text style={s.label}>Username / Member ID</Text>
               <TextInput value={f.username} onChangeText={(v) => set('username', v)} autoCapitalize="none" placeholder="Given by the API partner" placeholderTextColor={colors.muted} style={s.input} /></View>
+            <View style={s.field}><Text style={s.label}>Password</Text>
+              <TextInput value={f.password} onChangeText={(v) => set('password', v)} secureTextEntry autoCapitalize="none" autoComplete="off" placeholder={editing && editing.has_password ? 'Saved. Leave empty to keep it' : 'Password for the username'} placeholderTextColor={colors.muted} style={s.input} />
+              <Text style={s.help}>Stored encrypted. It is never shown again.</Text></View>
             <View style={s.field}><Text style={s.label}>Token / API Key</Text>
               <TextInput value={f.token} onChangeText={(v) => set('token', v)} secureTextEntry autoCapitalize="none" placeholder={editing && editing.has_token ? `Saved (${editing.token_masked}). Leave empty to keep it` : 'Paste the token / key'} placeholderTextColor={colors.muted} style={s.input} />
               <Text style={s.help}>Stored encrypted. It is never shown again; only the last 4 characters.</Text></View>
@@ -155,8 +161,8 @@ export default function ApiConfigurationScreen() {
             { key: 'adapter', title: 'Connection', width: 150, render: (r) => <Chip text={r.adapter === 'mock' ? 'Mock' : r.adapter === 'custom' ? 'Integration pending' : r.adapter} tone={r.adapter === 'mock' ? 'muted' : r.adapter === 'custom' ? 'warning' : 'success'} /> },
             { key: 'base_url', title: 'Endpoint / Username', flex: 1, minWidth: 200, render: (r) => (
               <View style={{ gap: 2 }}>
-                <Text style={s.td} numberOfLines={1}>{r.base_url || '—'}</Text>
-                <Text style={s.tdMuted} numberOfLines={1}>{r.username ? `User: ${r.username}` : 'No username'}</Text>
+                {r.base_url ? <ExternalLink url={r.base_url} /> : <Text style={s.td}>—</Text>}
+                <Text style={s.tdMuted} numberOfLines={1}>{r.username ? `User: ${r.username}${r.has_password ? ' · password saved' : ' · no password'}` : 'No username'}</Text>
               </View>
             ) },
             { key: 'token', title: 'Token', width: 100, sortable: false, filterable: false, render: (r) => <Text style={s.mono}>{r.token_masked || '—'}</Text> },
