@@ -492,12 +492,6 @@ export default function UserManagerScreen({ network = false, onDone }) {
       </View>
 
       {/* Fund modal */}
-      <ConfirmDialog
-        visible={fundConfirm} danger={fundType === 'debit'} title={fundType === 'debit' ? 'Confirm Deduction' : 'Confirm Credit'}
-        message={fundUser ? `${fundType === 'debit' ? 'Deduct' : 'Add'} ${money(fundAmount)} ${fundType === 'debit' ? 'from' : 'to'} ${fundUser.name} (${fundUser.user_code})'s wallet?${network ? (fundType === 'debit' ? ' The amount comes back to your wallet.' : ' The amount is taken from your wallet.') : ''}` : ''}
-        confirmText={fundType === 'debit' ? 'Deduct Now' : 'Add Now'} onConfirm={doFund} onCancel={() => setFundConfirm(false)}
-      />
-
       <Modal visible={!!fundUser} transparent animationType="fade" onRequestClose={() => setFundUser(null)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -594,6 +588,13 @@ export default function UserManagerScreen({ network = false, onDone }) {
           </View>
         </View>
       </Modal>
+
+      {/* Must stay AFTER the Fund modal: modals stack in tree order, so before it this confirm opened hidden behind the fund form (looked stuck) */}
+      <ConfirmDialog
+        visible={fundConfirm} danger={fundType === 'debit'} title={fundType === 'debit' ? 'Confirm Deduction' : 'Confirm Credit'}
+        message={fundUser ? `${fundType === 'debit' ? 'Deduct' : 'Add'} ${money(fundAmount)} ${fundType === 'debit' ? 'from' : 'to'} ${fundUser.name} (${fundUser.user_code})'s wallet?${network ? (fundType === 'debit' ? ' The amount comes back to your wallet.' : ' The amount is taken from your wallet.') : ''}` : ''}
+        confirmText={fundType === 'debit' ? 'Deduct Now' : 'Add Now'} onConfirm={doFund} onCancel={() => setFundConfirm(false)}
+      />
     </View>
   );
 }

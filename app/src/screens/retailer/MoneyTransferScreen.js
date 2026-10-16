@@ -113,12 +113,6 @@ export default function MoneyTransferScreen({ onBack, onDone }) {
         </Pressable>
       </Modal>
 
-      <ConfirmDialog
-        visible={confirmSend} danger={false} title="Confirm Money Transfer"
-        message={xfer ? `Send ₹${Number(xf.amount || 0).toFixed(2)} to ${xfer.name} (${xfer.bank_name} · ${xfer.account_no}) via ${xf.mode}? The amount plus any service charge is debited from your wallet.` : ''}
-        confirmText="Send Money" onConfirm={doTransfer} onCancel={() => setConfirmSend(false)}
-      />
-
       {/* Transfer modal */}
       <Modal visible={!!xfer} transparent animationType="fade" onRequestClose={() => setXfer(null)}>
         <Pressable style={styles.backdrop} onPress={() => setXfer(null)}>
@@ -137,6 +131,13 @@ export default function MoneyTransferScreen({ onBack, onDone }) {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Must stay AFTER the Transfer modal: modals stack in tree order, so before it this confirm opened hidden behind the form */}
+      <ConfirmDialog
+        visible={confirmSend} danger={false} title="Confirm Money Transfer"
+        message={xfer ? `Send ₹${Number(xf.amount || 0).toFixed(2)} to ${xfer.name} (${xfer.bank_name} · ${xfer.account_no}) via ${xf.mode}? The amount plus any service charge is debited from your wallet.` : ''}
+        confirmText="Send Money" onConfirm={doTransfer} onCancel={() => setConfirmSend(false)}
+      />
 
       <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title="Money Transfer Receipt"
         rows={receipt ? [['Beneficiary', receipt.operator], ['Account', receipt.target], ['Mode', receipt.mode], ['Amount', `₹${Number(receipt.amount).toFixed(2)}`], ['UTR/Ref', receipt.provider?.utr || receipt.reference], ['Balance', `₹${Number(receipt.balance).toFixed(2)}`]] : []} />
