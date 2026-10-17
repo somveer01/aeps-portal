@@ -42,13 +42,15 @@ let origProviderCommission;
 before(async () => {
   svc = await db('services').orderBy('id').first('id', 'title');
   origProviderCommission = await db('services').where({ id: svc.id }).first('provider_commission_type', 'provider_commission_value');
+  // The company pays commission only out of what the API pays it (capShares): a generous rate keeps the slab tests about slabs.
+  await db('services').where({ id: svc.id }).update({ provider_commission_type: 'percentage', provider_commission_value: 100 });
   const ut = await db('user_types').where({ name: 'Retailer' }).first('id');
   const [p] = await db('plans').insert({ user_type_id: ut.id, name: `${TAG} plan` }).returning('id');
   planId = typeof p === 'object' ? p.id : p;
   // Master Distributor → Distributor → Retailer
   await mkUser('MD', 'Super Distributor', null, 0);
   await mkUser('D', 'Distributor', users.MD.id, 0);
-  await mkUser('R', 'Retailer', users.D.id, 5000);
+  await mkUser('R', 'Retailer', users.D.id, 20000);
   await mkSlab('R', 'Retailer', 'percentage', 2, 'self');
   await mkSlab('D', 'Distributor', 'amount', 5, 'chain');
   await mkSlab('MD', 'Super Distributor', 'percentage', 1, 'self'); // self: must NOT pay on the retailer's txn
@@ -72,7 +74,7 @@ test('retailer txn pays retailer + chain upline; self slab above is skipped', as
   const dist = computeAmounts({ commissionType: 'amount', value: 5, amount: AMOUNT }); // 5 + 0.9 GST
 
   assert.equal(r.commission, own.net);
-  assert.equal(await balance(users.R.id), 5000 - AMOUNT + own.net);
+  assert.equal(await balance(users.R.id), 20000 - AMOUNT + own.net);
   assert.equal(await balance(users.D.id), dist.net);
   assert.equal(await balance(users.MD.id), 0);
 
@@ -83,7 +85,7 @@ test('retailer txn pays retailer + chain upline; self slab above is skipped', as
   assert.equal(Number(dRow.updated_balance), dist.net);
   const [rRow] = await ledger(users.R.id);
   assert.equal(rRow.level, 0);
-  assert.equal(Number(rRow.updated_balance), 5000 - AMOUNT + own.net);
+  assert.equal(Number(rRow.updated_balance), 20000 - AMOUNT + own.net);
   assert.ok(await db('account_transactions').where({ user_id: users.D.id, type: 'credit' }).first(), 'upline wallet ledger entry');
 });
 
@@ -137,6 +139,37 @@ test('admin margin = provider commission + charges − commission paid', async (
   assert.equal(Number(m.charges_collected), 0);
   assert.equal(Number(m.commission_paid), Math.round(paid * 100) / 100);
   assert.equal(Number(m.margin), Math.round((15 - paid) * 100) / 100);
+  assert.ok(Number(m.margin) >= 0, 'margin never negative');
+  await db('services').where({ id: svc.id }).update({ provider_commission_type: 'percentage', provider_commission_value: 100 });
+});
+
+test('slabs richer than the API pays are cut: the user is served first, then the uplines, margin never negative', async () => {
+  const gstOf = (g) => computeAmounts({ commissionType: 'amount', value: g, amount: 0 }).net;
+  // Retailer slab 2% of 500 = 10 (+1.8) = 11.8, Distributor flat 5 (+0.9) = 5.9. The API pays 2% = 10 in total.
+  await db('services').where({ id: svc.id }).update({ provider_commission_type: 'percentage', provider_commission_value: 2 });
+  const rBefore = await balance(users.R.id); const dBefore = await balance(users.D.id);
+  const r = await pipeline.run({ user: { id: users.R.id }, service: svc.title, amount: AMOUNT, providerCall: ok });
+  const txnId = await lastTxnId();
+  const m = await db('admin_margins').where({ service_transaction_id: txnId }).first();
+  assert.equal(Number(m.provider_commission), 10);
+  assert.ok(Number(m.commission_paid) <= 10, `paid ${m.commission_paid} must fit in the 10 the API pays`);
+  assert.ok(Number(m.margin) >= 0, `margin ${m.margin} must not be negative`);
+  assert.equal(Number(m.commission_paid) + Number(m.margin), 10);
+  // The retailer (served first) got the biggest commission whose net fits in 10: 8.47 + 1.52 GST = 9.99; the distributor gets nothing.
+  assert.equal(r.commission, gstOf(8.47));
+  assert.equal(await balance(users.R.id), Math.round((rBefore - AMOUNT + gstOf(8.47)) * 100) / 100);
+  assert.equal(await balance(users.D.id), dBefore, 'nothing left for the upline');
+  const own = (await txnLedger(txnId)).find((row) => row.user_id === users.R.id);
+  assert.match(own.remark, /capped/);
+
+  // A rate that covers everyone changes nothing; one that charges us (surcharge) pays nobody.
+  await db('services').where({ id: svc.id }).update({ provider_commission_type: 'percentage', provider_commission_value: 0 });
+  const rb = await balance(users.R.id);
+  const none = await pipeline.run({ user: { id: users.R.id }, service: svc.title, amount: AMOUNT, providerCall: ok });
+  assert.equal(none.commission, 0);
+  assert.equal(await balance(users.R.id), Math.round((rb - AMOUNT) * 100) / 100);
+  assert.equal(Number((await db('admin_margins').where({ service_transaction_id: await lastTxnId() }).first()).margin), 0);
+  await db('services').where({ id: svc.id }).update({ provider_commission_type: 'percentage', provider_commission_value: 100 });
 });
 
 test('debit slab takes a service charge from the wallet; failure refunds it too', async () => {

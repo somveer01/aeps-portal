@@ -134,6 +134,9 @@ async function settleSuccess(trx, c) {
   const shares = await commission.resolveShares({
     trx, sourceUserId: c.userId, selfSlab: c.slab, serviceName: c.service, amount: c.amount, operator: c.operator, mode: c.mode,
   });
+  // The company pays commission only out of what it earns on this transaction (the API's rate + any service charge collected).
+  const providerCommission = await commission.providerCommissionFor({ trx, providerId: c.providerId || null, serviceName: c.service, amount: c.amount, operator: c.operator, mode: c.mode });
+  commission.capShares(shares, providerCommission + Number(c.serviceCharge || 0));
   const own = shares[0];
   const comm = own && own.slab && own.gross > 0 ? await commission.recordServiceCommission({
     trx, userId: c.userId, userTypeId: c.userTypeId, slab: own.slab, serviceName: c.service, amount: c.amount,
@@ -154,7 +157,7 @@ async function settleSuccess(trx, c) {
   const chainPaid = chain.reduce((s, x) => s + x.net, 0);
   await commission.recordAdminMargin({
     trx, serviceTransactionId: c.serviceTransactionId, userId: c.userId, serviceName: c.service, amount: c.amount,
-    providerId: c.providerId || null, operator: c.operator, mode: c.mode, chargesCollected: Number(c.serviceCharge || 0), commissionPaid: round2(ownCommission + chainPaid),
+    providerId: c.providerId || null, providerCommission, operator: c.operator, mode: c.mode, chargesCollected: Number(c.serviceCharge || 0), commissionPaid: round2(ownCommission + chainPaid),
   });
   return { finalBalance, ownCommission };
 }

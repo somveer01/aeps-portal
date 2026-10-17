@@ -290,10 +290,44 @@ function rateOf(product, amount) {
   return round2({ percent: pct, flat: v, surcharge: -v, surcharge_percent: -pct }[product.commission_type] || 0);
 }
 
+/**
+ * The company never pays out more commission than it earns on a transaction: everything the user and the uplines
+ * receive (commission + GST, what recordServiceCommission pays) must fit in `budget` = what the API pays us +
+ * any service charge collected. Without this a slab richer than the API's rate (e.g. 5% on a service the API pays 0.5%)
+ * made the admin margin negative on every transaction. Shares are served in order - the user who transacted first, then
+ * level 1, 2, ... up the chain - and the first share that does not fit is cut to what is left (later ones get nothing).
+ * Mutates `nodes` (resolveShares output) and returns { budget, requested, paid }.
+ */
+function capShares(nodes, budget, gstPercent = DEFAULT_GST) {
+  const netOf = (gross) => computeAmounts({ commissionType: 'amount', value: gross, amount: 0, gstPercent }).net;
+  let left = round2(Math.max(0, Number(budget) || 0));
+  let requested = 0;
+  let paid = 0;
+  for (const n of nodes) {
+    if (!n.active || !n.slab || !(n.gross > 0)) continue;
+    const want = netOf(n.gross);
+    requested = round2(requested + want);
+    if (want <= left) { left = round2(left - want); paid = round2(paid + want); continue; }
+    // the largest commission whose net (commission + GST) still fits in what is left
+    let g = Math.floor((left / (1 + gstPercent / 100)) * 100 + 1e-9) / 100;
+    while (g > 0 && netOf(g) > left) g = round2(g - 0.01);
+    g = Math.max(0, g);
+    const note = g > 0 ? 'capped: the company cannot pay more commission than it earns on this transaction' : 'nothing left of the company earnings on this transaction';
+    n.note = n.note ? `${n.note}; ${note}` : note;
+    n.gross = g;
+    n.slab = g > 0 ? { commission_type: 'amount', value: g, txn_type: 'credit' } : null;
+    const got = g > 0 ? netOf(g) : 0;
+    left = round2(left - got);
+    paid = round2(paid + got);
+  }
+  return { budget: round2(Math.max(0, Number(budget) || 0)), requested, paid };
+}
+
 async function recordAdminMargin({
   trx, serviceTransactionId, userId, serviceName, amount, providerId = null, operator = null, mode = null, chargesCollected = 0, commissionPaid = 0,
+  providerCommission: known = null,
 }) {
-  const providerCommission = await providerCommissionFor({ trx, providerId, serviceName, amount, operator, mode });
+  const providerCommission = known != null ? known : await providerCommissionFor({ trx, providerId, serviceName, amount, operator, mode });
   const margin = round2(providerCommission + Number(chargesCollected) - Number(commissionPaid));
   await trx('admin_margins').insert({
     service_transaction_id: serviceTransactionId, user_id: userId, service_name: serviceName, amount,
@@ -304,7 +338,7 @@ async function recordAdminMargin({
 }
 
 module.exports = {
-  computeAmounts, findSlab, recordServiceCommission, distributeChainCommission, recordAdminMargin, providerCommissionFor, rateOf,
+  computeAmounts, findSlab, recordServiceCommission, distributeChainCommission, recordAdminMargin, providerCommissionFor, rateOf, capShares,
   packageItemFor, resolveShares, payUplines,
   DEFAULT_GST, DEFAULT_TDS, MAX_CHAIN_LEVELS,
 };

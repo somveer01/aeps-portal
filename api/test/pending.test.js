@@ -30,7 +30,7 @@ before(async () => {
   server = await startServer(PORT);
   adminTok = signFor(await adminUser());
   const cat = await db('service_categories').orderBy('id').first('id');
-  [svc] = await db('services').insert({ title: `${TAG} Recharge`, service_category_id: cat.id, is_active: true }).returning(['id', 'title']);
+  [svc] = await db('services').insert({ title: `${TAG} Recharge`, service_category_id: cat.id, is_active: true, provider_commission_type: 'percentage', provider_commission_value: 100 }).returning(['id', 'title']);
   const ut = await db('user_types').orderBy('id').first('id');
   const [p] = await db('plans').insert({ user_type_id: ut.id, name: `${TAG} plan` }).returning('id');
   planId = typeof p === 'object' ? p.id : p;
