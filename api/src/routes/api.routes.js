@@ -175,6 +175,8 @@ router.get('/gst-report', requireAdmin, reports.gstReport);
 router.get('/tds-report', requireAdmin, reports.tdsReport);
 router.get('/commission-report', requireAdmin, reports.commissionReport);
 router.get('/admin-margin-report', requireAdmin, reports.adminMarginReport);
+router.get('/user-summary-report', requireAdmin, reports.userSummary);
+router.get('/user-summary-report/:id', requireAdmin, reports.userSummaryDetail);
 
 // Commission Slab (read-only view of commission slots).
 router.get('/commission-slab', requireAdmin, commissionSlot.slab);

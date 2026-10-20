@@ -112,8 +112,116 @@ const MARGIN_GRID = {
 // Admin margin rows with the API the transaction went through (API Management; null for older rows).
 const marginJoins = () => withUser('admin_margins')().leftJoin('api_providers as ap', 'ap.id', 'x.provider_id');
 
+// ── User Summary: one row per managed user, everything the user did / earned / paid in the date range ──
+const USER_SUMMARY_GRID = {
+  user: { sort: 'x.user_name', filter: "concat_ws(' ', x.user_name, x.user_code, x.mobile, x.shop_name)" },
+  user_type_name: 'x.user_type_name', parent_code: 'x.parent_code', wallet_balance: 'x.wallet_balance',
+  txns: 'x.txns', volume: 'x.volume', own_commission: 'x.own_commission', network_commission: 'x.network_commission',
+  charges_paid: 'x.charges_paid', refunds: 'x.refunds', wallet_added: 'x.wallet_added', company_margin: 'x.company_margin',
+};
+const SUMMARY_NUMBERS = ['wallet_balance', 'volume', 'own_commission', 'network_commission', 'charges_paid', 'refunds', 'wallet_added', 'company_margin'];
+const SUMMARY_COUNTS = ['txns', 'success', 'failed', 'pending'];
+const asNumbers = (row) => {
+  const out = { ...row };
+  SUMMARY_NUMBERS.forEach((k) => { if (k in out) out[k] = Number(out[k] || 0); });
+  SUMMARY_COUNTS.forEach((k) => { if (k in out) out[k] = Number(out[k] || 0); });
+  return out;
+};
+
+// Date range as SQL pieces. `binds` is filled in the order the pieces appear in the SQL text.
+function dateSql(binds, { startDate, endDate }) {
+  return (col) => {
+    let s = '';
+    if (startDate) { s += ` and ${col}::date >= ?`; binds.push(startDate); }
+    if (endDate) { s += ` and ${col}::date <= ?`; binds.push(endDate); }
+    return s;
+  };
+}
+
+// The one-row-per-user query as a wrapped sub-select `x`, so the grid can sort / filter its columns.
+function userSummarySub({ startDate, endDate, userTypeId, userId }) {
+  const binds = [];
+  const dates = dateSql(binds, { startDate, endDate });
+  const sql = `
+    select u.id, u.user_code, u.full_name as user_name, u.mobile, u.shop_name, u.is_active, u.wallet_balance,
+           ut.name as user_type_name, par.user_code as parent_code,
+           coalesce(t.txns, 0) as txns, coalesce(t.success, 0) as success, coalesce(t.failed, 0) as failed, coalesce(t.pending, 0) as pending, coalesce(t.volume, 0) as volume,
+           coalesce(c.own, 0) as own_commission, coalesce(c.network, 0) as network_commission, coalesce(c.charges, 0) as charges_paid,
+           coalesce(f.added, 0) as wallet_added, coalesce(r.refunds, 0) as refunds, coalesce(m.margin, 0) as company_margin
+      from users u
+      left join user_types ut on ut.id = u.user_type_id
+      left join users par on par.id = u.parent_id
+      left join (select user_id, count(*) as txns, count(*) filter (where status = 'success') as success,
+                        count(*) filter (where status = 'failed') as failed, count(*) filter (where status = 'pending') as pending,
+                        sum(amount) filter (where status = 'success') as volume
+                   from service_transactions where true${dates('created_at')} group by user_id) t on t.user_id = u.id
+      left join (select user_id,
+                        sum(net_amount) filter (where wallet_txn_type = 'credit' and level = 0) as own,
+                        sum(net_amount) filter (where wallet_txn_type = 'credit' and level > 0) as network,
+                        sum(net_amount) filter (where wallet_txn_type = 'debit') as charges
+                   from commission_ledger where true${dates('created_at')} group by user_id) c on c.user_id = u.id
+      left join (select user_id, sum(amt) as added from (
+                   select user_id, amount as amt, coalesce(acted_at, created_at) as at from fund_requests where status = 'approved'
+                   union all
+                   select to_user_id, case when transfer_type = 'credit' then amount else -amount end, created_at from fund_transfers where coalesce(status, 'success') = 'success'
+                 ) z where true${dates('z.at')} group by user_id) f on f.user_id = u.id
+      left join (select user_id, sum(amount) as refunds from account_transactions
+                  where type = 'credit' and remark ilike 'Refund%'${dates('created_at')} group by user_id) r on r.user_id = u.id
+      left join (select user_id, sum(margin) as margin from admin_margins where true${dates('created_at')} group by user_id) m on m.user_id = u.id
+     where u.user_type_id is not null${userTypeId ? ' and u.user_type_id = ?' : ''}${userId ? ' and u.id = ?' : ''}`;
+  if (userTypeId) binds.push(userTypeId);
+  if (userId) binds.push(userId);
+  return db.raw(sql, binds).wrap('(', ') as x');
+}
+
 module.exports = {
-  ACCOUNT_GRID, SERVICE_GRID, FUND_REQUEST_GRID, COMMISSION_GRID, MARGIN_GRID,
+  ACCOUNT_GRID, SERVICE_GRID, FUND_REQUEST_GRID, COMMISSION_GRID, MARGIN_GRID, USER_SUMMARY_GRID,
+
+  // One row per managed user + totals over the whole filter (grid filters included).
+  async userSummary(f) {
+    const where = (qb) => applyGridFilters(qb, f.grid);
+    const countRow = await db.from(userSummarySub(f)).where(where).count('x.id as c').first();
+    const q = db.select('x.*').from(userSummarySub(f)).where(where);
+    if (f.grid && f.grid.sort) applyGridSort(q, f.grid, 'x.id', 'asc'); else q.orderByRaw('x.volume desc, x.id asc');
+    const rows = (await q.limit(f.pageSize).offset((f.page - 1) * f.pageSize)).map(asNumbers);
+    const sums = ['txns', 'success', 'failed', 'pending', 'volume', 'own_commission', 'network_commission', 'charges_paid', 'refunds', 'wallet_added', 'company_margin', 'wallet_balance']
+      .map((k) => db.raw(`coalesce(sum(x.${k}), 0) as ${k}`));
+    const t = await db.from(userSummarySub(f)).where(where).first(...sums, db.raw('count(*) as users'));
+    return { rows, total: Number(countRow.c), totals: asNumbers({ ...t, users: Number(t.users) }) };
+  },
+
+  // One user's summary row + the same numbers per service.
+  async userSummaryDetail(userId, f) {
+    const user = await db.from(userSummarySub({ ...f, userId, userTypeId: null })).select('x.*').first();
+    if (!user) return null;
+    const dates = dateSql([], f); // only the SQL pieces are used here; the binds are listed explicitly below
+    const sql = `
+      with t as (select service, count(*) as txns, count(*) filter (where status = 'success') as success,
+                        count(*) filter (where status = 'failed') as failed, count(*) filter (where status = 'pending') as pending,
+                        sum(amount) filter (where status = 'success') as volume
+                   from service_transactions where user_id = ?${dates('created_at')} group by service),
+           c as (select service_name as service,
+                        sum(net_amount) filter (where wallet_txn_type = 'credit' and level = 0) as own,
+                        sum(net_amount) filter (where wallet_txn_type = 'credit' and level > 0) as network,
+                        sum(net_amount) filter (where wallet_txn_type = 'debit') as charges
+                   from commission_ledger where user_id = ?${dates('created_at')} group by service_name),
+           m as (select service_name as service, sum(margin) as margin from admin_margins where user_id = ?${dates('created_at')} group by service_name),
+           names as (select service from t union select service from c union select service from m)
+      select n.service, coalesce(t.txns, 0) as txns, coalesce(t.success, 0) as success, coalesce(t.failed, 0) as failed, coalesce(t.pending, 0) as pending,
+             coalesce(t.volume, 0) as volume, coalesce(c.own, 0) as own_commission, coalesce(c.network, 0) as network_commission,
+             coalesce(c.charges, 0) as charges_paid, coalesce(m.margin, 0) as company_margin
+        from names n left join t on t.service = n.service left join c on c.service = n.service left join m on m.service = n.service
+       order by coalesce(t.volume, 0) desc, n.service`;
+    // binds order: user id then the dates, three times (t, c, m)
+    const all = [];
+    [0, 1, 2].forEach(() => {
+      all.push(userId);
+      if (f.startDate) all.push(f.startDate);
+      if (f.endDate) all.push(f.endDate);
+    });
+    const { rows } = await db.raw(sql, all);
+    return { user: asNumbers(user), services: rows.map(asNumbers) };
+  },
 
   accountTransactions(f) {
     return paginate(withUser('account_transactions'), ['x.*', ...USER_COLS],

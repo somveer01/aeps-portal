@@ -276,6 +276,8 @@ export const api = {
     tdsReport: (params = {}) => request(`/api/tds-report?${qs(params)}`, { auth: true }),
     commissionReport: (params = {}) => request(`/api/commission-report?${qs(params)}`, { auth: true }),
     adminMargin: (params = {}) => request(`/api/admin-margin-report?${qs(params)}`, { auth: true }),
+    userSummary: (params = {}) => request(`/api/user-summary-report?${qs(params)}`, { auth: true }),
+    userSummaryDetail: (id, params = {}) => request(`/api/user-summary-report/${id}?${qs(params)}`, { auth: true }),
   },
 
   // Commission Slab (read-only view of commission slots)

@@ -24,6 +24,7 @@ import AadhaarVerifyScreen from './AadhaarVerifyScreen';
 import CommissionSlabScreen from './CommissionSlabScreen';
 import TaxReportScreen from './TaxReportScreen';
 import AdminMarginScreen from './AdminMarginScreen';
+import UserSummaryReportScreen from './UserSummaryReportScreen';
 import KycRequestScreen from './KycRequestScreen';
 import PendingTransactionsScreen from './PendingTransactionsScreen';
 import ReconciliationScreen from './ReconciliationScreen';
@@ -150,6 +151,8 @@ export default function DashboardScreen({ user, onLogout }) {
               <KycRequestScreen />
             ) : active.route === '/admin-margin' ? (
               <AdminMarginScreen />
+            ) : active.route === '/user-summary-report' ? (
+              <UserSummaryReportScreen />
             ) : active.route === '/admin-wallet/add' ? (
               <AdminWalletAddScreen onDone={refreshBalance} />
             ) : active.route === '/admin-wallet/all' ? (
