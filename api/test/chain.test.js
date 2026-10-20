@@ -172,6 +172,16 @@ test('slabs richer than the API pays are cut: the user is served first, then the
   await db('services').where({ id: svc.id }).update({ provider_commission_type: 'percentage', provider_commission_value: 100 });
 });
 
+test('the service name matches its Service Master title in any letter case (Money transfer vs Money Transfer)', async () => {
+  // A Service Master titled "Money transfer" once made every "Money Transfer" transaction skip all its slabs.
+  const own = computeAmounts({ commissionType: 'percentage', value: 2, amount: AMOUNT });
+  const swapped = svc.title === svc.title.toUpperCase() ? svc.title.toLowerCase() : svc.title.toUpperCase();
+  const r = await pipeline.run({ user: { id: users.R.id }, service: swapped, amount: AMOUNT, providerCall: ok });
+  assert.equal(r.commission, own.net, 'retailer slab found');
+  const txn = await db('service_transactions').where({ user_id: users.R.id, service: swapped }).orderBy('id', 'desc').first('id');
+  assert.ok((await txnLedger(txn.id)).some((row) => row.level === 1), 'upline chain slab found too');
+});
+
 test('debit slab takes a service charge from the wallet; failure refunds it too', async () => {
   await mkSlab('Rdebit', 'Retailer', 'amount', 10, 'self', { txnType: 'debit', operator: 'TESTOP' });
   const fee = computeAmounts({ commissionType: 'amount', value: 10, amount: AMOUNT }); // 10 + 1.8 GST

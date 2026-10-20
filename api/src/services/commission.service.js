@@ -43,10 +43,14 @@ function computeAmounts({ commissionType, value, amount, gstPercent = DEFAULT_GS
 async function findSlab({ userTypeId, planId = null, serviceName, amount, operator = null, mode = null, userCode = null, chainOnly = false, creditOnly = false, trx }) {
   const keys = [operator, mode].map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
   const code = String(userCode || '').trim().toLowerCase();
+  // Same service lookup as the guards and the provider rate (case-insensitive, with aliases): a Service Master titled
+  // "Money transfer" must still match the "Money Transfer" the retailer app sends, or its slabs (commission AND the
+  // service charge) silently never applied.
+  const svc = await serviceGuard.findService(serviceName, trx || db);
+  if (!svc) return null;
   const q = (trx || db)('commission_slots as cs')
-    .join('services as s', 's.id', 'cs.service_id')
     .where('cs.user_type_id', userTypeId)
-    .where('s.title', serviceName)
+    .where('cs.service_id', svc.id)
     .where('cs.is_active', true)
     .andWhere('cs.min_amount', '<=', amount)
     .andWhere('cs.max_amount', '>=', amount)
