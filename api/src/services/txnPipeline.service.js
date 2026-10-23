@@ -13,24 +13,37 @@ const err = (status, code, message) => Object.assign(new Error(message), { statu
 const newClientRef = () => `TX${Date.now().toString(36).toUpperCase()}${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
 /**
- * The single money pipeline used by every paid retailer service.
+ * A provider error is a DEFINITE refusal - safe to refund - when the adapter says so (`err.definite`) or when it is a 4xx
+ * refusal. Anything else (a timeout, a network error, a 5xx, an unknown answer) may have gone through at the provider, so
+ * the transaction stays PENDING and the status check / callback / reconciliation settles it - never failed + refunded
+ * on a guess, or the user could get the service and the refund.
+ */
+const isDefiniteFailure = (e) => !!e && (e.definite === true || (Number.isInteger(e.status) && e.status >= 400 && e.status < 500));
+
+/**
+ * The single money pipeline used by every paid retailer service. Three short steps, so no wallet lock is held while the
+ * (slow) provider answers, and every attempt is on record even if the server dies half way:
  *
- *   lock wallet → guards → debit (amount + any service charge from a debit slab)
- *   → call provider with our client_ref
- *   → success: record it, then settle (user's commission, uplines' chain share, admin margin);
- *   → pending: record it and stop — the money stays debited, nothing is paid out yet; the
- *     provider callback, the status-check job, reconciliation or an admin settles it later
- *     through finalize();
- *   → failure: refund everything debited and record a failed row.
+ *   A. (transaction 1) lock wallet → guards → route → debit (amount + any service charge from a debit slab) → write the
+ *      transaction row as pending / stage 'initiated' → COMMIT;
+ *   B. (no transaction) call the provider with our client_ref;
+ *   C. (transaction 2) by the answer:
+ *      - success: row success, then settle (user's commission, uplines' chain share, admin margin);
+ *      - provider says pending: row stays pending, nothing is paid out yet;
+ *      - definite refusal (isDefiniteFailure): refund everything debited, row failed, then the error is thrown;
+ *      - unknown (timeout, network error ...): row stays pending (stage 'unknown'), money stays held; the status-check job /
+ *        callback / reconciliation / an admin settles it later through finalize().
+ *   A row left 'initiated' by a crash between A and C is picked up by the status check after a few minutes.
  *
- * Runs in one DB transaction. `providerCall(clientRef, route)` is the adapter call; `route` (providerRouter) names
- * the API picked for this service / user and carries its `api`, `spKey` and `providerId` (saved on the row).
+ * `providerCall(clientRef, route)` is the adapter call; `route` (providerRouter) names the API picked for this service / user
+ * and carries its `api`, `spKey` and `providerId` (saved on the row).
  */
 async function run({ user, service, operator = null, mode = null, target = null, amount, charge = 0, providerCall, remark }) {
   const base = Number(amount) + Number(charge);
   if (!Number.isFinite(base) || base <= 0) throw err(400, 'INVALID_AMOUNT', 'Enter a valid amount');
 
-  return db.transaction(async (trx) => {
+  // ── A. hold the money and record the attempt ──
+  const a = await db.transaction(async (trx) => {
     const u = await trx('users').where({ id: user.id }).forUpdate()
       .first('wallet_balance', 'user_type_id', 'plan_id', 'user_code', 'username');
     const userCode = u.user_code || u.username;
@@ -65,44 +78,62 @@ async function run({ user, service, operator = null, mode = null, target = null,
     }
 
     const clientRef = newClientRef();
-    const txnBase = {
+    const [txnRow] = await trx('service_transactions').insert({
       user_id: user.id, service, operator, target, amount, client_ref: clientRef, debit_amount: totalDebit, service_charge: serviceCharge, mode,
-      provider_id: route.providerId, sp_key: route.spKey,
+      provider_id: route.providerId, sp_key: route.spKey, status: 'pending', stage: 'initiated', response: JSON.stringify({ stage: 'initiated' }),
+    }).returning('id');
+    return {
+      txnId: typeof txnRow === 'object' ? txnRow.id : txnRow, clientRef, route, userTypeId: u.user_type_id, slab, serviceCharge, totalDebit,
+      before, afterAmount, afterDebit,
     };
+  });
 
-    let provider;
-    try {
-      provider = await providerCall(clientRef, route);
-    } catch (e) {
-      // Refund + record failure (still commit so the refund + failed row persist).
-      await wallet.credit(trx, { userId: user.id, amount: totalDebit, service, remark: `Refund — ${service} failed` });
-      await trx('service_transactions').insert({
-        ...txnBase, status: 'failed', reference_id: null, response: JSON.stringify({ error: e.message, code: e.code }),
-        finalized_at: trx.fn.now(), finalized_by: 'provider',
-      });
-      throw err(e.status || 502, e.code || 'PROVIDER_FAILED', e.message || 'Service failed');
+  // ── B. call the provider: no transaction, no wallet lock ──
+  let provider = null;
+  let failure = null;
+  try { provider = await providerCall(a.clientRef, a.route); } catch (e) { failure = e; }
+
+  // ── C. settle by the answer ──
+  const receiptBase = { ok: true, clientRef: a.clientRef, amount: Number(amount), charge: round2(Number(charge) + a.serviceCharge), beforeBalance: a.before };
+  const done = await db.transaction(async (trx) => {
+    const t = await trx('service_transactions').where({ id: a.txnId }).forUpdate().first();
+    if (t.status !== 'pending') {
+      // A callback / status check settled it while we waited for the provider: report what happened, change nothing.
+      if (t.status === 'failed') return { thrown: err(502, 'PROVIDER_FAILED', 'Service failed') };
+      return { receipt: { ...receiptBase, status: t.status, reference: t.reference_id, provider: { status: t.status }, commission: 0, balance: await wallet.lock(trx, user.id) } };
+    }
+
+    if (failure) {
+      if (isDefiniteFailure(failure)) {
+        await wallet.credit(trx, { userId: user.id, amount: a.totalDebit, service, remark: `Refund — ${service} failed` });
+        await trx('service_transactions').where({ id: a.txnId }).update({
+          status: 'failed', stage: null, response: JSON.stringify({ error: failure.message, code: failure.code }), finalized_at: trx.fn.now(), finalized_by: 'provider',
+        });
+        return { thrown: err(failure.status || 502, failure.code || 'PROVIDER_FAILED', failure.message || 'Service failed') };
+      }
+      // Unknown outcome: it may have gone through. Keep the money held and let the status check settle it.
+      await trx('service_transactions').where({ id: a.txnId }).update({ stage: 'unknown', response: JSON.stringify({ stage: 'unknown', error: failure.message, code: failure.code || null }) });
+      return { receipt: { ...receiptBase, status: 'pending', reference: null, provider: { status: 'pending', note: 'Waiting for the provider to confirm' }, commission: 0, balance: a.afterDebit } };
     }
 
     const reference = provider.ref || provider.rrn || null;
     const isPending = provider.status === 'pending';
-    const [txnRow] = await trx('service_transactions').insert({
-      ...txnBase, status: isPending ? 'pending' : 'success', reference_id: reference, response: JSON.stringify(provider),
+    await trx('service_transactions').where({ id: a.txnId }).update({
+      status: isPending ? 'pending' : 'success', stage: null, reference_id: reference, response: JSON.stringify(provider),
       finalized_at: isPending ? null : trx.fn.now(), finalized_by: isPending ? null : 'provider',
-    }).returning('id');
-    const serviceTransactionId = typeof txnRow === 'object' ? txnRow.id : txnRow;
-
-    const receipt = {
-      ok: true, status: isPending ? 'pending' : 'success', reference, clientRef, provider,
-      amount: Number(amount), charge: round2(Number(charge) + serviceCharge), beforeBalance: before,
-    };
-    if (isPending) return { ...receipt, commission: 0, balance: afterDebit };
+    });
+    const receipt = { ...receiptBase, status: isPending ? 'pending' : 'success', reference, provider };
+    if (isPending) return { receipt: { ...receipt, commission: 0, balance: a.afterDebit } };
 
     const settled = await settleSuccess(trx, {
-      userId: user.id, userTypeId: u.user_type_id, slab, service, operator, mode, amount, serviceTransactionId,
-      providerId: route.providerId, serviceCharge, balanceNow: afterDebit, chargeWallet: serviceCharge > 0 ? { before: afterAmount, after: afterDebit } : null,
+      userId: user.id, userTypeId: a.userTypeId, slab: a.slab, service, operator, mode, amount, serviceTransactionId: a.txnId,
+      providerId: a.route.providerId, serviceCharge: a.serviceCharge, balanceNow: await wallet.lock(trx, user.id),
+      chargeWallet: a.serviceCharge > 0 ? { before: a.afterAmount, after: a.afterDebit } : null,
     });
-    return { ...receipt, commission: settled.ownCommission, balance: settled.finalBalance };
+    return { receipt: { ...receipt, commission: settled.ownCommission, balance: settled.finalBalance } };
   });
+  if (done.thrown) throw done.thrown; // thrown only AFTER the refund / failed row was committed
+  return done.receipt;
 }
 
 /**
@@ -168,7 +199,7 @@ async function finalize(serviceTransactionId, outcome, { source, providerRef = n
     const u = await trx('users').where({ id: t.user_id }).forUpdate()
       .first('wallet_balance', 'user_type_id', 'plan_id', 'user_code', 'username');
     const balanceNow = Number(u.wallet_balance);
-    const done = { status: outcome, finalized_at: trx.fn.now(), finalized_by: source, final_note: note };
+    const done = { status: outcome, stage: null, finalized_at: trx.fn.now(), finalized_by: source, final_note: note };
 
     if (outcome === 'failed') {
       const refund = Number(t.debit_amount != null ? t.debit_amount : t.amount);
@@ -192,4 +223,4 @@ async function finalize(serviceTransactionId, outcome, { source, providerRef = n
   });
 }
 
-module.exports = { run, finalize };
+module.exports = { run, finalize, isDefiniteFailure };

@@ -11,7 +11,8 @@ const env = require('../config/env');
  */
 const err = (status, code, message) => Object.assign(new Error(message), { status, code });
 const ref = (p) => `${p}${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 900 + 100)}`;
-const notConfigured = () => { throw err(503, 'PROVIDER_NOT_CONFIGURED', 'Live provider is not configured. Add credentials to enable live mode.'); };
+// definite: the request never left our server, so refunding the user is safe (see txnPipeline isDefiniteFailure).
+const notConfigured = () => { throw Object.assign(err(503, 'PROVIDER_NOT_CONFIGURED', 'Live provider is not configured. Add credentials to enable live mode.'), { definite: true }); };
 
 // Deterministic mock triggers so every path is testable with zero credentials:
 //   amount 1 → declined now;  amount 2 → pending, later SUCCESS;  amount 3 → pending, later FAILED.

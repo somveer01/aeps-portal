@@ -79,8 +79,8 @@ test('one row per user with the numbers from every ledger', async () => {
   assert.equal(r.b.total, 1);
   const row = r.b.rows[0];
   assert.equal(row.user_code, `${TAG}R`);
-  assert.equal(row.txns, 1, 'a failed attempt that was refunded and rolled back leaves no transaction row, only the success');
-  assert.equal(row.success, 1); assert.equal(row.volume, AMOUNT);
+  assert.equal(row.txns, 2, 'the declined attempt stays in the history next to the success');
+  assert.equal(row.success, 1); assert.equal(row.failed, 1); assert.equal(row.volume, AMOUNT, 'only the success counts as volume');
   assert.equal(row.own_commission, own);
   assert.equal(row.network_commission, 0);
   assert.equal(row.wallet_added, 100);

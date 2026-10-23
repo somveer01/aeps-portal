@@ -30,15 +30,22 @@ async function checkOne(txn) {
   await db('service_transactions').where({ id: txn.id }).update({ check_count: db.raw('check_count + 1'), last_checked_at: db.fn.now() });
   const api = await providerRouter.apiForProviderId(txn.provider_id); // the API this transaction went through
   const res = await api.status({ clientRef: txn.client_ref, providerRef: txn.reference_id, service: txn.service, amount: Number(txn.amount) });
-  if (!res || !['success', 'failed'].includes(res.status)) return { id: txn.id, status: 'pending', changed: false };
-  const f = await finalize(txn.id, res.status, { source: 'status_check', providerRef: res.providerRef || null });
+  // "notfound" = the provider never received the request. Only a row whose provider call did not finish cleanly
+  // (stage 'initiated' = crash, 'unknown' = timeout) may be refunded on that answer; a row the provider acknowledged stays pending.
+  const neverArrived = res && res.status === 'notfound' && ['initiated', 'unknown'].includes(txn.stage);
+  if (!neverArrived && (!res || !['success', 'failed'].includes(res.status))) return { id: txn.id, status: 'pending', changed: false };
+  const f = await finalize(txn.id, neverArrived ? 'failed' : res.status, {
+    source: 'status_check', providerRef: res.providerRef || null, note: neverArrived ? 'The provider has no record of this request; refunded.' : null,
+  });
   return { id: txn.id, status: f.status, changed: f.changed };
 }
 
 async function runStatusChecks({ limit = 50, minAgeSec = env.jobs.pendingMinAgeSec } = {}) {
   return withJobLock(LOCK_STATUS, async () => {
+    // 'initiated' rows may still have their provider call running: leave them alone for 5 minutes before asking.
     const rows = await db('service_transactions').where({ status: 'pending' })
       .whereRaw('created_at < now() - (? * interval \'1 second\')', [minAgeSec])
+      .whereRaw("(stage is distinct from 'initiated' or created_at < now() - interval '5 minutes')")
       .orderByRaw('last_checked_at asc nulls first').limit(limit);
     const results = [];
     for (const t of rows) {

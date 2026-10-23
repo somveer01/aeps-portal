@@ -40,7 +40,8 @@ async function check({ trx = db, userId, serviceName, amount = 0 }) {
   }
   const limit = Number(svc.daily_limit);
   if (limit > 0 && Number(amount) > 0) {
-    const row = await trx('service_transactions').where({ user_id: userId, status: 'success' })
+    // Pending ones count too: they hold money and may still succeed, and a request in flight must not let a second one slip past the limit.
+    const row = await trx('service_transactions').where({ user_id: userId }).whereIn('status', ['success', 'pending'])
       .whereRaw('lower(service) = lower(?)', [serviceName]).whereRaw('created_at::date = CURRENT_DATE')
       .sum('amount as used').first();
     const used = Number(row.used || 0);
