@@ -3,6 +3,8 @@
 const db = require('../config/db');
 const serviceGuard = require('./serviceGuard.service');
 const providerRouter = require('./providerRouter.service');
+const wallet = require('./wallet.service');
+const { round2 } = require('../utils/money');
 
 /**
  * Commission engine. For a successful service transaction it pays:
@@ -20,8 +22,6 @@ const providerRouter = require('./providerRouter.service');
 const DEFAULT_GST = 18; // % on the commission
 const DEFAULT_TDS = 5;  // % on the commission
 const MAX_CHAIN_LEVELS = 10;
-
-const round2 = (n) => Math.round(n * 100) / 100;
 
 function computeAmounts({ commissionType, value, amount, gstPercent = DEFAULT_GST, tdsPercent = DEFAULT_TDS }) {
   const base = commissionType === 'amount' ? Number(value) : (Number(amount) * Number(value)) / 100;
@@ -110,52 +110,6 @@ async function recordServiceCommission({
   }).returning('id');
   const id = typeof row === 'object' ? row.id : row;
   return { id, commission, gst, tds, net, walletTxnType, after };
-}
-
-/**
- * Walk up the parent chain of `sourceUserId` and credit each active upline its own
- * 'chain' slab. Must run inside the caller's transaction; wallets are locked child
- * → parent, the same order every transaction uses, so concurrent txns can't deadlock.
- * Returns [{ userId, level, net }].
- */
-async function distributeChainCommission({ trx, sourceUserId, serviceName, amount, operator = null, mode = null, serviceTransactionId = null }) {
-  const source = await trx('users').where({ id: sourceUserId }).first('parent_id', 'user_code', 'username');
-  if (!source) return [];
-  const sourceCode = source.user_code || source.username;
-  const seen = new Set([sourceUserId]);
-  const credits = [];
-  let parentId = source.parent_id;
-
-  for (let level = 1; parentId && level <= MAX_CHAIN_LEVELS; level += 1) {
-    if (seen.has(parentId)) break; // defensive: a bad cycle in old data must not loop
-    seen.add(parentId);
-    // eslint-disable-next-line no-await-in-loop
-    const p = await trx('users').where({ id: parentId }).forUpdate()
-      .first('id', 'parent_id', 'user_type_id', 'plan_id', 'wallet_balance', 'is_active', 'user_code', 'username');
-    if (!p) break;
-    parentId = p.parent_id;
-    if (!p.is_active || !p.user_type_id) continue; // blocked uplines earn nothing; the chain continues above them
-
-    const before = Number(p.wallet_balance);
-    // eslint-disable-next-line no-await-in-loop
-    const comm = await recordServiceCommission({
-      trx, userId: p.id, userTypeId: p.user_type_id, planId: p.plan_id, userCode: p.user_code || p.username, operator, mode,
-      serviceName, amount, wallet: { before }, level, sourceUserId, serviceTransactionId, chainOnly: true, creditOnly: true,
-      remark: `${serviceName} — chain commission from ${sourceCode} (level ${level})`,
-    });
-    if (!comm || comm.net <= 0) continue;
-
-    // eslint-disable-next-line no-await-in-loop
-    await trx('users').where({ id: p.id }).update({ wallet_balance: comm.after, updated_at: trx.fn.now() });
-    // eslint-disable-next-line no-await-in-loop
-    await trx('account_transactions').insert({
-      user_id: p.id, service_name: `${serviceName} Commission`, type: 'credit', amount: comm.net,
-      before_balance: before, updated_balance: comm.after,
-      remark: `Chain commission from ${sourceCode} (level ${level}): ${comm.commission.toFixed(2)} (GST ${comm.gst.toFixed(2)}, TDS ${comm.tds.toFixed(2)})`,
-    });
-    credits.push({ userId: p.id, level, net: comm.net });
-  }
-  return credits;
 }
 
 // ── Commission packages (an upline re-shares its own commission with its direct downline) ──
@@ -255,11 +209,8 @@ async function payUplines({ trx, nodes, serviceName, amount, serviceTransactionI
     });
     if (!comm || comm.net <= 0) continue;
     // eslint-disable-next-line no-await-in-loop
-    await trx('users').where({ id: n.user.id }).update({ wallet_balance: comm.after, updated_at: trx.fn.now() });
-    // eslint-disable-next-line no-await-in-loop
-    await trx('account_transactions').insert({
-      user_id: n.user.id, service_name: `${serviceName} Commission`, type: 'credit', amount: comm.net,
-      before_balance: before, updated_balance: comm.after,
+    await wallet.credit(trx, {
+      userId: n.user.id, amount: comm.net, service: `${serviceName} Commission`,
       remark: `Chain commission from ${sourceCode} (level ${n.level}): ${comm.commission.toFixed(2)} (GST ${comm.gst.toFixed(2)}, TDS ${comm.tds.toFixed(2)})${n.note ? ` — ${n.note}` : ''}`,
     });
     credits.push({ userId: n.user.id, level: n.level, net: comm.net });
@@ -342,7 +293,7 @@ async function recordAdminMargin({
 }
 
 module.exports = {
-  computeAmounts, findSlab, recordServiceCommission, distributeChainCommission, recordAdminMargin, providerCommissionFor, rateOf, capShares,
+  computeAmounts, findSlab, recordServiceCommission, recordAdminMargin, providerCommissionFor, rateOf, capShares,
   packageItemFor, resolveShares, payUplines,
   DEFAULT_GST, DEFAULT_TDS, MAX_CHAIN_LEVELS,
 };

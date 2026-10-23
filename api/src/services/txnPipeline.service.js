@@ -5,9 +5,10 @@ const db = require('../config/db');
 const commission = require('./commission.service');
 const serviceGuard = require('./serviceGuard.service');
 const providerRouter = require('./providerRouter.service');
+const wallet = require('./wallet.service');
+const { round2 } = require('../utils/money');
 
 const err = (status, code, message) => Object.assign(new Error(message), { status, code });
-const round2 = (n) => Math.round(n * 100) / 100;
 // Our own unique id for each attempt; sent to the provider and used by callbacks.
 const newClientRef = () => `TX${Date.now().toString(36).toUpperCase()}${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
@@ -54,20 +55,14 @@ async function run({ user, service, operator = null, mode = null, target = null,
         : 'Insufficient wallet balance');
     }
 
-    const afterAmount = round2(before - base);
-    await trx('account_transactions').insert({
-      user_id: user.id, service_name: service, type: 'debit', amount: base,
-      before_balance: before, updated_balance: afterAmount, remark: remark || `${service} — ${target || ''}`.trim(),
-    });
-    const afterDebit = round2(afterAmount - serviceCharge);
+    const afterAmount = (await wallet.debit(trx, { userId: user.id, amount: base, service, remark: remark || `${service} — ${target || ''}`.trim() })).after;
+    let afterDebit = afterAmount;
     if (serviceCharge > 0) {
-      await trx('account_transactions').insert({
-        user_id: user.id, service_name: `${service} Charge`, type: 'debit', amount: serviceCharge,
-        before_balance: afterAmount, updated_balance: afterDebit,
+      afterDebit = (await wallet.debit(trx, {
+        userId: user.id, amount: serviceCharge, service: `${service} Charge`,
         remark: `Service charge ${slabAmounts.commission.toFixed(2)} + GST ${slabAmounts.gst.toFixed(2)}`,
-      });
+      })).after;
     }
-    await trx('users').where({ id: user.id }).update({ wallet_balance: afterDebit, updated_at: trx.fn.now() });
 
     const clientRef = newClientRef();
     const txnBase = {
@@ -80,11 +75,7 @@ async function run({ user, service, operator = null, mode = null, target = null,
       provider = await providerCall(clientRef, route);
     } catch (e) {
       // Refund + record failure (still commit so the refund + failed row persist).
-      await trx('users').where({ id: user.id }).update({ wallet_balance: before, updated_at: trx.fn.now() });
-      await trx('account_transactions').insert({
-        user_id: user.id, service_name: service, type: 'credit', amount: totalDebit,
-        before_balance: afterDebit, updated_balance: before, remark: `Refund — ${service} failed`,
-      });
+      await wallet.credit(trx, { userId: user.id, amount: totalDebit, service, remark: `Refund — ${service} failed` });
       await trx('service_transactions').insert({
         ...txnBase, status: 'failed', reference_id: null, response: JSON.stringify({ error: e.message, code: e.code }),
         finalized_at: trx.fn.now(), finalized_by: 'provider',
@@ -145,13 +136,10 @@ async function settleSuccess(trx, c) {
   }) : null;
   if (comm && comm.net > 0 && comm.walletTxnType === 'credit') {
     ownCommission = comm.net;
-    finalBalance = round2(c.balanceNow + comm.net);
-    await trx('users').where({ id: c.userId }).update({ wallet_balance: finalBalance, updated_at: trx.fn.now() });
-    await trx('account_transactions').insert({
-      user_id: c.userId, service_name: `${c.service} Commission`, type: 'credit', amount: comm.net,
-      before_balance: c.balanceNow, updated_balance: finalBalance,
+    finalBalance = (await wallet.credit(trx, {
+      userId: c.userId, amount: comm.net, service: `${c.service} Commission`,
       remark: `Commission ${comm.commission.toFixed(2)} (GST ${comm.gst.toFixed(2)}, TDS ${comm.tds.toFixed(2)})${own.note ? ` — ${own.note}` : ''}`,
-    });
+    })).after;
   }
   const chain = await commission.payUplines({ trx, nodes: shares, serviceName: c.service, amount: c.amount, serviceTransactionId: c.serviceTransactionId });
   const chainPaid = chain.reduce((s, x) => s + x.net, 0);
@@ -184,12 +172,7 @@ async function finalize(serviceTransactionId, outcome, { source, providerRef = n
 
     if (outcome === 'failed') {
       const refund = Number(t.debit_amount != null ? t.debit_amount : t.amount);
-      const after = round2(balanceNow + refund);
-      await trx('users').where({ id: t.user_id }).update({ wallet_balance: after, updated_at: trx.fn.now() });
-      await trx('account_transactions').insert({
-        user_id: t.user_id, service_name: t.service, type: 'credit', amount: refund,
-        before_balance: balanceNow, updated_balance: after, remark: `Refund — ${t.service} failed (${source})`,
-      });
+      await wallet.credit(trx, { userId: t.user_id, amount: refund, service: t.service, remark: `Refund — ${t.service} failed (${source})` });
       await trx('service_transactions').where({ id: t.id }).update(done);
       return { changed: true, status: 'failed', row: { ...t, ...done } };
     }

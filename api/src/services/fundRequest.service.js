@@ -1,6 +1,8 @@
 'use strict';
 
 const db = require('../config/db');
+const wallet = require('./wallet.service');
+const { round2, isMoneyAmount } = require('../utils/money');
 
 /**
  * Fund requests. Any managed user (retailer, distributor, super distributor, employee) asks for wallet
@@ -12,7 +14,6 @@ const db = require('../config/db');
  */
 const err = (status, code, message) => Object.assign(new Error(message), { status, code });
 const MODES = ['NEFT', 'IMPS', 'RTGS', 'UPI', 'Cash', 'Cheque'];
-const round2 = (n) => Math.round(n * 100) / 100;
 
 // Who approves fund requests: always the admin, whoever created the requester.
 async function approverFor() {
@@ -21,7 +22,7 @@ async function approverFor() {
 
 async function create(userId, b) {
   const amount = Number(b.amount);
-  if (!Number.isFinite(amount) || amount <= 0 || Math.abs(Math.round(amount * 100) - amount * 100) > 1e-6) throw err(400, 'INVALID_AMOUNT', 'Enter a valid amount');
+  if (!isMoneyAmount(amount)) throw err(400, 'INVALID_AMOUNT', 'Enter a valid amount');
   if (amount > 10000000) throw err(400, 'INVALID_AMOUNT', 'Amount is too large');
   const paymentMode = MODES.includes(b.paymentMode) ? b.paymentMode : null;
   if (!paymentMode) throw err(400, 'INVALID_MODE', `Payment mode must be one of ${MODES.join(', ')}`);
@@ -79,23 +80,11 @@ async function act(id, actor, { status, remark }) {
       const user = await trx('users').where({ id: fr.user_id }).forUpdate().first('wallet_balance', 'is_active');
       if (!user.is_active) throw err(400, 'USER_BLOCKED', 'This user is blocked');
       if (actor.role !== 'admin') {
-        const me = await trx('users').where({ id: actor.id }).forUpdate().first('wallet_balance');
-        const myBefore = Number(me.wallet_balance);
+        const myBefore = await wallet.lock(trx, actor.id);
         if (myBefore < amount) throw err(400, 'INSUFFICIENT_BALANCE', `Your wallet has ₹${myBefore.toFixed(2)}; add balance before approving ₹${amount.toFixed(2)}`);
-        const myAfter = round2(myBefore - amount);
-        await trx('users').where({ id: actor.id }).update({ wallet_balance: myAfter, updated_at: trx.fn.now() });
-        await trx('account_transactions').insert({
-          user_id: actor.id, service_name: 'Fund Request', type: 'debit', amount,
-          before_balance: myBefore, updated_balance: myAfter, remark: `Fund request ${fr.request_id} approved`,
-        });
+        await wallet.debit(trx, { userId: actor.id, amount, service: 'Fund Request', remark: `Fund request ${fr.request_id} approved` });
       }
-      const before = Number(user.wallet_balance);
-      const after = round2(before + amount);
-      await trx('users').where({ id: fr.user_id }).update({ wallet_balance: after, updated_at: trx.fn.now() });
-      await trx('account_transactions').insert({
-        user_id: fr.user_id, service_name: 'Fund Request', type: 'credit', amount,
-        before_balance: before, updated_balance: after, remark: `Fund request ${fr.request_id} approved`,
-      });
+      await wallet.credit(trx, { userId: fr.user_id, amount, service: 'Fund Request', remark: `Fund request ${fr.request_id} approved` });
     }
     await trx('fund_requests').where({ id }).update({ status, admin_remark: note, acted_by: actor.id, acted_at: trx.fn.now(), updated_at: trx.fn.now() });
     return fr;

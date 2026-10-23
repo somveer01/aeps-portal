@@ -1,6 +1,7 @@
 'use strict';
 
 const { parseGrid } = require('../utils/gridQuery');
+const { isMoneyAmount } = require('../utils/money');
 const bcrypt = require('bcryptjs');
 const repo = require('../repositories/network.repo');
 const usersRepo = require('../repositories/usersManager.repo');
@@ -175,7 +176,7 @@ async function fundTransfer(req, res, next) {
     const amount = Number(b.amount);
     const transferType = b.txnType === 'debit' ? 'debit' : (b.txnType === 'credit' ? 'credit' : null);
     if (!transferType) return res.status(400).json({ error: 'Choose a transaction type (credit/debit)', code: 'INVALID_TXN_TYPE' });
-    if (!Number.isFinite(amount) || amount <= 0 || Math.abs(Math.round(amount * 100) - amount * 100) > 1e-6) return res.status(400).json({ error: 'Enter a valid amount', code: 'INVALID_AMOUNT' });
+    if (!isMoneyAmount(amount)) return res.status(400).json({ error: 'Enter a valid amount', code: 'INVALID_AMOUNT' });
     const toUserId = intOrNull(b.userId);
     if ((await repo.levelOf(req.user.id, toUserId)) !== 1) return res.status(400).json({ error: 'You can only transfer to users directly under you', code: 'NOT_DIRECT_DOWNLINE' });
     const target = await db('users').where({ id: toUserId }).first('is_active');

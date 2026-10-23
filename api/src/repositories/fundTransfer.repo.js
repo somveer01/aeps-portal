@@ -2,8 +2,8 @@
 
 const db = require('../config/db');
 const { applyGridFilters, applyGridSortFirst, DATE_COL } = require('../utils/gridQuery');
-
-const round2 = (n) => Math.round(n * 100) / 100;
+const wallet = require('../services/wallet.service');
+const { round2 } = require('../utils/money');
 
 // Sortable / filterable grid columns (keys = the app's DataGrid column keys).
 const GRID = {
@@ -77,31 +77,30 @@ module.exports = {
         if (senderAfter < 0) return { ok: false, error: `Insufficient ${senderLabel === 'admin' ? 'admin ' : ''}wallet balance for this transfer` };
       }
 
-      await trx('users').where({ id: toUserId }).update({ wallet_balance: receiverAfter, updated_at: trx.fn.now() });
-      await trx('account_transactions').insert({
-        user_id: toUserId, service_name: 'Fund Transfer', type: transferType === 'debit' ? 'debit' : 'credit',
-        remark: remark || `Fund ${transferType} by ${senderLabel}`, amount, before_balance: receiverBefore, updated_balance: receiverAfter,
+      // Both wallets are locked and checked above (receiver first, then sender: child -> parent), so neither write can fail half way.
+      const received = await wallet.apply(trx, {
+        userId: toUserId, type: transferType === 'debit' ? 'debit' : 'credit', amount, service: 'Fund Transfer',
+        remark: remark || `Fund ${transferType} by ${senderLabel}`,
       });
 
       if (sender) {
-        await trx('users').where({ id: fromUserId }).update({ wallet_balance: senderAfter, updated_at: trx.fn.now() });
-        await trx('account_transactions').insert({
-          user_id: fromUserId, service_name: 'Fund Transfer', type: transferType === 'debit' ? 'credit' : 'debit',
-          remark: remark || `Fund ${transferType} — ${receiver.full_name}`, amount, before_balance: senderBefore, updated_balance: senderAfter,
+        const sent = await wallet.apply(trx, {
+          userId: fromUserId, type: transferType === 'debit' ? 'credit' : 'debit', amount, service: 'Fund Transfer',
+          remark: remark || `Fund ${transferType} — ${receiver.full_name}`,
         });
         // The admin's own Wallet History (Admin Wallet screen) must show every move of the admin wallet, not only the manual top-ups.
         if (sender.role === 'admin') {
           await trx('admin_wallet_transactions').insert({
             admin_id: fromUserId, amount, txn_type: transferType === 'debit' ? 'credit' : 'debit',
             remark: remark || `Fund ${transferType === 'debit' ? 'taken back from' : 'sent to'} ${receiver.full_name}`,
-            before_balance: senderBefore, updated_balance: senderAfter,
+            before_balance: sent.before, updated_balance: sent.after,
           });
         }
       }
 
       const [row] = await trx('fund_transfers').insert({
         from_user_id: fromUserId, to_user_id: toUserId, amount, transfer_type: transferType,
-        remark: remark || null, before_balance: receiverBefore, updated_balance: receiverAfter, status: 'success',
+        remark: remark || null, before_balance: received.before, updated_balance: received.after, status: 'success',
       }).returning('id');
       return { ok: true, id: typeof row === 'object' ? row.id : row };
     });
