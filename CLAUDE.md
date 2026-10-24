@@ -92,6 +92,9 @@ For quick one-offs you can still write an ad-hoc in-process script to the scratc
 - **Commission Report**: managed users `GET /api/retailer/commission-report` (own + whole downline, filters level /
   downline user / direct child, totals, via-child column) and `/retailer/commission-summary` (per direct child); admin
   `GET /api/commission-report`. Filters that name a user are checked against the caller's downline (404 otherwise). **Service wise:** every managed-user report (Service, Commission, GST, TDS, Account History = `screens/retailer/RetailerReportScreen.js`) has a Service dropdown; its options are `GET /api/retailer/report-services` (distinct services in the caller's own transactions / ledger / wallet history) and the chosen name goes as `service=` (exact match). The admin and network Service / Commission reports already had it.
+- **Service identity & tiles from Service Master:** a service has a stable `services.code` and a `services.screen` (registry `services/retailerScreens.js`); `service_id` is stored on service_transactions / commission_ledger / admin_margins. `serviceGuard.findService` finds by code, then title / alias. Retailer tiles (`retailer.controller.js` catalogue) come from active services that have a screen; money endpoints accept an optional `service` code (`SERVICE_MISMATCH` 400 if its screen differs).
+- **Bill pay** (`POST /bbps/pay`): a bill fetched by `/bbps/fetch-bill` is remembered 30 min per user; paying it with another amount is `400 BILL_AMOUNT_MISMATCH`, a `billNumber` never fetched is `BILL_NOT_FETCHED`.
+- **DMT sender limit** (`dmt_senders.monthly_limit / used_limit`): held atomically before `pipeline.run` (`400 SENDER_LIMIT`), released if the run throws, and released by `txnPipeline.finalize` when a pending transfer ends failed (`service_transactions.dmt_sender_id`).
 
 ## API Management (external APIs)
 
