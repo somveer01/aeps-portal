@@ -4,22 +4,19 @@ import Icon from '../../components/Icon';
 import { Alert } from '../../components/UI';
 import { Kpi, StatusTile, FlowCard, SalesChart, TopServices, RangeFilter, rangeLabel, money, ds as styles } from '../../components/DashboardParts';
 import { api } from '../../api/client';
+import { quickTiles } from '../../utils/quickTiles';
 import { colors } from '../../theme';
 
 // Dashboard of the "Modern" layout for Distributor / Super Distributor / Retailer (and employees): the caller's OWN wallet, sales, commission,
 // success / pending / failed / refund, pay in / pay out, sales trend and top services for an optional date range
 // (GET /api/retailer/dashboard?from&to). A type with a downline also gets a "My Network" band (GET /api/network/summary for the counts).
-const QUICK = [
-  ['Mobile Recharge', 'phone', '/services/mobile-recharge'], ['AEPS', 'verify', '/services/aeps'],
-  ['Money Transfer', 'transfer', '/services/money-transfer'], ['Bill Payment', 'receipt', '/services/bill-payment'],
-];
 
 export default function ModernRetailerDashboard({ onOpen }) {
   const [applied, setApplied] = useState({ from: '', to: '' });
   const [data, setData] = useState(null);
   const [summary, setSummary] = useState(null); // wallet, KYC, today (not date dependent)
   const [net, setNet] = useState(null); // downline counts / pending fund requests (only types with a downline)
-  const [allowed, setAllowed] = useState(null); // routes of services that are on and allowed for me
+  const [tiles, setTiles] = useState(null); // tiles of the services I may use (built from Service Master)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -31,12 +28,12 @@ export default function ModernRetailerDashboard({ onOpen }) {
   useEffect(() => { load(applied); }, [applied, load]);
   useEffect(() => {
     api.retailer.summary().then(setSummary).catch(() => {});
-    api.retailer.catalogue().then((c) => setAllowed(new Set([...(c.b2b || []), ...(c.online || [])].map((t) => t.route)))).catch(() => setAllowed(new Set()));
+    api.retailer.catalogue().then((c) => setTiles([...(c.b2b || []), ...(c.online || [])])).catch(() => setTiles([]));
     api.network.summary().then(setNet).catch(() => setNet(null)); // a retailer gets 403 -> stays null
   }, []);
 
   const g = data;
-  const quick = QUICK.filter(([, , route]) => allowed && allowed.has(route));
+  const quick = quickTiles(tiles);
   const hasNet = !!(g && g.network);
 
   return (

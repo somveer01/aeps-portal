@@ -6,7 +6,7 @@ const commission = require('./commission.service');
 const serviceGuard = require('./serviceGuard.service');
 const providerRouter = require('./providerRouter.service');
 const wallet = require('./wallet.service');
-const { round2 } = require('../utils/money');
+const { round2, isMoneyAmount } = require('../utils/money');
 
 const err = (status, code, message) => Object.assign(new Error(message), { status, code });
 // Our own unique id for each attempt; sent to the provider and used by callbacks.
@@ -39,6 +39,7 @@ const isDefiniteFailure = (e) => !!e && (e.definite === true || (Number.isIntege
  * and carries its `api`, `spKey` and `providerId` (saved on the row).
  */
 async function run({ user, service, operator = null, mode = null, target = null, amount, charge = 0, providerCall, remark }) {
+  if (!isMoneyAmount(Number(amount))) throw err(400, 'INVALID_AMOUNT', 'Enter a valid amount (up to 2 decimals)');
   const base = Number(amount) + Number(charge);
   if (!Number.isFinite(base) || base <= 0) throw err(400, 'INVALID_AMOUNT', 'Enter a valid amount');
 
@@ -50,6 +51,7 @@ async function run({ user, service, operator = null, mode = null, target = null,
     // KYC, service on, service access, daily limit — checked under the wallet lock so
     // two concurrent requests cannot both slip under the daily limit.
     const svc = await serviceGuard.check({ trx, userId: user.id, serviceName: service, amount });
+    const name = svc.title; // what is stored and shown: the Service Master title (the caller may have sent the code)
     // Which API this goes through (Customer Switch → Product Switch → Mock), before any money moves.
     const route = await providerRouter.resolve({ trx, userId: user.id, serviceName: service, service: svc, operator, mode });
 
@@ -68,22 +70,22 @@ async function run({ user, service, operator = null, mode = null, target = null,
         : 'Insufficient wallet balance');
     }
 
-    const afterAmount = (await wallet.debit(trx, { userId: user.id, amount: base, service, remark: remark || `${service} — ${target || ''}`.trim() })).after;
+    const afterAmount = (await wallet.debit(trx, { userId: user.id, amount: base, service: name, remark: remark || `${name} — ${target || ''}`.trim() })).after;
     let afterDebit = afterAmount;
     if (serviceCharge > 0) {
       afterDebit = (await wallet.debit(trx, {
-        userId: user.id, amount: serviceCharge, service: `${service} Charge`,
+        userId: user.id, amount: serviceCharge, service: `${name} Charge`,
         remark: `Service charge ${slabAmounts.commission.toFixed(2)} + GST ${slabAmounts.gst.toFixed(2)}`,
       })).after;
     }
 
     const clientRef = newClientRef();
     const [txnRow] = await trx('service_transactions').insert({
-      user_id: user.id, service, operator, target, amount, client_ref: clientRef, debit_amount: totalDebit, service_charge: serviceCharge, mode,
+      user_id: user.id, service: name, service_id: svc.id, operator, target, amount, client_ref: clientRef, debit_amount: totalDebit, service_charge: serviceCharge, mode,
       provider_id: route.providerId, sp_key: route.spKey, status: 'pending', stage: 'initiated', response: JSON.stringify({ stage: 'initiated' }),
     }).returning('id');
     return {
-      txnId: typeof txnRow === 'object' ? txnRow.id : txnRow, clientRef, route, userTypeId: u.user_type_id, slab, serviceCharge, totalDebit,
+      txnId: typeof txnRow === 'object' ? txnRow.id : txnRow, name, serviceId: svc.id, clientRef, route, userTypeId: u.user_type_id, slab, serviceCharge, totalDebit,
       before, afterAmount, afterDebit,
     };
   });
@@ -95,7 +97,22 @@ async function run({ user, service, operator = null, mode = null, target = null,
 
   // ── C. settle by the answer ──
   const receiptBase = { ok: true, clientRef: a.clientRef, amount: Number(amount), charge: round2(Number(charge) + a.serviceCharge), beforeBalance: a.before };
-  const done = await db.transaction(async (trx) => {
+  let done;
+  try {
+    done = await settleAttempt();
+  } catch (e) {
+    // The provider has ALREADY been called. Reporting a failure now would make the client retry and pay twice, so keep the money held and the
+    // row pending (stage 'unknown'): the status check / callback settles it. Nothing is lost - the debit and the row are committed.
+    // eslint-disable-next-line no-console
+    console.error(`[pipeline] settling ${a.clientRef} failed after the provider call, left pending: ${e.message}`);
+    await db('service_transactions').where({ id: a.txnId, status: 'pending' }).update({ stage: 'unknown', response: JSON.stringify({ stage: 'unknown', error: `settle failed: ${e.message}` }) }).catch(() => {});
+    return { ...receiptBase, status: 'pending', reference: null, provider: { status: 'pending', note: 'Waiting for the provider to confirm' }, commission: 0, balance: a.afterDebit };
+  }
+  if (done.thrown) throw done.thrown; // thrown only AFTER the refund / failed row was committed
+  return done.receipt;
+
+  function settleAttempt() {
+    return db.transaction(async (trx) => {
     const t = await trx('service_transactions').where({ id: a.txnId }).forUpdate().first();
     if (t.status !== 'pending') {
       // A callback / status check settled it while we waited for the provider: report what happened, change nothing.
@@ -105,7 +122,7 @@ async function run({ user, service, operator = null, mode = null, target = null,
 
     if (failure) {
       if (isDefiniteFailure(failure)) {
-        await wallet.credit(trx, { userId: user.id, amount: a.totalDebit, service, remark: `Refund — ${service} failed` });
+        await wallet.credit(trx, { userId: user.id, amount: a.totalDebit, service: a.name, remark: `Refund — ${a.name} failed` });
         await trx('service_transactions').where({ id: a.txnId }).update({
           status: 'failed', stage: null, response: JSON.stringify({ error: failure.message, code: failure.code }), finalized_at: trx.fn.now(), finalized_by: 'provider',
         });
@@ -126,14 +143,13 @@ async function run({ user, service, operator = null, mode = null, target = null,
     if (isPending) return { receipt: { ...receipt, commission: 0, balance: a.afterDebit } };
 
     const settled = await settleSuccess(trx, {
-      userId: user.id, userTypeId: a.userTypeId, slab: a.slab, service, operator, mode, amount, serviceTransactionId: a.txnId,
+      userId: user.id, userTypeId: a.userTypeId, slab: a.slab, service: a.name, serviceId: a.serviceId, operator, mode, amount, serviceTransactionId: a.txnId,
       providerId: a.route.providerId, serviceCharge: a.serviceCharge, balanceNow: await wallet.lock(trx, user.id),
       chargeWallet: a.serviceCharge > 0 ? { before: a.afterAmount, after: a.afterDebit } : null,
     });
     return { receipt: { ...receipt, commission: settled.ownCommission, balance: settled.finalBalance } };
-  });
-  if (done.thrown) throw done.thrown; // thrown only AFTER the refund / failed row was committed
-  return done.receipt;
+    });
+  }
 }
 
 /**
@@ -148,20 +164,20 @@ async function settleSuccess(trx, c) {
   // A debit slab is a service charge, already taken from the wallet: just record it.
   if (c.slab && c.slab.txn_type === 'debit') {
     await commission.recordServiceCommission({
-      trx, userId: c.userId, userTypeId: c.userTypeId, slab: c.slab, serviceName: c.service, amount: c.amount,
+      trx, userId: c.userId, userTypeId: c.userTypeId, slab: c.slab, serviceName: c.service, serviceId: c.serviceId, amount: c.amount,
       wallet: c.chargeWallet || { before: c.balanceNow }, level: 0, sourceUserId: c.userId, serviceTransactionId: c.serviceTransactionId,
     });
   }
   // Credit commission for the user and every upline, after commission packages.
   const shares = await commission.resolveShares({
-    trx, sourceUserId: c.userId, selfSlab: c.slab, serviceName: c.service, amount: c.amount, operator: c.operator, mode: c.mode,
+    trx, sourceUserId: c.userId, selfSlab: c.slab, serviceName: c.service, serviceId: c.serviceId, amount: c.amount, operator: c.operator, mode: c.mode,
   });
   // The company pays commission only out of what it earns on this transaction (the API's rate + any service charge collected).
-  const providerCommission = await commission.providerCommissionFor({ trx, providerId: c.providerId || null, serviceName: c.service, amount: c.amount, operator: c.operator, mode: c.mode });
+  const providerCommission = await commission.providerCommissionFor({ trx, providerId: c.providerId || null, serviceName: c.service, serviceId: c.serviceId, amount: c.amount, operator: c.operator, mode: c.mode });
   commission.capShares(shares, providerCommission + Number(c.serviceCharge || 0));
   const own = shares[0];
   const comm = own && own.slab && own.gross > 0 ? await commission.recordServiceCommission({
-    trx, userId: c.userId, userTypeId: c.userTypeId, slab: own.slab, serviceName: c.service, amount: c.amount,
+    trx, userId: c.userId, userTypeId: c.userTypeId, slab: own.slab, serviceName: c.service, serviceId: c.serviceId, amount: c.amount,
     wallet: { before: c.balanceNow }, level: 0, sourceUserId: c.userId, serviceTransactionId: c.serviceTransactionId,
     remark: own.note ? `${c.service} — commission, ${own.note}` : null,
   }) : null;
@@ -172,10 +188,10 @@ async function settleSuccess(trx, c) {
       remark: `Commission ${comm.commission.toFixed(2)} (GST ${comm.gst.toFixed(2)}, TDS ${comm.tds.toFixed(2)})${own.note ? ` — ${own.note}` : ''}`,
     })).after;
   }
-  const chain = await commission.payUplines({ trx, nodes: shares, serviceName: c.service, amount: c.amount, serviceTransactionId: c.serviceTransactionId });
+  const chain = await commission.payUplines({ trx, nodes: shares, serviceName: c.service, serviceId: c.serviceId, amount: c.amount, serviceTransactionId: c.serviceTransactionId });
   const chainPaid = chain.reduce((s, x) => s + x.net, 0);
   await commission.recordAdminMargin({
-    trx, serviceTransactionId: c.serviceTransactionId, userId: c.userId, serviceName: c.service, amount: c.amount,
+    trx, serviceTransactionId: c.serviceTransactionId, userId: c.userId, serviceName: c.service, serviceId: c.serviceId, amount: c.amount,
     providerId: c.providerId || null, providerCommission, operator: c.operator, mode: c.mode, chargesCollected: Number(c.serviceCharge || 0), commissionPaid: round2(ownCommission + chainPaid),
   });
   return { finalBalance, ownCommission };
@@ -215,7 +231,7 @@ async function finalize(serviceTransactionId, outcome, { source, providerRef = n
     });
     // A debit slab's charge was taken when the transaction started (t.service_charge).
     await settleSuccess(trx, {
-      userId: t.user_id, userTypeId: u.user_type_id, slab, service: t.service, operator: t.operator, mode: t.mode,
+      userId: t.user_id, userTypeId: u.user_type_id, slab, service: t.service, serviceId: t.service_id, operator: t.operator, mode: t.mode,
       amount: Number(t.amount), serviceTransactionId: t.id, providerId: t.provider_id, serviceCharge: Number(t.service_charge || 0), balanceNow,
       chargeWallet: slab && slab.txn_type === 'debit' ? { before: balanceNow, after: balanceNow } : null,
     });

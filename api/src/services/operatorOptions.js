@@ -2,6 +2,7 @@
 
 const db = require('../config/db');
 const serviceRepo = require('../repositories/service.repo');
+const retailerScreens = require('./retailerScreens');
 
 // What a service's "operator" can be: an operator from the operators master, or the transfer mode for
 // money services. Services not listed here have no choice (all operators only). Used by Commission Slots
@@ -21,10 +22,19 @@ const OPERATOR_SOURCES = {
 const GROUP_LABELS = { mobile: 'Mobile Recharge', dth: 'DTH Recharge', bbps: 'Bill Payment (BBPS / LIC)', fastag: 'FASTag', gas: 'Gas Booking' };
 const OPERATOR_GROUPS = [...new Set(Object.values(OPERATOR_SOURCES).map((x) => x.service).filter(Boolean))].map((key) => ({ key, label: GROUP_LABELS[key] || key }));
 
+// Where a service's operators come from: its retailer screen (services.screen) decides, so a new service on the Mobile Recharge screen
+// gets the mobile operators; services without a screen fall back to their title (the table above).
+function sourceFor(svc) {
+  const sc = svc.screen && retailerScreens.SCREENS[svc.screen];
+  if (sc && sc.operatorGroup) return { service: sc.operatorGroup, category: sc.operatorCategory };
+  if (svc.screen === 'money-transfer' || svc.screen === 'move-to-bank') return { modes: ['IMPS', 'NEFT'] };
+  return OPERATOR_SOURCES[String(svc.title).trim().toLowerCase()];
+}
+
 /** { kind: 'operator'|'mode'|null, options: [names] } for a service id. */
 async function operatorOptions(serviceId) {
   const svc = serviceId ? await serviceRepo.findById(serviceId) : null;
-  const src = svc && OPERATOR_SOURCES[String(svc.title).trim().toLowerCase()];
+  const src = svc && sourceFor(svc);
   if (!src) return { kind: null, options: [] };
   if (src.modes) return { kind: 'mode', options: src.modes };
   const q = db('operators').where({ is_active: true, service: src.service });

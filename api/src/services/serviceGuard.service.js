@@ -18,11 +18,15 @@ const err = (status, code, message) => Object.assign(new Error(message), { statu
 // Pipeline service names that are titled differently in Service Master.
 const ALIASES = { fastag: 'fastag recharge', 'nsdl pan card': 'pan card' };
 
+// A service is found by its stable CODE first (services.code, e.g. 'mobile-recharge'), then by title or alias (case-insensitive).
 async function findService(name, trx = db) {
   const key = String(name || '').trim().toLowerCase();
+  if (!key) return null;
   const titles = [key, ALIASES[key]].filter(Boolean);
-  return trx('services').whereRaw(`lower(title) in (${titles.map(() => '?').join(',')})`, titles)
-    .orderBy('id').first('id', 'title', 'is_active', 'daily_limit');
+  return trx('services')
+    .where((w) => w.whereRaw('lower(code) = ?', [key]).orWhereRaw(`lower(title) in (${titles.map(() => '?').join(',')})`, titles))
+    .orderByRaw('case when lower(code) = ? then 0 else 1 end', [key]).orderBy('id')
+    .first('id', 'title', 'code', 'screen', 'is_active', 'daily_limit');
 }
 
 // Every name the app may have stored for a service (its title and the aliases that point at it), lower case: transactions keep the name
@@ -61,7 +65,7 @@ async function check({ trx = db, userId, serviceName, amount = 0 }) {
   if (limit > 0 && Number(amount) > 0) {
     // Pending ones count too: they hold money and may still succeed, and a request in flight must not let a second one slip past the limit.
     const row = await trx('service_transactions').where({ user_id: userId }).whereIn('status', ['success', 'pending'])
-      .whereRaw('lower(service) = any(?)', [namesOf(svc)]).whereRaw('created_at::date = CURRENT_DATE')
+      .where((w) => w.where('service_id', svc.id).orWhereRaw('lower(service) = any(?)', [namesOf(svc)])).whereRaw('created_at::date = CURRENT_DATE')
       .sum('amount as used').first();
     const used = Number(row.used || 0);
     if (used + Number(amount) > limit) {

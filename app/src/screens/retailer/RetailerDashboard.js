@@ -4,28 +4,25 @@ import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
 import Icon from '../../components/Icon';
 import { Card, Alert } from '../../components/UI';
 import { api } from '../../api/client';
+import { quickTiles } from '../../utils/quickTiles';
 import { colors, radius, shadows } from '../../theme';
 
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
-const QUICK = [
-  ['Mobile Recharge', 'phone', '/services/mobile-recharge'], ['AEPS', 'verify', '/services/aeps'],
-  ['Money Transfer', 'transfer', '/services/money-transfer'], ['Bill Payment', 'receipt', '/services/bill-payment'],
-];
 
 export default function RetailerDashboard({ onOpen }) {
   const [summary, setSummary] = useState(null);
   const [stats, setStats] = useState([]);
-  const [allowed, setAllowed] = useState(null); // routes of services that are on and allowed for me
+  const [tiles, setTiles] = useState(null); // tiles of the services I may use (built from Service Master)
   const [net, setNet] = useState(null); // downline summary (only for distributor / super distributor)
   useEffect(() => {
     api.retailer.summary().then(setSummary).catch(() => {});
-    api.retailer.catalogue().then((c) => setAllowed(new Set([...(c.b2b || []), ...(c.online || [])].map((t) => t.route)))).catch(() => setAllowed(new Set()));
+    api.retailer.catalogue().then((c) => setTiles([...(c.b2b || []), ...(c.online || [])])).catch(() => setTiles([]));
     api.retailer.serviceStats().then((r) => setStats(r.rows || [])).catch(() => {});
     // Network users (with downline) get an extra section; retailers get 403 → stays null.
     api.network.summary().then(setNet).catch(() => setNet(null));
   }, []);
 
-  const quick = QUICK.filter(([, , route]) => allowed && allowed.has(route));
+  const quick = quickTiles(tiles);
 
   return (
     <View style={{ gap: 16 }}>

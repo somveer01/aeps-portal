@@ -6,7 +6,7 @@ import { api } from '../../api/client';
 import { colors } from '../../theme';
 import { ServiceHeader, formStyles } from './serviceKit';
 
-export default function DthRechargeScreen({ onBack, onDone }) {
+export default function DthRechargeScreen({ onBack, onDone, service, title = 'DTH Recharge' }) {
   const [ops, setOps] = useState([]);
   const [form, setForm] = useState({ number: '', operator: '', amount: '' });
   const [info, setInfo] = useState(null);
@@ -15,16 +15,16 @@ export default function DthRechargeScreen({ onBack, onDone }) {
 
   useEffect(() => { api.retailer.operators({ service: 'dth' }).then((r) => setOps(r.rows.map((o) => ({ label: o.name, value: o.name })))).catch(() => {}); }, []);
 
-  const check = async () => { try { const r = await api.recharge.dthInfo({ operator: form.operator, number: form.number }); setInfo(r); } catch (e) { setError(e.message); } };
+  const check = async () => { try { const r = await api.recharge.dthInfo({ operator: form.operator, number: form.number, service }); setInfo(r); } catch (e) { setError(e.message); } };
   const submit = async () => {
     setError(null); setLoading(true);
-    try { const r = await api.recharge.dth({ number: form.number, operator: form.operator, amount: Number(form.amount) }); setReceipt(r.receipt); onDone && onDone(); }
+    try { const r = await api.recharge.dth({ number: form.number, operator: form.operator, amount: Number(form.amount), service }); setReceipt(r.receipt); onDone && onDone(); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
   };
 
   return (
     <View style={{ gap: 16 }}>
-      <ServiceHeader title="DTH Recharge" onBack={onBack} />
+      <ServiceHeader title={title} onBack={onBack} />
       <View style={formStyles.row}>
         <Card style={formStyles.formCol}>
           {error ? <Alert type="error">{error}</Alert> : null}
@@ -52,7 +52,7 @@ export default function DthRechargeScreen({ onBack, onDone }) {
         </Card>
       </View>
 
-      <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title="DTH Recharge Receipt"
+      <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title={`${title} Receipt`}
         rows={receipt ? [['Operator', receipt.operator], ['DTH No', receipt.target], ['Amount', `₹${Number(receipt.amount).toFixed(2)}`], ['Reference', receipt.reference], ['Balance', `₹${Number(receipt.balance).toFixed(2)}`]] : []} />
     </View>
   );

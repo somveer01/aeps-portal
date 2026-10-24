@@ -8,7 +8,7 @@ import { ServiceHeader, formStyles } from './serviceKit';
 
 const CIRCLES = ['Delhi NCR', 'Maharashtra', 'Karnataka', 'Uttar Pradesh (East)', 'Tamil Nadu', 'Gujarat', 'West Bengal'].map((c) => ({ label: c, value: c }));
 
-export default function MobileRechargeScreen({ onBack, onDone }) {
+export default function MobileRechargeScreen({ onBack, onDone, service, title = 'Mobile Recharge' }) {
   const [ops, setOps] = useState([]);
   const [form, setForm] = useState({ number: '', operator: '', circle: '', amount: '' });
   const [plans, setPlans] = useState(null); const [tab, setTab] = useState('TOPUP');
@@ -17,17 +17,17 @@ export default function MobileRechargeScreen({ onBack, onDone }) {
 
   useEffect(() => { api.retailer.operators({ service: 'mobile' }).then((r) => setOps(r.rows.map((o) => ({ label: o.name, value: o.name })))).catch(() => {}); }, []);
 
-  const browse = async () => { try { const r = await api.recharge.plans({ operator: form.operator, circle: form.circle }); setPlans(r.tabs); setTab(r.tabs[0]?.key); } catch (e) { setError(e.message); } };
+  const browse = async () => { try { const r = await api.recharge.plans({ operator: form.operator, circle: form.circle, service }); setPlans(r.tabs); setTab(r.tabs[0]?.key); } catch (e) { setError(e.message); } };
   const submit = async () => {
     setError(null); setLoading(true);
-    try { const r = await api.recharge.mobile({ number: form.number, operator: form.operator, circle: form.circle, amount: Number(form.amount) }); setReceipt(r.receipt); onDone && onDone(); }
+    try { const r = await api.recharge.mobile({ number: form.number, operator: form.operator, circle: form.circle, amount: Number(form.amount), service }); setReceipt(r.receipt); onDone && onDone(); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
   };
   const curTab = plans?.find((t) => t.key === tab);
 
   return (
     <View style={{ gap: 16 }}>
-      <ServiceHeader title="Mobile Recharge" onBack={onBack} />
+      <ServiceHeader title={title} onBack={onBack} />
       <View style={formStyles.row}>
         <Card style={formStyles.formCol}>
           {error ? <Alert type="error">{error}</Alert> : null}
@@ -67,7 +67,7 @@ export default function MobileRechargeScreen({ onBack, onDone }) {
         </Card>
       </View>
 
-      <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title="Mobile Recharge Receipt"
+      <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title={`${title} Receipt`}
         rows={receipt ? [['Operator', receipt.operator], ['Mobile', receipt.target], ['Amount', `₹${Number(receipt.amount).toFixed(2)}`], ['Reference', receipt.reference], ['Balance', `₹${Number(receipt.balance).toFixed(2)}`]] : []} />
     </View>
   );

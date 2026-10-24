@@ -9,7 +9,7 @@ import { ServiceHeader, formStyles } from './serviceKit';
 const CATEGORIES = ['Electricity', 'Insurance', 'Water', 'Gas'].map((c) => ({ label: c, value: c }));
 const MODES = [{ label: 'Online', value: 'Online' }, { label: 'Cash', value: 'Cash' }];
 
-export default function BillPaymentScreen({ onBack, onDone }) {
+export default function BillPaymentScreen({ onBack, onDone, service, title = 'Bill Payment' }) {
   const [category, setCategory] = useState('Electricity');
   const [ops, setOps] = useState([]); const [operator, setOperator] = useState(''); const [mode, setMode] = useState('Online');
   const [bill, setBill] = useState(null); const [loading, setLoading] = useState(false); const [paying, setPaying] = useState(false);
@@ -22,17 +22,17 @@ export default function BillPaymentScreen({ onBack, onDone }) {
 
   const check = async () => {
     setError(null); setBill(null); setLoading(true);
-    try { const r = await api.bbps.fetchBill({ category, operator }); setBill(r.bill); } catch (e) { setError(e.message); } finally { setLoading(false); }
+    try { const r = await api.bbps.fetchBill({ category, operator, service }); setBill(r.bill); } catch (e) { setError(e.message); } finally { setLoading(false); }
   };
   const pay = async () => {
     setError(null); setPaying(true);
-    try { const r = await api.bbps.pay({ category, operator, amount: Number(bill.amount), target: bill.billNumber }); setReceipt(r.receipt); onDone && onDone(); }
+    try { const r = await api.bbps.pay({ category, operator, amount: Number(bill.amount), target: bill.billNumber, service }); setReceipt(r.receipt); onDone && onDone(); }
     catch (e) { setError(e.message); } finally { setPaying(false); }
   };
 
   return (
     <View style={{ gap: 16 }}>
-      <ServiceHeader title="Bill Payment" onBack={onBack} />
+      <ServiceHeader title={title} onBack={onBack} />
       <View style={formStyles.row}>
         <Card style={formStyles.formCol}>
           {error ? <Alert type="error">{error}</Alert> : null}
@@ -58,7 +58,7 @@ export default function BillPaymentScreen({ onBack, onDone }) {
         </Card>
       </View>
 
-      <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title="Bill Payment Receipt"
+      <Receipt visible={!!receipt} status={receipt && receipt.status === 'pending' ? 'Processing' : 'Success'} onClose={() => setReceipt(null)} title={`${title} Receipt`}
         rows={receipt ? [['Operator', receipt.operator], ['Bill No', receipt.target], ['Amount', `₹${Number(receipt.amount).toFixed(2)}`], ['Reference', receipt.reference], ['Balance', `₹${Number(receipt.balance).toFixed(2)}`]] : []} />
     </View>
   );

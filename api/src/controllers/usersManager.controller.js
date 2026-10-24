@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const userRepo = require('../repositories/user.repo');
 const { MIN_PASSWORD, generatePassword } = require('../utils/password');
 const { parseGrid } = require('../utils/gridQuery');
-const { isMoneyAmount } = require('../utils/money');
+const { isMoneyAmount, toAmount } = require('../utils/money');
 const repo = require('../repositories/usersManager.repo');
 const fundRepo = require('../repositories/fundTransfer.repo');
 const userTypeRepo = require('../repositories/userType.repo');
@@ -384,7 +384,7 @@ async function fund(req, res, next) {
     const id = parseInt(req.params.id, 10);
     const user = Number.isInteger(id) ? await repo.findFull(id) : null;
     if (!user || !user.user_type_id) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
-    const amount = Number(req.body.amount);
+    const amount = toAmount(req.body.amount);
     if (!isMoneyAmount(amount)) return res.status(400).json({ error: 'Enter a valid amount (up to 2 decimals)', code: 'INVALID_AMOUNT' });
     const transferType = req.body.type === 'debit' ? 'debit' : 'credit';
     const result = await fundRepo.transfer({ fromUserId: req.user.id, toUserId: id, amount, transferType, remark: String(req.body.remark || '').trim() });

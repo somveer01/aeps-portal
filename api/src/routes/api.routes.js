@@ -95,6 +95,7 @@ router.post('/uploads/image', requireAuth, uploadImage.single('image'), upload.u
 
 // Modules → Service Master (admin CRUD; joins service category).
 router.get('/services', requireAdmin, service.list);
+router.get('/services/screens', requireAdmin, service.screens);
 router.post('/services', requireAdmin, service.create);
 router.put('/services/:id', requireAdmin, service.update);
 router.delete('/services/:id', requireAdmin, service.remove);

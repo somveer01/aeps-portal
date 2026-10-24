@@ -228,6 +228,7 @@ export const api = {
     create: (body) => request('/api/services', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/services/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/services/${id}`, { method: 'DELETE', auth: true }),
+    screens: () => request('/api/services/screens', { auth: true }), // the retailer screens a service can open
   },
 
   // Modules → Service Permissions (user-type defaults + per-user allow/block, service-wise)

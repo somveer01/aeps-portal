@@ -52,6 +52,9 @@ export default function ServiceMasterScreen() {
   const [pcType, setPcType] = useState('percentage');
   const [pcValue, setPcValue] = useState('0');
   const [dailyLimit, setDailyLimit] = useState('0');
+  const [code, setCode] = useState(''); // stable key, e.g. mobile-recharge (empty on create = generated from the title)
+  const [screen, setScreen] = useState(''); // which retailer screen opens this service ('' = no retailer tile)
+  const [screens, setScreens] = useState([]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [toDelete, setToDelete] = useState(null);
@@ -67,6 +70,7 @@ export default function ServiceMasterScreen() {
 
   useEffect(() => {
     api.serviceCategoryOptions().then((r) => setCategories(r.rows)).catch(() => {});
+    api.services.screens().then((r) => setScreens(r.rows)).catch(() => {});
     /* eslint-disable-next-line */
   }, []);
   const firstQ = useRef(true);
@@ -85,8 +89,8 @@ export default function ServiceMasterScreen() {
     ...categories.map((c) => ({ label: `${c.name} (${countOf(c.id)})`, value: c.id })),
   ];
 
-  const openAdd = () => { setEditing(null); setTitle(''); setCategoryId(categories[0]?.id ?? ''); setServiceType('internal'); setIcon(null); setActive(true); setPcType('percentage'); setPcValue('0'); setDailyLimit('0'); setFormError(null); setView('form'); };
-  const openEdit = (row) => { setEditing(row); setTitle(row.title); setCategoryId(row.service_category_id); setServiceType(row.service_type); setIcon(row.icon || null); setActive(row.is_active); setPcType(row.provider_commission_type || 'percentage'); setPcValue(String(Number(row.provider_commission_value || 0))); setDailyLimit(String(Number(row.daily_limit || 0))); setFormError(null); setView('form'); };
+  const openAdd = () => { setEditing(null); setTitle(''); setCategoryId(categories[0]?.id ?? ''); setServiceType('internal'); setIcon(null); setActive(true); setPcType('percentage'); setPcValue('0'); setDailyLimit('0'); setCode(''); setScreen(''); setFormError(null); setView('form'); };
+  const openEdit = (row) => { setEditing(row); setTitle(row.title); setCategoryId(row.service_category_id); setServiceType(row.service_type); setIcon(row.icon || null); setActive(row.is_active); setPcType(row.provider_commission_type || 'percentage'); setPcValue(String(Number(row.provider_commission_value || 0))); setDailyLimit(String(Number(row.daily_limit || 0))); setCode(row.code || ''); setScreen(row.screen || ''); setFormError(null); setView('form'); };
 
   const chooseIcon = async () => {
     setFormError(null);
@@ -110,7 +114,8 @@ export default function ServiceMasterScreen() {
     if (!Number.isFinite(dl) || dl < 0) { setFormError('Daily limit must be 0 (no limit) or more.'); return; }
     setSaving(true); setFormError(null);
     try {
-      const body = { title: t, serviceCategoryId: categoryId, serviceType, icon: icon || '', isActive: active, providerCommissionType: pcType, providerCommissionValue: pc, dailyLimit: dl };
+      const body = { title: t, serviceCategoryId: categoryId, serviceType, icon: icon || '', isActive: active, providerCommissionType: pcType, providerCommissionValue: pc, dailyLimit: dl, screen };
+      if (code.trim()) body.code = code.trim().toLowerCase();
       if (editing) await api.services.update(editing.id, body);
       else await api.services.create(body);
       setView('list');
@@ -147,6 +152,10 @@ export default function ServiceMasterScreen() {
               <TextInput value={title} onChangeText={setTitle} placeholder="e.g. Mobile Recharge" placeholderTextColor={colors.muted} style={styles.modalInput} autoFocus /></View>
             <View style={styles.field}><Select label="Service Category *" value={categoryId} options={catOptions} onChange={setCategoryId} placeholder="Select a category" /></View>
             <View style={styles.field}><Select label="Service Type *" value={serviceType} options={TYPE_OPTIONS} onChange={setServiceType} searchable={false} /></View>
+            <View style={styles.field}><Text style={styles.label}>Service Code</Text>
+              <TextInput value={code} onChangeText={(v) => setCode(v.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="auto from the title, e.g. mobile-recharge" placeholderTextColor={colors.muted} style={styles.modalInput} autoCapitalize="none" /></View>
+            <View style={styles.field}><Select label="Retailer Screen" value={screen} options={[{ label: 'None (no retailer tile)', value: '' }, ...screens.map((x) => ({ label: x.label, value: x.key }))]} onChange={setScreen} searchable={false} /></View>
+            <View style={styles.fieldFull}><Text style={styles.hint}>Retailer screen: the screen this service opens in the retailer app (one tile per switched-on, permitted service). Several services can use the same screen (for example a second Mobile Recharge service with its own commission, API and limit). Service code: a stable key that never changes when you rename the service; it is locked once the service has transactions.</Text></View>
             <View style={styles.field}><Select label="Provider Commission Type" value={pcType} options={PC_OPTIONS} onChange={setPcType} searchable={false} /></View>
             <View style={styles.field}><Text style={styles.label}>{pcType === 'amount' ? 'Provider Commission (Rs per transaction)' : 'Provider Commission (%)'}</Text>
               <TextInput value={pcValue} onChangeText={setPcValue} keyboardType="numeric" placeholder="0.00" placeholderTextColor={colors.muted} style={styles.modalInput} /></View>
@@ -204,6 +213,7 @@ export default function ServiceMasterScreen() {
                     </View>
                     <View style={styles.svcFacts}>
                       <Fact label="Type" value={typeLabel(row.service_type).replace(' Service', '')} />
+                      <Fact label="Retailer screen" value={row.screen ? ((screens.find((x) => x.key === row.screen) || {}).label || row.screen) : '—'} />
                       <Fact label="Provider comm." value={pcLabel(row)} />
                       <Fact label="Daily limit" value={Number(row.daily_limit) > 0 ? `Rs ${Number(row.daily_limit).toFixed(0)}` : 'No limit'} />
                     </View>

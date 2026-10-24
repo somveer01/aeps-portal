@@ -8,23 +8,23 @@ import { ServiceHeader, formStyles } from './serviceKit';
 
 const TITLES = { flight: 'Flight Booking', hotel: 'Hotel Booking', bus: 'Bus Booking' };
 
-export default function BookingScreen({ type, onBack, onDone }) {
+export default function BookingScreen({ type, onBack, onDone, service, title }) {
   const [q, setQ] = useState({ from: '', to: '', date: '' });
   const [results, setResults] = useState(null); const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null); const [receipt, setReceipt] = useState(null); const [pax, setPax] = useState('');
   const set = (k, v) => setQ((p) => ({ ...p, [k]: v }));
 
-  const search = async () => { setError(null); setBusy(true); try { const r = await api.booking.search(type, q); setResults(r.results || []); } catch (e) { setError(e.message); } finally { setBusy(false); } };
+  const search = async () => { setError(null); setBusy(true); try { const r = await api.booking.search(type, { ...q, service }); setResults(r.results || []); } catch (e) { setError(e.message); } finally { setBusy(false); } };
   const book = async (item) => {
     if (!pax.trim()) { setError('Enter passenger/guest name first'); return; }
     setError(null); setBusy(true);
-    try { const r = await api.booking.book(type, { offerId: item.id, amount: item.price, pax: { name: pax } }); setReceipt(r.receipt); onDone && onDone(); }
+    try { const r = await api.booking.book(type, { offerId: item.id, amount: item.price, pax: { name: pax }, service }); setReceipt(r.receipt); onDone && onDone(); }
     catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
   return (
     <View style={{ gap: 16 }}>
-      <ServiceHeader title={TITLES[type]} onBack={onBack} />
+      <ServiceHeader title={title || TITLES[type]} onBack={onBack} />
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
         <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>

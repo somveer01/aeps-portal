@@ -1,7 +1,7 @@
 'use strict';
 
 const { parseGrid } = require('../utils/gridQuery');
-const { isMoneyAmount } = require('../utils/money');
+const { isMoneyAmount, toAmount } = require('../utils/money');
 const bcrypt = require('bcryptjs');
 const repo = require('../repositories/network.repo');
 const usersRepo = require('../repositories/usersManager.repo');
@@ -173,7 +173,7 @@ async function lookup(req, res, next) {
 async function fundTransfer(req, res, next) {
   try {
     const b = req.body || {};
-    const amount = Number(b.amount);
+    const amount = toAmount(b.amount);
     const transferType = b.txnType === 'debit' ? 'debit' : (b.txnType === 'credit' ? 'credit' : null);
     if (!transferType) return res.status(400).json({ error: 'Choose a transaction type (credit/debit)', code: 'INVALID_TXN_TYPE' });
     if (!isMoneyAmount(amount)) return res.status(400).json({ error: 'Enter a valid amount', code: 'INVALID_AMOUNT' });

@@ -9,7 +9,7 @@ import { ServiceHeader } from './serviceKit';
 
 const MODES = [{ label: 'IMPS', value: 'IMPS' }, { label: 'NEFT', value: 'NEFT' }];
 
-export default function MoneyTransferScreen({ onBack, onDone }) {
+export default function MoneyTransferScreen({ onBack, onDone, service, title = 'Money Transfer (DMT)' }) {
   const [mobile, setMobile] = useState(''); const [sender, setSender] = useState(null);
   const [rows, setRows] = useState([]); const [error, setError] = useState(null); const [busy, setBusy] = useState(false);
   const [addOpen, setAddOpen] = useState(false); const [add, setAdd] = useState({ name: '', bankName: '', accountNo: '', ifsc: '' });
@@ -38,14 +38,14 @@ export default function MoneyTransferScreen({ onBack, onDone }) {
   const doTransfer = async () => {
     setConfirmSend(false); setError(null); setBusy(true);
     try {
-      const r = await api.dmt.transfer({ beneficiaryId: xfer.id, amount: Number(xf.amount), mode: xf.mode, txnPin: xf.txnPin });
+      const r = await api.dmt.transfer({ beneficiaryId: xfer.id, amount: Number(xf.amount), mode: xf.mode, txnPin: xf.txnPin, service });
       setXfer(null); setXf({ amount: '', mode: 'IMPS', txnPin: '' }); setReceipt(r.receipt); await loadBens(sender.id); onDone && onDone();
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
   return (
     <View style={{ gap: 16 }}>
-      <ServiceHeader title="Money Transfer (DMT)" onBack={onBack} />
+      <ServiceHeader title={title} onBack={onBack} />
       {error ? <Alert type="error">{error}</Alert> : null}
 
       <Card>

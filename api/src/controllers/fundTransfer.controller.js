@@ -1,7 +1,7 @@
 'use strict';
 
 const { parseGrid } = require('../utils/gridQuery');
-const { isMoneyAmount } = require('../utils/money');
+const { isMoneyAmount, toAmount } = require('../utils/money');
 const repo = require('../repositories/fundTransfer.repo');
 const usersRepo = require('../repositories/usersManager.repo');
 const db = require('../config/db');
@@ -43,7 +43,7 @@ async function list(req, res, next) {
 // POST /api/fund-transfers  { userId | code, amount, remark, txnType, transactionPassword }
 async function create(req, res, next) {
   try {
-    const amount = Number(req.body.amount);
+    const amount = toAmount(req.body.amount);
     const transferType = req.body.txnType === 'debit' ? 'debit' : (req.body.txnType === 'credit' ? 'credit' : null);
     if (!transferType) return res.status(400).json({ error: 'Choose a transaction type (credit/debit)', code: 'INVALID_TXN_TYPE' });
     if (!isMoneyAmount(amount)) return res.status(400).json({ error: 'Enter a valid amount (up to 2 decimals)', code: 'INVALID_AMOUNT' });

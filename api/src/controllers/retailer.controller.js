@@ -2,8 +2,8 @@
 
 const { parseGrid } = require('../utils/gridQuery');
 const db = require('../config/db');
-const serviceGuard = require('../services/serviceGuard.service');
 const permission = require('../services/servicePermission.service');
+const retailerScreens = require('../services/retailerScreens');
 const reportsRepo = require('../repositories/reports.repo');
 const commissionSlotRepo = require('../repositories/commissionSlot.repo');
 const networkRepo = require('../repositories/network.repo');
@@ -121,34 +121,26 @@ async function serviceStats(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-// GET /api/services/catalogue  (B2B + Online tiles)
-// A tile whose service is in Service Master shows only when the user may use it
-// (service on + Service Permissions). Fund Request is always shown (it is also in the sidebar).
+// GET /api/services/catalogue  (B2B + Online tiles) - built from SERVICE MASTER: every switched-on service that has a Retailer screen
+// (services.screen, see services/retailerScreens.js) the user may use (Service Permissions). The title comes from the Master, the icon and
+// the tab from the screen. The main service of a screen (code = screen key) opens /services/<screen>; any further service on the same
+// screen adds ?service=<code>. Fund Request is always shown (it is also in the sidebar).
 async function catalogue(req, res, next) {
   try {
-  const b2b = [
-    ['mobile-recharge', 'Mobile Recharge', 'phone'], ['dth-recharge', 'DTH Recharge', 'phone'],
-    ['bill-payment', 'Bill Payment', 'receipt'], ['aeps', 'AEPS', 'verify'],
-    ['money-transfer', 'Money Transfer', 'transfer'], ['move-to-bank', 'Move To Bank', 'bank'],
-    ['fund-request', 'Fund Request', 'fund'], ['aadhar-pay', 'Aadhar Pay', 'verify'],
-    ['micro-atm', 'Micro ATM', 'atm'], ['fund-transfer', 'Fund Transfer', 'transfer'],
-    ['fastag', 'FASTag', 'cash'], ['upi-collection', 'UPI Collection', 'wallet'],
-    ['fino-cms', 'Fino CMS', 'cash'], ['lic-payment', 'LIC Payment', 'receipt'],
-    ['nsdl-pan', 'NSDL PAN Card', 'users'], ['gas-booking', 'Gas Booking', 'cash'],
-  ].map(([key, title, icon]) => ({ key, title, icon, route: `/services/${key}` }));
-  const online = [
-    ['flight', 'Flight Booking', 'send'], ['hotel', 'Hotel Booking', 'grid'], ['bus', 'Bus Booking', 'transfer'],
-  ].map(([key, title, icon]) => ({ key, title, icon, route: `/services/${key}` }));
-  const allowed = await permission.allowedServiceIds(req.user.id);
-  const visible = async (tiles) => {
-    const out = [];
-    for (const t of tiles) {
-      // eslint-disable-next-line no-await-in-loop
-      if (t.key === 'fund-request' || serviceGuard.allowedFor(await serviceGuard.findService(t.title), allowed)) out.push(t);
-    }
-    return out;
-  };
-  return res.json({ b2b: await visible(b2b), online: await visible(online) });
+    const allowed = await permission.allowedServiceIds(req.user.id);
+    const rows = await db('services').where({ is_active: true }).whereNotNull('screen').where('screen', '<>', '').orderBy('id').select('id', 'title', 'code', 'screen');
+    const out = { b2b: [], online: [] };
+    rows.forEach((s) => {
+      const sc = retailerScreens.SCREENS[s.screen];
+      if (!sc || !allowed.has(s.id)) return;
+      const main = !s.code || s.code === s.screen;
+      out[sc.group].push({
+        key: s.code || `s${s.id}`, title: s.title, icon: sc.icon, screen: s.screen, service: s.code || null,
+        route: `/services/${s.screen}${main ? '' : `?service=${s.code}`}`,
+      });
+    });
+    out.b2b.push({ key: 'fund-request', title: 'Fund Request', icon: 'fund', screen: 'fund-request', service: null, route: '/services/fund-request' });
+    return res.json(out);
   } catch (e) { return next(e); }
 }
 

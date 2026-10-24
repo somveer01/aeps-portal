@@ -2,6 +2,7 @@
 
 const repo = require('../repositories/service.repo');
 const catRepo = require('../repositories/serviceCategory.repo');
+const retailerScreens = require('../services/retailerScreens');
 
 const clean = (v) => String(v || '').trim();
 const TYPES = ['internal', 'external'];
@@ -10,6 +11,22 @@ const cleanIcon = (v) => {
   const s = clean(v);
   if (!s) return null;
   return /^\/uploads\/[\w.-]+$/.test(s) && s.length <= 255 ? s : null;
+};
+
+// Service code: the stable key of a service (lower case letters, digits and single dashes). It is generated from the title and never
+// changes with a rename; once anything is recorded against the service it is locked.
+const CODE_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const slug = (t) => clean(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'service';
+async function uniqueCode(base) {
+  let code = base; let n = 2;
+  while (await repo.findByCode(code)) { code = `${base}-${n}`; n += 1; }
+  return code;
+}
+// The retailer screen a service opens: one of the built-in screens (retailerScreens), or empty = no retailer tile.
+const cleanScreen = (v) => {
+  const s = clean(v);
+  if (!s) return { value: null };
+  return retailerScreens.SCREENS[s] ? { value: s } : { error: 'Choose one of the retailer screens in the list (or leave it empty for no retailer tile)' };
 };
 
 // What the API provider pays the company per transaction: a % of the amount or a flat ₹.
@@ -59,7 +76,14 @@ async function create(req, res, next) {
     if (await repo.findByTitle(title)) return res.status(409).json({ error: 'A service with this title already exists', code: 'DUPLICATE' });
     const pc = providerCommission(req.body);
     if (pc.error) return res.status(400).json({ error: pc.error, code: 'INVALID_PROVIDER_COMMISSION' });
-    const id = await repo.create({ title, serviceCategoryId, serviceType, icon: cleanIcon(req.body.icon), isActive: req.body.isActive !== false, ...pc.out });
+    const scr = cleanScreen(req.body.screen);
+    if (scr.error) return res.status(400).json({ error: scr.error, code: 'INVALID_SCREEN' });
+    let code = clean(req.body.code).toLowerCase();
+    if (code) {
+      if (code.length < 2 || code.length > 60 || !CODE_RE.test(code)) return res.status(400).json({ error: 'Code: 2-60 lower case letters, digits and dashes (e.g. mobile-recharge-jio)', code: 'INVALID_CODE' });
+      if (await repo.findByCode(code)) return res.status(409).json({ error: 'A service with this code already exists', code: 'DUPLICATE_CODE' });
+    } else code = await uniqueCode(slug(title));
+    const id = await repo.create({ title, code, screen: scr.value, serviceCategoryId, serviceType, icon: cleanIcon(req.body.icon), isActive: req.body.isActive !== false, ...pc.out });
     return res.status(201).json({ row: await repo.findById(id) });
   } catch (err) { return next(err); }
 }
@@ -67,8 +91,22 @@ async function create(req, res, next) {
 async function update(req, res, next) {
   try {
     const id = parseInt(req.params.id, 10);
-    if (!(await repo.findById(id))) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
+    const existing = await repo.findById(id);
+    if (!existing) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
     const patch = {};
+    if (req.body.screen !== undefined) {
+      const scr = cleanScreen(req.body.screen);
+      if (scr.error) return res.status(400).json({ error: scr.error, code: 'INVALID_SCREEN' });
+      patch.screen = scr.value;
+    }
+    if (req.body.code !== undefined && clean(req.body.code).toLowerCase() !== (existing.code || '')) {
+      const code = clean(req.body.code).toLowerCase();
+      if (code.length < 2 || code.length > 60 || !CODE_RE.test(code)) return res.status(400).json({ error: 'Code: 2-60 lower case letters, digits and dashes', code: 'INVALID_CODE' });
+      if (existing.code && await repo.hasHistory(id)) return res.status(409).json({ error: 'This service already has transactions, so its code is locked', code: 'CODE_LOCKED' });
+      const dupCode = await repo.findByCode(code);
+      if (dupCode && dupCode.id !== id) return res.status(409).json({ error: 'A service with this code already exists', code: 'DUPLICATE_CODE' });
+      patch.code = code;
+    }
     if (req.body.title !== undefined) {
       const title = clean(req.body.title);
       if (title.length < 2 || title.length > 120) return res.status(400).json({ error: 'Invalid title', code: 'INVALID_TITLE' });
@@ -101,4 +139,7 @@ async function remove(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, create, update, remove };
+// GET /api/services/screens -> the retailer screens a service can open (Service Master's "Retailer screen" dropdown)
+function screens(req, res) { return res.json({ rows: retailerScreens.list() }); }
+
+module.exports = { list, create, update, remove, screens };

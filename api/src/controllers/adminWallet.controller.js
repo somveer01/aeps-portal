@@ -4,7 +4,7 @@ const { parseGrid, applyGridFilters, applyGridSortFirst, DATE_COL } = require('.
 const db = require('../config/db');
 const audit = require('../repositories/audit.repo');
 const wallet = require('../services/wallet.service');
-const { isMoneyAmount } = require('../utils/money');
+const { isMoneyAmount, toAmount } = require('../utils/money');
 
 const clean = (v) => String(v || '').trim();
 
@@ -53,7 +53,7 @@ async function list(req, res, next) {
 // POST /api/admin-wallet/add  { amount, txnType, remark }
 async function add(req, res, next) {
   try {
-    const amount = Number(req.body.amount);
+    const amount = toAmount(req.body.amount);
     const txnType = req.body.txnType === 'debit' ? 'debit' : (req.body.txnType === 'credit' ? 'credit' : null);
     if (!txnType) return res.status(400).json({ error: 'Choose a transaction type (credit/debit)', code: 'INVALID_TXN_TYPE' });
     if (!isMoneyAmount(amount)) return res.status(400).json({ error: 'Enter a valid amount (up to 2 decimals)', code: 'INVALID_AMOUNT' });

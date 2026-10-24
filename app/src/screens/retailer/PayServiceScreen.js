@@ -15,7 +15,7 @@ const CFG = {
   moveToBank: { call: 'moveToBank', opService: null, fields: [['accountNo', 'Account Number *', 'numeric'], ['ifsc', 'IFSC Code *', 'default']] },
 };
 
-export default function PayServiceScreen({ kind, title, onBack, onDone }) {
+export default function PayServiceScreen({ kind, title, onBack, onDone, service }) {
   const cfg = CFG[kind] || CFG.lic;
   const [ops, setOps] = useState([]); const [operator, setOperator] = useState('');
   const [vals, setVals] = useState({}); const [amount, setAmount] = useState('');
@@ -37,7 +37,7 @@ export default function PayServiceScreen({ kind, title, onBack, onDone }) {
     setConfirm(false); setError(null); setLoading(true);
     const target = vals.accountNo || vals.consumerNo || vals.vehicle || vals.policyNo || '';
     try {
-      const r = await api.bbps[cfg.call]({ operator, target, amount: Number(amount), ...vals });
+      const r = await api.bbps[cfg.call]({ operator, target, amount: Number(amount), ...vals, service });
       setReceipt(r.receipt); onDone && onDone();
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   };

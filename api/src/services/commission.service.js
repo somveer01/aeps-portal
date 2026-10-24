@@ -79,7 +79,7 @@ async function findSlab({ userTypeId, planId = null, serviceName, amount, operat
  */
 async function recordServiceCommission({
   trx, userId, userTypeId, planId = null, userCode = null, operator = null, mode = null, slab: givenSlab = null,
-  serviceName, amount, wallet = {}, remark = null,
+  serviceName, serviceId = null, amount, wallet = {}, remark = null,
   level = 0, sourceUserId = null, serviceTransactionId = null, chainOnly = false, creditOnly = false,
   gstPercent = DEFAULT_GST, tdsPercent = DEFAULT_TDS,
 }) {
@@ -93,6 +93,7 @@ async function recordServiceCommission({
   const [row] = await (trx || db)('commission_ledger').insert({
     user_id: userId,
     service_name: serviceName,
+    service_id: serviceId,
     slot_type: slab.commission_type,
     type_value: slab.value,
     type_value_amount: commission,
@@ -194,7 +195,7 @@ async function resolveShares({ trx, sourceUserId, selfSlab = null, serviceName, 
 }
 
 /** Pay the uplines (nodes[1..]) from resolveShares: ledger row, wallet credit, account history. */
-async function payUplines({ trx, nodes, serviceName, amount, serviceTransactionId }) {
+async function payUplines({ trx, nodes, serviceName, serviceId = null, amount, serviceTransactionId }) {
   if (!nodes.length) return [];
   const source = nodes[0].user;
   const sourceCode = source.user_code || source.username;
@@ -204,7 +205,7 @@ async function payUplines({ trx, nodes, serviceName, amount, serviceTransactionI
     const before = Number(n.user.wallet_balance);
     // eslint-disable-next-line no-await-in-loop
     const comm = await recordServiceCommission({
-      trx, userId: n.user.id, userTypeId: n.user.user_type_id, slab: n.slab, serviceName, amount, wallet: { before }, level: n.level,
+      trx, userId: n.user.id, userTypeId: n.user.user_type_id, slab: n.slab, serviceName, serviceId, amount, wallet: { before }, level: n.level,
       sourceUserId: source.id, serviceTransactionId, remark: `${serviceName} — chain commission from ${sourceCode} (level ${n.level})${n.note ? `, ${n.note}` : ''}`,
     });
     if (!comm || comm.net <= 0) continue;
@@ -279,13 +280,13 @@ function capShares(nodes, budget, gstPercent = DEFAULT_GST) {
 }
 
 async function recordAdminMargin({
-  trx, serviceTransactionId, userId, serviceName, amount, providerId = null, operator = null, mode = null, chargesCollected = 0, commissionPaid = 0,
+  trx, serviceTransactionId, userId, serviceName, serviceId = null, amount, providerId = null, operator = null, mode = null, chargesCollected = 0, commissionPaid = 0,
   providerCommission: known = null,
 }) {
   const providerCommission = known != null ? known : await providerCommissionFor({ trx, providerId, serviceName, amount, operator, mode });
   const margin = round2(providerCommission + Number(chargesCollected) - Number(commissionPaid));
   await trx('admin_margins').insert({
-    service_transaction_id: serviceTransactionId, user_id: userId, service_name: serviceName, amount,
+    service_transaction_id: serviceTransactionId, user_id: userId, service_name: serviceName, service_id: serviceId, amount,
     provider_commission: providerCommission, charges_collected: round2(chargesCollected), commission_paid: round2(commissionPaid), margin,
     provider_id: providerId, operator: operator || null,
   });

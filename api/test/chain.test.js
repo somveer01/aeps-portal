@@ -178,7 +178,9 @@ test('the service name matches its Service Master title in any letter case (Mone
   const swapped = svc.title === svc.title.toUpperCase() ? svc.title.toLowerCase() : svc.title.toUpperCase();
   const r = await pipeline.run({ user: { id: users.R.id }, service: swapped, amount: AMOUNT, providerCall: ok });
   assert.equal(r.commission, own.net, 'retailer slab found');
-  const txn = await db('service_transactions').where({ user_id: users.R.id, service: swapped }).orderBy('id', 'desc').first('id');
+  const txn = await db('service_transactions').where({ user_id: users.R.id }).orderBy('id', 'desc').first('id', 'service', 'service_id');
+  assert.equal(txn.service, svc.title, 'stored under the Service Master title, whatever letter case was sent');
+  assert.equal(txn.service_id, svc.id, 'and with the service id');
   assert.ok((await txnLedger(txn.id)).some((row) => row.level === 1), 'upline chain slab found too');
 });
 

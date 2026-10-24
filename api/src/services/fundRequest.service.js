@@ -2,7 +2,7 @@
 
 const db = require('../config/db');
 const wallet = require('./wallet.service');
-const { round2, isMoneyAmount } = require('../utils/money');
+const { round2, isMoneyAmount, toAmount } = require('../utils/money');
 
 /**
  * Fund requests. Any managed user (retailer, distributor, super distributor, employee) asks for wallet
@@ -21,7 +21,7 @@ async function approverFor() {
 }
 
 async function create(userId, b) {
-  const amount = Number(b.amount);
+  const amount = toAmount(b.amount);
   if (!isMoneyAmount(amount)) throw err(400, 'INVALID_AMOUNT', 'Enter a valid amount');
   if (amount > 10000000) throw err(400, 'INVALID_AMOUNT', 'Amount is too large');
   const paymentMode = MODES.includes(b.paymentMode) ? b.paymentMode : null;

@@ -10,7 +10,7 @@ const TITLES = { aeps: 'AEPS — Aadhaar Enabled Payment System', 'aadhar-pay': 
 const TXN = [{ label: 'Balance Enquiry', value: 'balance' }, { label: 'Cash Withdrawal', value: 'withdrawal' }, { label: 'Mini Statement', value: 'mini' }];
 const BANKS = ['Airtel Payment Bank', 'State Bank of India', 'HDFC Bank', 'ICICI Bank', 'Bank of Baroda', 'Punjab National Bank', 'Axis Bank'].map((b) => ({ label: b, value: b }));
 
-export default function AepsScreen({ kind = 'aeps', onBack, onDone }) {
+export default function AepsScreen({ kind = 'aeps', onBack, onDone, service, title }) {
   const [devices, setDevices] = useState([]);
   const [form, setForm] = useState({ txnType: 'balance', deviceType: '', mobile: '', aadhaar: '', bank: '', amount: '' });
   const [t1, setT1] = useState(true); const [t2, setT2] = useState(true);
@@ -26,7 +26,7 @@ export default function AepsScreen({ kind = 'aeps', onBack, onDone }) {
     setLoading(true);
     const fn = kind === 'aadhar-pay' ? api.aeps.aadharPay : kind === 'micro-atm' ? api.aeps.microAtm : api.aeps.transact;
     try {
-      const body = { txnType: form.txnType, deviceType: form.deviceType, mobile: form.mobile, aadhaar: form.aadhaar, bank: form.bank, bio: 'MOCK-PID-BLOCK' };
+      const body = { txnType: form.txnType, deviceType: form.deviceType, mobile: form.mobile, aadhaar: form.aadhaar, bank: form.bank, bio: 'MOCK-PID-BLOCK', service };
       if (form.txnType === 'withdrawal') body.amount = Number(form.amount);
       const r = await fn(body); setReceipt(r.receipt); onDone && onDone();
     } catch (e) { setError(e.message); } finally { setLoading(false); }
@@ -43,7 +43,7 @@ export default function AepsScreen({ kind = 'aeps', onBack, onDone }) {
 
   return (
     <View style={{ gap: 16 }}>
-      <ServiceHeader title={TITLES[kind]} onBack={onBack} />
+      <ServiceHeader title={title || TITLES[kind]} onBack={onBack} />
       <Card>
         {error ? <Alert type="error">{error}</Alert> : null}
         <View style={styles.grid}>
