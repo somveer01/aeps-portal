@@ -86,8 +86,36 @@ test('daily limit counts only today\'s successful transactions', async () => {
   await run(1);
 });
 
-test('a service not in Service Master only needs KYC', async () => {
-  await run(50, ok, `${TAG} Unlisted Service`);
+test('a service not in Service Master is refused and nothing is debited', async () => {
+  const before = await balance();
+  await assert.rejects(run(50, ok, `${TAG} Unlisted Service`), (e) => e.code === 'SERVICE_NOT_CONFIGURED' && e.status === 403);
+  assert.equal(await balance(), before);
+});
+
+test('the daily limit counts pending transactions too, and a service under two names as one', async () => {
+  await setSvc({ daily_limit: 1000 });
+  await db('service_transactions').where({ user_id: userId }).del();
+  await db('service_transactions').insert({ user_id: userId, service: svc.title, amount: 600, debit_amount: 600, client_ref: `${TAG}-pend`, status: 'pending' });
+  await assert.rejects(run(500), (e) => e.code === 'DAILY_LIMIT', 'an in-flight / pending 600 already uses the limit');
+  await setSvc({ daily_limit: 0 });
+
+  // FASTag (the name the app sends) and Fastag Recharge (the Service Master title) are one service.
+  const fastag = await db('services').whereRaw("lower(title) = 'fastag recharge'").first('id', 'title', 'daily_limit');
+  if (!fastag) return;
+  await allowUser(fastag.id);
+  await db('services').where({ id: fastag.id }).update({ daily_limit: 100 });
+  try {
+    await db('service_transactions').insert({ user_id: userId, service: 'FASTag', amount: 80, debit_amount: 80, client_ref: `${TAG}-fastag`, status: 'success' });
+    await assert.rejects(require('../src/services/serviceGuard.service').check({ userId, serviceName: fastag.title, amount: 30 }), (e) => e.code === 'DAILY_LIMIT');
+  } finally {
+    await db('services').where({ id: fastag.id }).update({ daily_limit: fastag.daily_limit });
+  }
+});
+
+test('every service name the app sends exists in Service Master, and /api/health says so', async () => {
+  assert.deepEqual(await require('../src/services/serviceGuard.service').missingNames(), [], 'add the missing service in Service Master');
+  const h = await api(BASE).get('/api/health');
+  assert.deepEqual(h.b.missingServices, []);
 });
 
 test('catalogue hides services the user cannot use; Fund Request always shows', async () => {

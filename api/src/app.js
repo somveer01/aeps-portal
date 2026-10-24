@@ -6,6 +6,7 @@ const cors = require('cors');
 
 const env = require('./config/env');
 const db = require('./config/db');
+const serviceGuard = require('./services/serviceGuard.service');
 const apiRoutes = require('./routes/api.routes');
 const { UPLOAD_DIR } = require('./middleware/upload');
 
@@ -46,6 +47,9 @@ app.get('/api/health', async (req, res) => {
     providers = (await db('api_providers').orderBy('id').select('code', 'adapter', 'is_active'))
       .map((p) => ({ code: p.code, adapter: p.adapter, active: p.is_active, runsOn: env.isLive ? p.adapter : 'mock' }));
   } catch (e) { providers = null; } // database not reachable / not migrated: health still answers
+  // Service names the app sends that have no Service Master row (they are refused until the admin adds them): should be empty.
+  let missingServices = [];
+  try { missingServices = await serviceGuard.missingNames(); } catch (e) { missingServices = null; }
   res.json({
     ok: true,
     service: 'aeps-api',
@@ -58,6 +62,7 @@ app.get('/api/health', async (req, res) => {
       db: 'postgres',
     },
     providers,
+    missingServices,
   });
 });
 
