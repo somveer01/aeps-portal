@@ -177,10 +177,10 @@ test('POST /dmt/transfer: receipt shape, NEFT mode, operator text and the sender
   await ctx.problems('dmt receipt');
 });
 
-test('POST /dmt/transfer: an unknown mode is silently sent as IMPS [NOTE: documents current behaviour]', async () => {
+test('POST /dmt/transfer: an unknown mode is refused (400 INVALID_MODE), nothing moves', async () => {
   await ctx.reset(1000);
   const r = await transfer({ mode: 'RTGS' });
-  assert.equal(r.s, 201); assert.equal(r.b.receipt.mode, 'IMPS');
+  assert.equal(r.s, 400); assert.equal(r.b.code, 'INVALID_MODE');
 });
 
 test('POST /dmt/transfer: an unverified beneficiary is refused (400 NOT_VERIFIED), nothing moves', async () => {

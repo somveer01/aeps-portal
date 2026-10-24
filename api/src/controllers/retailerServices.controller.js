@@ -20,7 +20,7 @@ const apiFor = async (req, serviceName) => (await providerRouter.resolve({ userI
 // screen, else the screen's main service. Returns { call: what the pipeline is given (code, else title), title: what the receipt shows }.
 async function serviceFor(req, screen, mainName) {
   const asked = clean((req.body && req.body.service) || (req.query && req.query.service));
-  if (!asked) return { call: mainName, title: mainName };
+  if (!asked) { const main = await serviceGuard.findService(mainName); return { call: mainName, title: main ? main.title : mainName }; } // the receipt shows the Master title, like the stored row
   const svc = await serviceGuard.findService(asked);
   if (!svc || svc.screen !== screen) throw Object.assign(new Error('This service cannot be used from this screen'), { status: 400, code: 'SERVICE_MISMATCH' });
   return { call: svc.code || svc.title, title: svc.title };
@@ -37,7 +37,9 @@ async function rechargePlans(req, res, next) {
   try { const sv = await serviceFor(req, 'mobile-recharge', N.MOBILE_RECHARGE); return res.json(await (await apiFor(req, sv.call)).recharge.plans({ operator: clean(req.query.operator), circle: clean(req.query.circle) })); } catch (e) { return next(e); }
 }
 async function dthInfo(req, res, next) {
-  try { const sv = await serviceFor(req, 'dth-recharge', N.DTH_RECHARGE); return res.json(await (await apiFor(req, sv.call)).recharge.dthInfo({ operator: clean(req.query.operator), number: clean(req.query.number) })); } catch (e) { return next(e); }
+  try {
+    if (!/^[A-Za-z0-9]{4,20}$/.test(clean(req.query.number)) || !clean(req.query.operator) || tooLong(clean(req.query.operator), 60)) return bad(res, 'Enter the DTH number and choose the operator');
+    const sv = await serviceFor(req, 'dth-recharge', N.DTH_RECHARGE); return res.json(await (await apiFor(req, sv.call)).recharge.dthInfo({ operator: clean(req.query.operator), number: clean(req.query.number) })); } catch (e) { return next(e); }
 }
 async function rechargeMobile(req, res, next) {
   try {
@@ -65,8 +67,10 @@ async function rechargeDth(req, res, next) {
 // ── BBPS / LIC / Gas / FASTag (generic bill/pay) ──────────────────
 async function bbpsFetch(req, res, next) {
   try {
+    const fetchParams = req.body.params == null ? {} : req.body.params;
     if (!clean(req.body.operator) || tooLong(clean(req.body.operator), 60) || tooLong(clean(req.body.category), 60)) return bad(res, 'Choose the operator');
-    const sv = await serviceFor(req, 'bill-payment', N.BILL_PAYMENT); return res.json({ bill: await (await apiFor(req, sv.call)).bbps.fetchBill({ category: clean(req.body.category), operator: clean(req.body.operator), params: req.body.params || {} }) }); } catch (e) { return next(e); }
+    if (typeof fetchParams !== 'object' || Array.isArray(fetchParams) || JSON.stringify(fetchParams).length > 1000) return bad(res, 'Enter the consumer details');
+    const sv = await serviceFor(req, 'bill-payment', N.BILL_PAYMENT); return res.json({ bill: await (await apiFor(req, sv.call)).bbps.fetchBill({ category: clean(req.body.category), operator: clean(req.body.operator), params: fetchParams }) }); } catch (e) { return next(e); }
 }
 function makePay(screen, mainName, { defaultMode = null } = {}) {
   return async function pay(req, res, next) {
@@ -149,7 +153,8 @@ async function dmtBeneficiaryAdd(req, res, next) {
     const sender = senderId && await db('dmt_senders').where({ id: senderId, retailer_id: req.user.id }).first();
     if (!sender) return res.status(404).json({ error: 'Sender not found', code: 'NOT_FOUND' });
     const name = clean(req.body.name); const bank = clean(req.body.bankName); const acct = clean(req.body.accountNo); const ifsc = clean(req.body.ifsc).toUpperCase();
-    if (name.length < 2 || name.length > 80 || bank.length > 80 || !/^\d{6,20}$/.test(acct) || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) return res.status(400).json({ error: 'Enter valid beneficiary details', code: 'INVALID_INPUT' });
+    if (name.length < 2 || name.length > 80 || bank.length < 2 || bank.length > 80 || !/^\d{6,20}$/.test(acct) || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) return res.status(400).json({ error: 'Enter valid beneficiary details', code: 'INVALID_INPUT' });
+    if (await db('dmt_beneficiaries').where({ sender_id: senderId, account_no: acct, ifsc }).first('id')) return res.status(409).json({ error: 'This beneficiary is already added', code: 'DUPLICATE_BENEFICIARY' });
     const [row] = await db('dmt_beneficiaries').insert({ sender_id: senderId, name, bank_name: bank, account_no: acct, ifsc, verified: false }).returning('*');
     return res.status(201).json({ row: typeof row === 'object' ? row : { id: row } });
   } catch (e) { return next(e); }
@@ -200,7 +205,7 @@ async function bookingBook(req, res, next) {
     const amount = toAmount(req.body.amount); const pax = req.body.pax;
     const offerId = clean(req.body.offerId);
     if (!offerId || tooLong(offerId, 80)) return bad(res, 'Choose an offer to book');
-    if (!pax || typeof pax !== 'object' || Array.isArray(pax) || JSON.stringify(pax).length > 4000) return bad(res, 'Enter the passenger details');
+    if (!pax || typeof pax !== 'object' || Array.isArray(pax) || !Object.keys(pax).length || JSON.stringify(pax).length > 4000) return bad(res, 'Enter the passenger details');
     const sv = await serviceFor(req, type, N.BOOKING[type]);
     const r = await pipeline.run({ user: req.user, service: sv.call, target: offerId, amount, providerCall: (clientRef, route) => route.api.booking.book({ type, offerId, pax, amount, clientRef, spKey: route.spKey }) });
     await db('bookings').insert({ retailer_id: req.user.id, type, pnr: r.provider.pnr || null, pax: JSON.stringify(pax), amount, status: r.status === 'pending' ? 'pending' : 'booked', provider_ref: r.reference, detail: JSON.stringify(req.body) });

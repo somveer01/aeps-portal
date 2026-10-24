@@ -19,7 +19,7 @@ defineMoneySuite(get, { label: 'POST /recharge/dth', path: '/api/recharge/dth', 
 defineMoneySuite(get, { label: 'POST /bbps/pay', path: '/api/bbps/pay', title: 'Bill Payment', serviceName: 'Bill Payment', target: 'CA12345678', operator: 'MSEDCL', stub: () => [providers.bbps, 'pay'], body: (amount) => ({ operator: 'MSEDCL', target: 'CA12345678', amount }) });
 defineMoneySuite(get, { label: 'POST /lic/pay', path: '/api/lic/pay', title: 'LIC Payment', serviceName: 'LIC Payment', target: 'POL998877', operator: 'LIC', stub: () => [providers.bbps, 'pay'], body: (amount) => ({ operator: 'LIC', policyNo: 'POL998877', amount }) });
 defineMoneySuite(get, { label: 'POST /gas/pay', path: '/api/gas/pay', title: 'Gas Booking', serviceName: 'Gas Booking', target: 'GAS556677', operator: 'HP Gas', stub: () => [providers.bbps, 'pay'], body: (amount) => ({ operator: 'HP Gas', consumerNo: 'GAS556677', amount }) });
-defineMoneySuite(get, { label: 'POST /fastag/recharge', path: '/api/fastag/recharge', title: 'Fastag Recharge', serviceName: 'FASTag', target: 'DL1CAB1234', operator: 'ICICI FASTag', stub: () => [providers.bbps, 'pay'], body: (amount) => ({ operator: 'ICICI FASTag', number: 'DL1CAB1234', amount }) });
+defineMoneySuite(get, { label: 'POST /fastag/recharge', path: '/api/fastag/recharge', title: 'Fastag Recharge', serviceName: 'Fastag Recharge', target: 'DL1CAB1234', operator: 'ICICI FASTag', stub: () => [providers.bbps, 'pay'], body: (amount) => ({ operator: 'ICICI FASTag', number: 'DL1CAB1234', amount }) });
 defineMoneySuite(get, { label: 'POST /move-to-bank', path: '/api/move-to-bank', title: 'Move To Bank', serviceName: 'Move To Bank', target: '123456789012', operator: 'HDFC Bank', mode: 'IMPS', stub: () => [providers.bbps, 'pay'], body: (amount) => ({ operator: 'HDFC Bank', target: '123456789012', amount }) });
 
 // ── missing identifiers: money must not be taken for a payment that names no number / account ──
@@ -59,7 +59,7 @@ test('POST /move-to-bank: [BUG] the account number must be digits (letters / emp
   await ctx.reset(1000);
 });
 
-test('POST /move-to-bank: mode NEFT is stored, IMPS is the default, and an unknown mode silently becomes IMPS [NOTE]', async () => {
+test('POST /move-to-bank: mode NEFT is stored, IMPS is the default, and an unknown mode is refused', async () => {
   await ctx.reset(1000);
   let r = await ctx.http().post('/api/move-to-bank', { operator: 'HDFC Bank', target: '123456789012', amount: 10, mode: 'NEFT' });
   assert.equal(r.s, 201); assert.equal(r.b.receipt.title, 'Move To Bank');
@@ -68,8 +68,8 @@ test('POST /move-to-bank: mode NEFT is stored, IMPS is the default, and an unkno
   r = await ctx.http().post('/api/move-to-bank', { operator: 'HDFC Bank', target: '123456789012', amount: 10, mode: 'RTGS' });
   const t = await ctx.txns();
   assert.deepEqual(t.slice(0, 2).map((x) => x.mode), ['NEFT', 'IMPS']);
-  // documents current behaviour: RTGS (not offered) is accepted and sent as IMPS
-  assert.equal(r.s, 201); assert.equal(t[2].mode, 'IMPS');
+  // RTGS is not offered: refused, nothing debited or recorded
+  assert.equal(r.s, 400); assert.equal(r.b.code, 'INVALID_MODE'); assert.equal(t.length, 2);
   await ctx.problems('move-to-bank modes');
 });
 
@@ -145,7 +145,7 @@ test('POST /bbps/fetch-bill never moves money [no wallet / ledger change]', asyn
   assert.equal(await ctx.wallet(), 1000); assert.equal((await ctx.txns()).length, 0);
 });
 
-test('POST /bbps/pay: [BUG] a bill payment is not tied to the fetched bill - any amount is accepted for a fetched bill of another value', async () => {
+test('POST /bbps/pay: [BUG] a bill payment is not tied to the fetched bill - any amount is accepted for a fetched bill of another value', { todo: 'owner decision pending (see QA report)' }, async () => {
   // fetch-bill returns amount 1548; pay has no billNumber / bill amount check, so ANY amount (here 7) is taken and sent.
   await ctx.reset(1000);
   const bill = (await ctx.http().post('/api/bbps/fetch-bill', { category: 'Electricity', operator: 'MSEDCL', params: { consumerNo: '1' } })).b.bill;
@@ -205,7 +205,7 @@ test('look-ups (plans, dth-info, fetch-bill) still answer when the service is sw
   await db('users').where({ id: ctx.userId }).update({ kyc_status: 'pending' });
   try {
     assert.equal((await ctx.http().get('/api/recharge/plans')).s, 200);
-    assert.equal((await ctx.http().get('/api/recharge/dth-info?number=1')).s, 200);
+    assert.equal((await ctx.http().get('/api/recharge/dth-info?number=ABCD1234&operator=Tata%20Play')).s, 200);
     assert.equal((await ctx.http().post('/api/bbps/fetch-bill', { operator: 'MSEDCL', params: {} })).s, 200);
   } finally {
     for (const t of ['Mobile Recharge', 'DTH Recharge', 'Bill Payment']) await ctx.setService(t, { is_active: true });

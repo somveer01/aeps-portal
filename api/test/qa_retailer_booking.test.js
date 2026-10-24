@@ -84,7 +84,7 @@ for (const t of TYPES) {
   });
 }
 
-test('POST /booking/:type/book: [BUG] a provider timeout (outcome unknown) is not recorded as a confirmed booking with an empty PNR', async () => {
+test('POST /booking/:type/book: [BUG] a provider timeout (outcome unknown) is recorded as pending, never as a confirmed booking with an empty PNR', async () => {
   await ctx.reset(1000);
   const orig = providers.booking.book;
   providers.booking.book = () => Promise.reject(Object.assign(new Error('socket hang up'), { code: 'ETIMEDOUT' }));
@@ -92,7 +92,7 @@ test('POST /booking/:type/book: [BUG] a provider timeout (outcome unknown) is no
   try { r = await http().post('/api/booking/flight/book', bookBody(TYPES[0], 10)); } finally { providers.booking.book = orig; }
   assert.equal(r.s, 201); assert.equal(r.b.receipt.status, 'pending'); assert.equal(await ctx.wallet(), 990);
   const rows = await bookings();
-  assert.ok(rows.length === 0 || (rows[0].status !== 'booked' && rows[0].pnr), `booking row: ${JSON.stringify(rows.map((x) => ({ status: x.status, pnr: x.pnr })))}`);
+  assert.ok(rows.length === 0 || (rows[0].status === 'pending' && !rows[0].pnr), `booking row: ${JSON.stringify(rows.map((x) => ({ status: x.status, pnr: x.pnr })))}`);
   await ctx.problems('booking timeout');
 });
 

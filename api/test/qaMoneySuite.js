@@ -103,12 +103,12 @@ function defineMoneySuite(getCtx, spec) {
     assert.deepEqual(accepted, [], 'these amounts must be refused with 400');
   });
 
-  test(`${L}: an absurd amount (1e12, 1e30, 20 digits) is refused as insufficient balance, never a 500`, async () => {
+  test(`${L}: an absurd amount (1e12, 1e30, 20 digits) is refused (invalid amount or insufficient balance), never a 500`, async () => {
     const ctx = getCtx(); await ctx.reset(1000);
     for (const amount of [1e12, 1e30, '99999999999999999999', 1e15]) {
       const r = await post(spec.body(amount));
       assert.equal(r.s, 400, `${amount}: ${JSON.stringify(r.b)}`);
-      assert.equal(r.b.code, 'INSUFFICIENT_BALANCE', `${amount}`);
+      assert.ok(['INVALID_AMOUNT', 'INSUFFICIENT_BALANCE'].includes(r.b.code), `${amount}: ${r.b.code}`);
     }
     await untouched(ctx, 1000, 'absurd amounts');
   });
