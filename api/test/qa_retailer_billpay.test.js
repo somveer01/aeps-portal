@@ -33,7 +33,7 @@ const noTarget = [
 ];
 for (const [label, path, body, what] of noTarget) {
   const isDth = path.endsWith('/dth');
-  test(`${label}: ${isDth ? '' : '[BUG] '}a payment with no ${what} is refused with 400 and nothing is debited`, async () => {
+  test(`${label}: ${isDth ? '' : ''}a payment with no ${what} is refused with 400 and nothing is debited`, async () => {
     await ctx.reset(1000);
     const r = await ctx.http().post(path, body);
     assert.equal(r.s, 400, `accepted with ${r.s}; wallet now ${await ctx.wallet()}; target stored: ${JSON.stringify((await ctx.txns()).map((t) => t.target))}`);
@@ -43,14 +43,14 @@ for (const [label, path, body, what] of noTarget) {
   });
 }
 
-test('POST /bbps/pay + friends: [BUG] a payment with no operator at all is refused', async () => {
+test('POST /bbps/pay + friends: a payment with no operator at all is refused', async () => {
   await ctx.reset(1000);
   const r = await ctx.http().post('/api/bbps/pay', { target: 'CA1', amount: 10 });
   assert.equal(r.s, 400, `accepted with ${r.s}, wallet ${await ctx.wallet()}`);
   await ctx.reset(1000);
 });
 
-test('POST /move-to-bank: [BUG] the account number must be digits (letters / empty-ish values are refused)', async () => {
+test('POST /move-to-bank: the account number must be digits (letters / empty-ish values are refused)', async () => {
   for (const target of ['ABCDEF', '12', '12 34 56 78 90', '<script>']) {
     await ctx.reset(1000);
     const r = await ctx.http().post('/api/move-to-bank', { operator: 'HDFC Bank', target, amount: 10 });
@@ -132,7 +132,7 @@ test('POST /bbps/fetch-bill: returns the bill; auth is enforced', async () => {
   assert.equal((await ctx.http(signFor(await adminUser())).post('/api/bbps/fetch-bill', {})).s, 403);
 });
 
-test('POST /bbps/fetch-bill: [BUG] a look-up with no operator / no consumer details is refused with 400', async () => {
+test('POST /bbps/fetch-bill: a look-up with no operator / no consumer details is refused with 400', async () => {
   const r = await ctx.http().post('/api/bbps/fetch-bill', {});
   assert.equal(r.s, 400, `answered ${r.s}: ${JSON.stringify(r.b)}`);
   const r2 = await ctx.http().post('/api/bbps/fetch-bill', { category: 'Electricity', operator: 'MSEDCL', params: 'not-an-object' });
@@ -145,7 +145,7 @@ test('POST /bbps/fetch-bill never moves money [no wallet / ledger change]', asyn
   assert.equal(await ctx.wallet(), 1000); assert.equal((await ctx.txns()).length, 0);
 });
 
-test('POST /bbps/pay: [BUG] a bill payment is not tied to the fetched bill - any amount is accepted for a fetched bill of another value', { todo: 'owner decision pending (see QA report)' }, async () => {
+test('POST /bbps/pay: a bill payment is not tied to the fetched bill - any amount is accepted for a fetched bill of another value', async () => {
   // fetch-bill returns amount 1548; pay has no billNumber / bill amount check, so ANY amount (here 7) is taken and sent.
   await ctx.reset(1000);
   const bill = (await ctx.http().post('/api/bbps/fetch-bill', { category: 'Electricity', operator: 'MSEDCL', params: { consumerNo: '1' } })).b.bill;
@@ -192,7 +192,7 @@ test('GET /recharge/plans and /recharge/dth-info: shapes and auth', async () => 
   }
 });
 
-test('GET /recharge/dth-info: [BUG] a look-up without a DTH number is refused with 400', async () => {
+test('GET /recharge/dth-info: a look-up without a DTH number is refused with 400', async () => {
   const r = await ctx.http().get('/api/recharge/dth-info?operator=Tata%20Play');
   assert.equal(r.s, 400, `answered ${r.s} (returned another person's DTH account details for an empty number)`);
 });
@@ -213,7 +213,7 @@ test('look-ups (plans, dth-info, fetch-bill) still answer when the service is sw
   }
 });
 
-test('bill-pay endpoints: [BUG] an over-long number / operator is a 4xx, not a database-error 500', async () => {
+test('bill-pay endpoints: an over-long number / operator is a 4xx, not a database-error 500', async () => {
   await ctx.reset(1000);
   const bad = [];
   for (const [path, k] of [['/api/recharge/dth', 'number'], ['/api/bbps/pay', 'target'], ['/api/lic/pay', 'policyNo'], ['/api/gas/pay', 'consumerNo'], ['/api/fastag/recharge', 'number'], ['/api/move-to-bank', 'target']]) {

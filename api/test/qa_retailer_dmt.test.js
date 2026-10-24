@@ -91,20 +91,20 @@ test('POST /dmt/beneficiary: invalid name / account / IFSC are refused with 400 
   assert.equal(await count(), n0);
 });
 
-test('POST /dmt/beneficiary: [BUG] a beneficiary with no bank name is refused', async () => {
+test('POST /dmt/beneficiary: a beneficiary with no bank name is refused', async () => {
   const r = await http().post('/api/dmt/beneficiary', { senderId: sender.id, ...GOOD, bankName: undefined });
   const stored = await db('dmt_beneficiaries').where({ sender_id: sender.id }).whereRaw("bank_name = ''").del();
   assert.equal(r.s, 400, `accepted with ${r.s} (bank_name stored as an empty string; ${stored} such rows)`);
 });
 
-test('POST /dmt/beneficiary: [BUG] over-long name / bank name is refused with 400, not a database error 500', async () => {
+test('POST /dmt/beneficiary: over-long name / bank name is refused with 400, not a database error 500', async () => {
   for (const patch of [{ name: 'N'.repeat(121) }, { bankName: 'B'.repeat(121) }]) {
     const r = await http().post('/api/dmt/beneficiary', { senderId: sender.id, ...GOOD, ...patch });
     assert.ok(r.s >= 400 && r.s < 500, `${Object.keys(patch)} too long -> ${r.s} ${JSON.stringify(r.b)}`);
   }
 });
 
-test('POST /dmt/beneficiary: [BUG] the same account cannot be added twice for one sender (duplicate beneficiary)', async () => {
+test('POST /dmt/beneficiary: the same account cannot be added twice for one sender (duplicate beneficiary)', async () => {
   const a = await http().post('/api/dmt/beneficiary', { senderId: sender.id, ...GOOD, accountNo: '998877665544' });
   const b = await http().post('/api/dmt/beneficiary', { senderId: sender.id, ...GOOD, accountNo: '998877665544' });
   await db('dmt_beneficiaries').where({ sender_id: sender.id, account_no: '998877665544' }).del();
@@ -125,7 +125,7 @@ test('beneficiary endpoints: another retailer\'s sender / beneficiary is 404 and
   assert.equal((await db('dmt_beneficiaries').where({ sender_id: sender.id }).whereIn('name', ['Ravi Kumar'])).length, 0);
 });
 
-test('GET /dmt/beneficiaries + POST /dmt/beneficiary: [BUG] a missing / non-numeric / out-of-range senderId is a 4xx, never a 500', async () => {
+test('GET /dmt/beneficiaries + POST /dmt/beneficiary: a missing / non-numeric / out-of-range senderId is a 4xx, never a 500', async () => {
   const bad = [];
   for (const q of ['', '?senderId=', '?senderId=abc', '?senderId=99999999999', '?senderId=-1']) {
     const r = await http().get(`/api/dmt/beneficiaries${q}`);
@@ -150,7 +150,7 @@ test('POST /dmt/beneficiary/:id/verify: marks the beneficiary verified (repeatab
   await db('dmt_beneficiaries').where({ id: b.id }).del();
 });
 
-test('POST /dmt/beneficiary/:id/verify: unknown id is 404; [BUG] a non-numeric / out-of-range id is a 4xx, never a 500', async () => {
+test('POST /dmt/beneficiary/:id/verify: unknown id is 404; a non-numeric / out-of-range id is a 4xx, never a 500', async () => {
   assert.equal((await http().post('/api/dmt/beneficiary/999999999/verify', {})).s, 404);
   const bad = [];
   for (const id of ['abc', '99999999999', '-5']) {
@@ -209,7 +209,7 @@ test('POST /dmt/transfer: a wrong / missing transaction PIN is 401 BAD_TXN_PASSW
   await ctx.problems('dmt pin');
 });
 
-test('POST /dmt/transfer: unknown / foreign beneficiary is 404; [BUG] missing / non-numeric / out-of-range beneficiaryId is a 4xx, never a 500', async () => {
+test('POST /dmt/transfer: unknown / foreign beneficiary is 404; missing / non-numeric / out-of-range beneficiaryId is a 4xx, never a 500', async () => {
   await ctx.reset(1000);
   assert.equal((await transfer({ beneficiaryId: 999999999 })).s, 404);
   const bad = [];
@@ -229,7 +229,7 @@ test('POST /dmt/transfer: a declined transfer does not use up the sender limit; 
   assert.equal(await used(), 2, 'pending: limit used while the money is held');
 });
 
-test('POST /dmt/transfer: [BUG] a transfer that later FAILS (pending -> failed, refunded) gives the sender limit back', async () => {
+test('POST /dmt/transfer: a transfer that later FAILS (pending -> failed, refunded) gives the sender limit back', async () => {
   await ctx.reset(1000); await resetLimit();
   const r = await transfer({ amount: 3 });
   assert.equal(r.b.receipt.status, 'pending');
@@ -239,7 +239,7 @@ test('POST /dmt/transfer: [BUG] a transfer that later FAILS (pending -> failed, 
   assert.equal(await used(), 0, `the wallet was refunded but the sender's monthly limit is still used up (${await used()})`);
 });
 
-test('POST /dmt/transfer: [BUG] the sender\'s monthly limit (Rs 25,000, shown as availableLimit) is enforced', async () => {
+test('POST /dmt/transfer: the sender\'s monthly limit (Rs 25,000, shown as availableLimit) is enforced', async () => {
   await ctx.reset(100000); await resetLimit();
   const r = await transfer({ amount: 30000 });
   const w = await ctx.wallet(); const u = await used();

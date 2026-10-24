@@ -26,7 +26,7 @@ export default function BillPaymentScreen({ onBack, onDone, service, title = 'Bi
   };
   const pay = async () => {
     setError(null); setPaying(true);
-    try { const r = await api.bbps.pay({ category, operator, amount: Number(bill.amount), target: bill.billNumber, service }); setReceipt(r.receipt); onDone && onDone(); }
+    try { const r = await api.bbps.pay({ category, operator, amount: Number(bill.amount), target: bill.billNumber, billNumber: bill.billNumber, service }); setReceipt(r.receipt); onDone && onDone(); }
     catch (e) { setError(e.message); } finally { setPaying(false); }
   };
 

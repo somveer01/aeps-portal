@@ -7,7 +7,7 @@ const txnAuth = require('../services/txnAuth.service');
 const serviceGuard = require('../services/serviceGuard.service');
 const providerRouter = require('../services/providerRouter.service');
 const N = require('../services/serviceNames');
-const { toAmount } = require('../utils/money');
+const { toAmount, isMoneyAmount } = require('../utils/money');
 
 /*
  * Every provider call goes to the API that API Management picked for the service (and user):
@@ -65,12 +65,21 @@ async function rechargeDth(req, res, next) {
 }
 
 // ── BBPS / LIC / Gas / FASTag (generic bill/pay) ──────────────────
+// Bills this retailer fetched (billNumber -> amount, 30 min): a payment for a fetched bill must be for that bill's amount.
+const fetchedBills = new Map();
+const BILL_TTL_MS = 30 * 60 * 1000;
+const rememberBill = (userId, bill) => {
+  const now = Date.now();
+  for (const [k, v] of fetchedBills) if (v.at < now - BILL_TTL_MS) fetchedBills.delete(k);
+  if (bill && bill.billNumber && Number.isFinite(Number(bill.amount))) fetchedBills.set(`${userId}:${bill.billNumber}`, { amount: Number(bill.amount), at: now });
+};
+
 async function bbpsFetch(req, res, next) {
   try {
     const fetchParams = req.body.params == null ? {} : req.body.params;
     if (!clean(req.body.operator) || tooLong(clean(req.body.operator), 60) || tooLong(clean(req.body.category), 60)) return bad(res, 'Choose the operator');
     if (typeof fetchParams !== 'object' || Array.isArray(fetchParams) || JSON.stringify(fetchParams).length > 1000) return bad(res, 'Enter the consumer details');
-    const sv = await serviceFor(req, 'bill-payment', N.BILL_PAYMENT); return res.json({ bill: await (await apiFor(req, sv.call)).bbps.fetchBill({ category: clean(req.body.category), operator: clean(req.body.operator), params: fetchParams }) }); } catch (e) { return next(e); }
+    const sv = await serviceFor(req, 'bill-payment', N.BILL_PAYMENT); const bill = await (await apiFor(req, sv.call)).bbps.fetchBill({ category: clean(req.body.category), operator: clean(req.body.operator), params: fetchParams }); rememberBill(req.user.id, bill); return res.json({ bill }); } catch (e) { return next(e); }
 }
 function makePay(screen, mainName, { defaultMode = null } = {}) {
   return async function pay(req, res, next) {
@@ -83,6 +92,12 @@ function makePay(screen, mainName, { defaultMode = null } = {}) {
       const mode = defaultMode ? (['IMPS', 'NEFT'].includes(req.body.mode) ? req.body.mode : defaultMode) : null;
       if (!operator || tooLong(operator, 60)) return bad(res, 'Choose the operator');
       if (!target || tooLong(target, 60)) return bad(res, 'Enter the number / account to pay');
+      if (screen === 'bill-payment') {
+        // A fetched bill is paid in full: the amount must be the bill's. (A payment with no fetched bill behind it is unchanged.)
+        const billNo = clean(req.body.billNumber) || target; const bill = fetchedBills.get(`${req.user.id}:${billNo}`);
+        if (bill && Math.abs(bill.amount - amount) > 0.001) return bad(res, `This bill is for ₹${bill.amount.toFixed(2)}. Pay that amount or fetch the bill again.`, 'BILL_AMOUNT_MISMATCH');
+        if (!bill && clean(req.body.billNumber)) return bad(res, 'Fetch the bill again before paying it', 'BILL_NOT_FETCHED');
+      }
       if (screen === 'move-to-bank' && !/^\d{6,20}$/.test(target)) return bad(res, 'Enter a valid account number (6 to 20 digits)');
       const r = await pipeline.run({ user: req.user, service: serviceName, operator, mode, target, amount, providerCall: (clientRef, route) => route.api.bbps.pay({ amount, operator, mode, target, clientRef, spKey: route.spKey }) });
       await logTxn(req, title, { amount, operator });
@@ -182,8 +197,22 @@ async function dmtTransfer(req, res, next) {
     if (!okPin) return res.status(401).json({ error: 'Invalid transaction PIN/password', code: 'BAD_TXN_PASSWORD' });
 
     const sv = await serviceFor(req, 'money-transfer', N.MONEY_TRANSFER);
-    const r = await pipeline.run({ user: req.user, service: sv.call, operator: `${b.bank_name} (${mode})`, mode, target: b.account_no, amount, providerCall: (clientRef, route) => route.api.dmt.transfer({ amount, mode, beneficiary: b, clientRef, spKey: route.spKey }) });
-    await db('dmt_senders').where({ id: b.sender_id }).increment('used_limit', amount);
+    // The sender's monthly limit is held first (one atomic update, so two parallel transfers cannot both fit) and given back if the transfer is refused.
+    if (!isMoneyAmount(amount)) return bad(res, 'Enter a valid amount (up to 2 decimals)', 'INVALID_AMOUNT');
+    const held = await db('dmt_senders').where({ id: b.sender_id }).whereRaw('used_limit + ? <= monthly_limit', [amount]).increment('used_limit', amount);
+    if (!held) {
+      const s = await db('dmt_senders').where({ id: b.sender_id }).first('monthly_limit', 'used_limit');
+      const left = Math.max(0, Number(s.monthly_limit) - Number(s.used_limit));
+      return res.status(400).json({ error: `This sender's monthly limit is ₹${Number(s.monthly_limit).toFixed(2)}. ₹${left.toFixed(2)} is left.`, code: 'SENDER_LIMIT' });
+    }
+    let r;
+    try {
+      r = await pipeline.run({ user: req.user, service: sv.call, operator: `${b.bank_name} (${mode})`, mode, target: b.account_no, amount, extra: { dmt_sender_id: b.sender_id }, providerCall: (clientRef, route) => route.api.dmt.transfer({ amount, mode, beneficiary: b, clientRef, spKey: route.spKey }) });
+    } catch (e) {
+      // A throw means refused before any money moved, or definitely failed and refunded: nothing was sent, so the limit is free again.
+      await db('dmt_senders').where({ id: b.sender_id }).update({ used_limit: db.raw('greatest(used_limit - ?, 0)', [amount]) });
+      throw e;
+    }
     await logTxn(req, sv.title, { amount, mode, beneficiaryId: id });
     return res.status(201).json({ receipt: { title: sv.title, operator: b.bank_name, target: b.account_no, mode, ...r } });
   } catch (e) { return next(e); }

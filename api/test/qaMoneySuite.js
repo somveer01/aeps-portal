@@ -108,7 +108,7 @@ function defineMoneySuite(getCtx, spec) {
     for (const amount of [1e12, 1e30, '99999999999999999999', 1e15]) {
       const r = await post(spec.body(amount));
       assert.equal(r.s, 400, `${amount}: ${JSON.stringify(r.b)}`);
-      assert.ok(['INVALID_AMOUNT', 'INSUFFICIENT_BALANCE'].includes(r.b.code), `${amount}: ${r.b.code}`);
+      assert.ok(['INVALID_AMOUNT', 'INSUFFICIENT_BALANCE', 'SENDER_LIMIT'].includes(r.b.code), `${amount}: ${r.b.code}`);
     }
     await untouched(ctx, 1000, 'absurd amounts');
   });

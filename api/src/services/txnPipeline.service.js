@@ -38,7 +38,7 @@ const isDefiniteFailure = (e) => !!e && (e.definite === true || (Number.isIntege
  * `providerCall(clientRef, route)` is the adapter call; `route` (providerRouter) names the API picked for this service / user
  * and carries its `api`, `spKey` and `providerId` (saved on the row).
  */
-async function run({ user, service, operator = null, mode = null, target = null, amount, charge = 0, providerCall, remark }) {
+async function run({ user, service, operator = null, mode = null, target = null, amount, charge = 0, providerCall, remark, extra = {} }) {
   if (!isMoneyAmount(Number(amount))) throw err(400, 'INVALID_AMOUNT', 'Enter a valid amount (up to 2 decimals)');
   const base = Number(amount) + Number(charge);
   if (!Number.isFinite(base) || base <= 0) throw err(400, 'INVALID_AMOUNT', 'Enter a valid amount');
@@ -81,7 +81,7 @@ async function run({ user, service, operator = null, mode = null, target = null,
 
     const clientRef = newClientRef();
     const [txnRow] = await trx('service_transactions').insert({
-      user_id: user.id, service: name, service_id: svc.id, operator, target, amount, client_ref: clientRef, debit_amount: totalDebit, service_charge: serviceCharge, mode,
+      ...extra, user_id: user.id, service: name, service_id: svc.id, operator, target, amount, client_ref: clientRef, debit_amount: totalDebit, service_charge: serviceCharge, mode,
       provider_id: route.providerId, sp_key: route.spKey, status: 'pending', stage: 'initiated', response: JSON.stringify({ stage: 'initiated' }),
     }).returning('id');
     return {
@@ -221,6 +221,8 @@ async function finalize(serviceTransactionId, outcome, { source, providerRef = n
       const refund = Number(t.debit_amount != null ? t.debit_amount : t.amount);
       await wallet.credit(trx, { userId: t.user_id, amount: refund, service: t.service, remark: `Refund — ${t.service} failed (${source})` });
       await trx('service_transactions').where({ id: t.id }).update(done);
+      // A money transfer that fails gives the sender's monthly limit back (it was held when the transfer started).
+      if (t.dmt_sender_id) await trx('dmt_senders').where({ id: t.dmt_sender_id }).update({ used_limit: trx.raw('greatest(used_limit - ?, 0)', [Number(t.amount)]) });
       return { changed: true, status: 'failed', row: { ...t, ...done } };
     }
 
