@@ -17,6 +17,10 @@ const OPERATOR_SOURCES = {
   'move to bank': { modes: ['IMPS', 'NEFT'] },
 };
 
+// The groups the operators table is split into (operators.service), derived from OPERATOR_SOURCES so there is no second list to keep.
+const GROUP_LABELS = { mobile: 'Mobile Recharge', dth: 'DTH Recharge', bbps: 'Bill Payment (BBPS / LIC)', fastag: 'FASTag', gas: 'Gas Booking' };
+const OPERATOR_GROUPS = [...new Set(Object.values(OPERATOR_SOURCES).map((x) => x.service).filter(Boolean))].map((key) => ({ key, label: GROUP_LABELS[key] || key }));
+
 /** { kind: 'operator'|'mode'|null, options: [names] } for a service id. */
 async function operatorOptions(serviceId) {
   const svc = serviceId ? await serviceRepo.findById(serviceId) : null;
@@ -28,4 +32,4 @@ async function operatorOptions(serviceId) {
   return { kind: 'operator', options: (await q.orderBy('name').select('name')).map((r) => r.name) };
 }
 
-module.exports = { OPERATOR_SOURCES, operatorOptions };
+module.exports = { OPERATOR_SOURCES, OPERATOR_GROUPS, operatorOptions };

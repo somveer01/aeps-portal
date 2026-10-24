@@ -197,6 +197,15 @@ export const api = {
   },
 
   // Modules → Service Categories
+  // Operator Master (admin): the operators the retailer screens, Commission Slots and SP Keys offer.
+  operatorMaster: {
+    list: (params = {}) => request(`/api/operator-master?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
+    groups: () => request('/api/operator-master/groups', { auth: true }),
+    create: (body) => request('/api/operator-master', { method: 'POST', body, auth: true, idempotencyKey: idemKey() }),
+    update: (id, body) => request(`/api/operator-master/${id}`, { method: 'PUT', body, auth: true, idempotencyKey: idemKey() }),
+    remove: (id) => request(`/api/operator-master/${id}`, { method: 'DELETE', auth: true }),
+  },
+
   serviceCategories: {
     list: (params = {}) => request(`/api/service-categories?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     create: (body) => request('/api/service-categories', { method: 'POST', body, auth: true }),

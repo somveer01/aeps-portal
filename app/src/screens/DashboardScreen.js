@@ -25,6 +25,7 @@ import CommissionSlabScreen from './CommissionSlabScreen';
 import TaxReportScreen from './TaxReportScreen';
 import AdminMarginScreen from './AdminMarginScreen';
 import UserSummaryReportScreen from './UserSummaryReportScreen';
+import OperatorMasterScreen from './OperatorMasterScreen';
 import KycRequestScreen from './KycRequestScreen';
 import PendingTransactionsScreen from './PendingTransactionsScreen';
 import ReconciliationScreen from './ReconciliationScreen';
@@ -91,6 +92,8 @@ export default function DashboardScreen({ user, onLogout }) {
               <ServiceCategoryScreen />
             ) : active.route === '/modules/city-master' ? (
               <CityMasterScreen />
+            ) : active.route === '/modules/operator-master' ? (
+              <OperatorMasterScreen />
             ) : active.route === '/modules/user-type-master' ? (
               <UserTypeMasterScreen />
             ) : active.route === '/modules/service-master' ? (
