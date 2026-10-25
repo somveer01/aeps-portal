@@ -1,6 +1,6 @@
 'use strict';
 
-const bcrypt = require('bcryptjs');
+const { cleanStr, safeCompare } = require('../utils/safe');
 const env = require('../config/env');
 const userRepo = require('../repositories/user.repo');
 const auditRepo = require('../repositories/audit.repo');
@@ -31,7 +31,8 @@ function getCaptcha(req, res) {
 async function login(req, res, next) {
   try {
     const { username = '', password = '', captchaId = '', captcha = '' } = req.body;
-    const uname = String(username).trim();
+    const uname = cleanStr(username).trim();
+    const pw = cleanStr(password);
     const meta = clientMeta(req);
 
     if (!captchaService.verify(captchaId, captcha)) {
@@ -51,7 +52,7 @@ async function login(req, res, next) {
       });
     }
 
-    const passwordOk = user ? await bcrypt.compare(password, user.password_hash) : false;
+    const passwordOk = user ? await safeCompare(pw, user.password_hash) : false;
     if (!user || !passwordOk) {
       // Count the failure and lock the account if the threshold is reached.
       if (user) {
@@ -98,6 +99,7 @@ async function login(req, res, next) {
 async function verifyOtp(req, res, next) {
   try {
     const { otp = '' } = req.body;
+    if (typeof otp !== 'string' && typeof otp !== 'number') return res.status(400).json({ error: 'Enter the OTP', code: 'INVALID_INPUT' });
     const userId = req.pendingUserId;
 
     const meta = clientMeta(req);

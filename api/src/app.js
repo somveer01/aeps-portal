@@ -71,10 +71,19 @@ app.use('/api', apiRoutes);
 // 404 (JSON).
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
+// Postgres errors caused by the value sent: bad text / number / date / NUL byte / too long / out of range.
+const CLIENT_PG_CODES = new Set(['22P02', '22003', '22007', '22008', '22001', '22021', '22P05', '22023', '22026']);
+
 // Error handler (JSON). Validation/known errors carry a status + code; unknown
 // errors are masked in production.
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
+  // A value the client sent that Postgres / Knex / multer / CORS refuse is the client's mistake (4xx), never a 500 that echoes SQL.
+  const pgBad = !err.status && (CLIENT_PG_CODES.has(err.code) || /^Empty \.update\(\) call|^Cannot convert object to primitive value|^Malformed part header|^Unexpected end of form/.test(err.message || ''));
+  if (!err.status && err.code === '23503') return res.status(409).json({ error: 'This record is in use and cannot be removed', code: 'IN_USE' });
+  if (pgBad) return res.status(400).json({ error: 'Invalid value in the request', code: 'INVALID_INPUT' });
+  if (err.name === 'MulterError') return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: err.message, code: 'INVALID_FILE' });
+  if (!err.status && /^Origin not allowed by CORS/.test(err.message || '')) return res.status(403).json({ error: 'Origin not allowed', code: 'CORS' });
   const status = err.status || 500;
   if (status >= 500) {
     // eslint-disable-next-line no-console

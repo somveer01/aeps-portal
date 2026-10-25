@@ -1,6 +1,6 @@
 'use strict';
 
-const bcrypt = require('bcryptjs');
+const { safeCompare } = require('../utils/safe');
 const db = require('../config/db');
 
 /**
@@ -15,8 +15,7 @@ async function verify(userId, provided) {
   if (!value) return false;
   const user = await db('users').where({ id: userId }).first('password_hash', 'txn_pin_hash');
   if (!user) return false;
-  if (user.txn_pin_hash) return bcrypt.compare(value, user.txn_pin_hash);
-  return bcrypt.compare(value, user.password_hash);
+  return safeCompare(value, user.txn_pin_hash || user.password_hash);
 }
 
 module.exports = { verify };

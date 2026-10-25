@@ -14,7 +14,7 @@ const hasMax2Decimals = (n) => Number.isFinite(n) && Math.abs(Math.round(n * 100
  */
 function toAmount(raw) {
   if (typeof raw === 'number') return hasMax2Decimals(raw) ? raw : NaN;
-  if (typeof raw === 'string' && /^\d{1,12}(\.\d{1,2})?$/.test(raw.trim())) return Number(raw.trim());
+  if (typeof raw === 'string' && /^\d{1,12}(\.\d{1,2})?$/.test(raw)) return Number(raw);
   return NaN;
 }
 

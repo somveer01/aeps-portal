@@ -24,7 +24,7 @@ const uploadImage = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (req, file, cb) => {
     if (ALLOWED.includes(file.mimetype)) return cb(null, true);
-    return cb(new Error('Only image files (png, jpg, webp, gif) are allowed.'));
+    return cb(Object.assign(new Error('Only image files (png, jpg, webp, gif) are allowed.'), { status: 400, code: 'INVALID_FILE' }));
   },
 });
 
@@ -42,4 +42,29 @@ const kycUpload = multer({
   fileFilter: (req, file, cb) => (KYC_EXT[file.mimetype] ? cb(null, true) : cb(new Error('Upload a photo (png, jpg or webp).'))),
 });
 
-module.exports = { uploadImage, UPLOAD_DIR, kycUpload, KYC_DIR };
+// multer trusts the client's Content-Type. After the upload, check that the stored bytes really start like a png / jpg / gif / webp;
+// anything else (text, empty, a script renamed .png) is deleted and refused.
+function looksLikeImage(b) {
+  if (b.length < 12) return false;
+  const png = b[0] === 0x89 && b.toString('latin1', 1, 4) === 'PNG';
+  const jpg = b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  const gif = b.toString('latin1', 0, 4) === 'GIF8';
+  const webp = b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP';
+  return png || jpg || gif || webp;
+}
+function imageContentCheck(req, res, next) {
+  if (!req.file) return next();
+  let ok = false;
+  try {
+    const fd = fs.openSync(req.file.path, 'r');
+    const buf = Buffer.alloc(12);
+    fs.readSync(fd, buf, 0, 12, 0);
+    fs.closeSync(fd);
+    ok = looksLikeImage(buf);
+  } catch (e) { ok = false; }
+  if (ok) return next();
+  fs.unlink(req.file.path, () => {});
+  return res.status(400).json({ error: 'The file is not a valid image', code: 'INVALID_FILE' });
+}
+
+module.exports = { uploadImage, UPLOAD_DIR, kycUpload, KYC_DIR, imageContentCheck };

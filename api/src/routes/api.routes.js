@@ -33,9 +33,9 @@ const ops = require('../controllers/operations.controller');
 const servicePermission = require('../controllers/servicePermission.controller');
 const commissionPackage = require('../controllers/commissionPackage.controller');
 const apiMgmt = require('../controllers/apiManagement.controller');
-const { kycUpload } = require('../middleware/upload');
+const { kycUpload, imageContentCheck } = require('../middleware/upload');
 // Multer errors (wrong type / too big) come back as a 400 with a clear message.
-const kycFile = (req, res, next) => kycUpload.single('image')(req, res, (e) => (e ? res.status(400).json({ error: e.code === 'LIMIT_FILE_SIZE' ? 'Photo must be 5 MB or smaller' : e.message, code: 'INVALID_FILE' }) : next()));
+const kycFile = (req, res, next) => kycUpload.single('image')(req, res, (e) => (e ? res.status(400).json({ error: e.code === 'LIMIT_FILE_SIZE' ? 'Photo must be 5 MB or smaller' : e.message, code: 'INVALID_FILE' }) : imageContentCheck(req, res, next)));
 const { requireAuth, requireAdmin, requireManaged, requirePending } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimit');
 const { uploadImage } = require('../middleware/upload');
@@ -59,7 +59,7 @@ router.get('/menu', requireAuth, c.menu);
 // Application / account settings (admin).
 router.get('/settings/app', requireAdmin, settings.getApp);
 router.post('/settings/app', requireAdmin, settings.saveApp);
-router.post('/settings/login-banner', requireAdmin, uploadImage.single('banner'), settings.uploadLoginBanner);
+router.post('/settings/login-banner', requireAdmin, uploadImage.single('banner'), imageContentCheck, settings.uploadLoginBanner);
 router.delete('/settings/login-banner', requireAdmin, settings.clearLoginBanner);
 router.post('/settings/theme', requireAdmin, settings.saveTheme);
 router.post('/settings/logo-colors', requireAdmin, settings.logoColors);
@@ -91,7 +91,7 @@ router.put('/user-types/:id', requireAdmin, userType.update);
 router.delete('/user-types/:id', requireAdmin, userType.remove);
 
 // Generic image upload -> { path } (used for service icons, etc.)
-router.post('/uploads/image', requireAuth, uploadImage.single('image'), upload.uploadImage); // images only; also fund request payment proofs
+router.post('/uploads/image', requireAuth, uploadImage.single('image'), imageContentCheck, upload.uploadImage); // images only; also fund request payment proofs
 
 // Modules → Service Master (admin CRUD; joins service category).
 router.get('/services', requireAdmin, service.list);
