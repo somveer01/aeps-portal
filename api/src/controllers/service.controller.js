@@ -49,6 +49,12 @@ function providerCommission(body) {
     if (!Number.isFinite(d) || d < 0 || d > 100000000) return { error: 'Daily limit must be 0 (no limit) or more' };
     out.dailyLimit = Math.round(d * 100) / 100;
   }
+  // Largest single transaction of this service; 0 = no limit.
+  if (body.perTxnLimit !== undefined) {
+    const d = Number(body.perTxnLimit === '' ? 0 : body.perTxnLimit);
+    if (!Number.isFinite(d) || d < 0 || d > 100000000) return { error: 'Per-transaction limit must be 0 (no limit) or more' };
+    out.perTxnLimit = Math.round(d * 100) / 100;
+  }
   return { out };
 }
 

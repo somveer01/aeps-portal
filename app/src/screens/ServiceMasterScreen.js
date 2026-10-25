@@ -52,6 +52,7 @@ export default function ServiceMasterScreen() {
   const [pcType, setPcType] = useState('percentage');
   const [pcValue, setPcValue] = useState('0');
   const [dailyLimit, setDailyLimit] = useState('0');
+  const [perTxnLimit, setPerTxnLimit] = useState('0');
   const [code, setCode] = useState(''); // stable key, e.g. mobile-recharge (empty on create = generated from the title)
   const [screen, setScreen] = useState(''); // which retailer screen opens this service ('' = no retailer tile)
   const [screens, setScreens] = useState([]);
@@ -89,8 +90,8 @@ export default function ServiceMasterScreen() {
     ...categories.map((c) => ({ label: `${c.name} (${countOf(c.id)})`, value: c.id })),
   ];
 
-  const openAdd = () => { setEditing(null); setTitle(''); setCategoryId(categories[0]?.id ?? ''); setServiceType('internal'); setIcon(null); setActive(true); setPcType('percentage'); setPcValue('0'); setDailyLimit('0'); setCode(''); setScreen(''); setFormError(null); setView('form'); };
-  const openEdit = (row) => { setEditing(row); setTitle(row.title); setCategoryId(row.service_category_id); setServiceType(row.service_type); setIcon(row.icon || null); setActive(row.is_active); setPcType(row.provider_commission_type || 'percentage'); setPcValue(String(Number(row.provider_commission_value || 0))); setDailyLimit(String(Number(row.daily_limit || 0))); setCode(row.code || ''); setScreen(row.screen || ''); setFormError(null); setView('form'); };
+  const openAdd = () => { setEditing(null); setTitle(''); setCategoryId(categories[0]?.id ?? ''); setServiceType('internal'); setIcon(null); setActive(true); setPcType('percentage'); setPcValue('0'); setDailyLimit('0'); setPerTxnLimit('0'); setCode(''); setScreen(''); setFormError(null); setView('form'); };
+  const openEdit = (row) => { setEditing(row); setTitle(row.title); setCategoryId(row.service_category_id); setServiceType(row.service_type); setIcon(row.icon || null); setActive(row.is_active); setPcType(row.provider_commission_type || 'percentage'); setPcValue(String(Number(row.provider_commission_value || 0))); setDailyLimit(String(Number(row.daily_limit || 0))); setPerTxnLimit(String(Number(row.per_txn_limit || 0))); setCode(row.code || ''); setScreen(row.screen || ''); setFormError(null); setView('form'); };
 
   const chooseIcon = async () => {
     setFormError(null);
@@ -112,9 +113,11 @@ export default function ServiceMasterScreen() {
     if (pcType === 'percentage' && pc > 100) { setFormError('Provider commission % cannot be above 100.'); return; }
     const dl = Number(dailyLimit === '' ? 0 : dailyLimit);
     if (!Number.isFinite(dl) || dl < 0) { setFormError('Daily limit must be 0 (no limit) or more.'); return; }
+    const pt = Number(perTxnLimit === '' ? 0 : perTxnLimit);
+    if (!Number.isFinite(pt) || pt < 0) { setFormError('Per-transaction limit must be 0 (no limit) or more.'); return; }
     setSaving(true); setFormError(null);
     try {
-      const body = { title: t, serviceCategoryId: categoryId, serviceType, icon: icon || '', isActive: active, providerCommissionType: pcType, providerCommissionValue: pc, dailyLimit: dl, screen };
+      const body = { title: t, serviceCategoryId: categoryId, serviceType, icon: icon || '', isActive: active, providerCommissionType: pcType, providerCommissionValue: pc, dailyLimit: dl, perTxnLimit: pt, screen };
       if (code.trim()) body.code = code.trim().toLowerCase();
       if (editing) await api.services.update(editing.id, body);
       else await api.services.create(body);
@@ -162,6 +165,9 @@ export default function ServiceMasterScreen() {
             <View style={styles.field}><Text style={styles.label}>Daily Limit per User (Rs)</Text>
               <TextInput value={dailyLimit} onChangeText={setDailyLimit} keyboardType="numeric" placeholder="0 = no limit" placeholderTextColor={colors.muted} style={styles.modalInput} /></View>
             <View style={styles.fieldFull}><Text style={styles.hint}>Daily limit: the most one user can transact on this service in a day (successful transactions). 0 means no limit. Switching the service off (Active) blocks it for everyone.</Text></View>
+            <View style={styles.field}><Text style={styles.label}>Limit per Transaction (Rs)</Text>
+              <TextInput value={perTxnLimit} onChangeText={setPerTxnLimit} keyboardType="numeric" placeholder="0 = no limit" placeholderTextColor={colors.muted} style={styles.modalInput} /></View>
+            <View style={styles.fieldFull}><Text style={styles.hint}>Limit per transaction: the largest amount one transaction of this service may be (for example one AEPS cash withdrawal). 0 means no limit.</Text></View>
             <View style={styles.fieldFull}><Text style={styles.hint}>What the API provider pays you for each successful transaction of this service. Admin Margin = this, plus service charges collected, minus the commission paid to users.</Text></View>
             <View style={[styles.field, styles.switchField]}><Text style={styles.label}>Active</Text><Switch value={active} onValueChange={setActive} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /></View>
             <View style={styles.fieldFull}>
@@ -216,6 +222,7 @@ export default function ServiceMasterScreen() {
                       <Fact label="Retailer screen" value={row.screen ? ((screens.find((x) => x.key === row.screen) || {}).label || row.screen) : '—'} />
                       <Fact label="Provider comm." value={pcLabel(row)} />
                       <Fact label="Daily limit" value={Number(row.daily_limit) > 0 ? `Rs ${Number(row.daily_limit).toFixed(0)}` : 'No limit'} />
+                      <Fact label="Per transaction" value={Number(row.per_txn_limit) > 0 ? `Rs ${Number(row.per_txn_limit).toFixed(0)}` : 'No limit'} />
                     </View>
                     <View style={styles.svcFoot}>
                       <Text style={[styles.svcState, { color: row.is_active ? colors.success : colors.muted }]}>{row.is_active ? '● Active' : '○ Switched off'}</Text>

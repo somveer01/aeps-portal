@@ -26,7 +26,7 @@ async function findService(name, trx = db) {
   return trx('services')
     .where((w) => w.whereRaw('lower(code) = ?', [key]).orWhereRaw(`lower(title) in (${titles.map(() => '?').join(',')})`, titles))
     .orderByRaw('case when lower(code) = ? then 0 else 1 end', [key]).orderBy('id')
-    .first('id', 'title', 'code', 'screen', 'is_active', 'daily_limit');
+    .first('id', 'title', 'code', 'screen', 'is_active', 'daily_limit', 'per_txn_limit');
 }
 
 // Every name the app may have stored for a service (its title and the aliases that point at it), lower case: transactions keep the name
@@ -60,6 +60,10 @@ async function check({ trx = db, userId, serviceName, amount = 0 }) {
   if (!svc.is_active) throw err(403, 'SERVICE_OFF', `${svc.title} is switched off right now. Please try again later.`);
   if (!(await permission.can(userId, svc, trx))) {
     throw err(403, 'NO_SERVICE_ACCESS', `${svc.title} is not enabled for your account. Please contact the admin.`);
+  }
+  const perTxn = Number(svc.per_txn_limit);
+  if (perTxn > 0 && Number(amount) > perTxn) {
+    throw err(400, 'AMOUNT_LIMIT', `One ${svc.title} transaction can be at most ₹${perTxn.toFixed(2)}.`);
   }
   const limit = Number(svc.daily_limit);
   if (limit > 0 && Number(amount) > 0) {

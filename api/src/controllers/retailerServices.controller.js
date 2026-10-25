@@ -236,9 +236,16 @@ async function bookingBook(req, res, next) {
     if (!offerId || tooLong(offerId, 80)) return bad(res, 'Choose an offer to book');
     if (!pax || typeof pax !== 'object' || Array.isArray(pax) || !Object.keys(pax).length || JSON.stringify(pax).length > 4000) return bad(res, 'Enter the passenger details');
     const sv = await serviceFor(req, type, N.BOOKING[type]);
-    const r = await pipeline.run({ user: req.user, service: sv.call, target: offerId, amount, providerCall: (clientRef, route) => route.api.booking.book({ type, offerId, pax, amount, clientRef, spKey: route.spKey }) });
-    await db('bookings').insert({ retailer_id: req.user.id, type, pnr: r.provider.pnr || null, pax: JSON.stringify(pax), amount, status: r.status === 'pending' ? 'pending' : 'booked', provider_ref: r.reference, detail: JSON.stringify(req.body) });
-    await logTxn(req, `${type} booking`, { amount });
+    // The price is the provider's price for this offer, never what the client sent: look the offer up again and charge its price.
+    const found = await (await apiFor(req, sv.call)).booking.search(type, {});
+    const offer = ((found && found.results) || []).find((o) => String(o.id) === offerId);
+    if (!offer) return bad(res, 'This offer is no longer available. Search again.', 'INVALID_OFFER');
+    const price = toAmount(offer.price);
+    if (!(price > 0)) return bad(res, 'This offer has no valid price. Search again.', 'INVALID_OFFER');
+    if (req.body.amount != null && req.body.amount !== '' && amount !== price) return res.status(409).json({ error: `The price is now ₹${price.toFixed(2)}. Search again.`, code: 'PRICE_CHANGED', price });
+    const r = await pipeline.run({ user: req.user, service: sv.call, target: offerId, amount: price, providerCall: (clientRef, route) => route.api.booking.book({ type, offerId, pax, amount: price, clientRef, spKey: route.spKey }) });
+    await db('bookings').insert({ retailer_id: req.user.id, type, pnr: r.provider.pnr || null, pax: JSON.stringify(pax), amount: price, status: r.status === 'pending' ? 'pending' : 'booked', provider_ref: r.reference, detail: JSON.stringify(req.body) });
+    await logTxn(req, `${type} booking`, { amount: price });
     return res.status(201).json({ receipt: { title: sv.title, target: r.provider.pnr || null, ...r } });
   } catch (e) { return next(e); }
 }

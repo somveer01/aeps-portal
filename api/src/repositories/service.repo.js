@@ -8,7 +8,7 @@ function withCategory() {
   return db(`${TABLE} as s`)
     .join('service_categories as c', 'c.id', 's.service_category_id')
     .select('s.id', 's.title', 's.code', 's.screen', 's.icon', 's.service_type', 's.is_active', 's.created_at', 's.service_category_id', 'c.name as category_name',
-      's.provider_commission_type', 's.provider_commission_value', 's.daily_limit');
+      's.provider_commission_type', 's.provider_commission_value', 's.daily_limit', 's.per_txn_limit');
 }
 
 module.exports = {
@@ -40,14 +40,15 @@ module.exports = {
     const hits = await Promise.all(['service_transactions', 'commission_ledger', 'admin_margins'].map((t) => db(t).where({ service_id: id }).first('id')));
     return hits.some(Boolean);
   },
-  create({ title, code = null, screen = null, serviceCategoryId, serviceType = 'internal', icon = null, isActive = true, providerCommissionType = 'percentage', providerCommissionValue = 0, dailyLimit = 0 }) {
+  create({ title, code = null, screen = null, serviceCategoryId, serviceType = 'internal', icon = null, isActive = true, providerCommissionType = 'percentage', providerCommissionValue = 0, dailyLimit = 0, perTxnLimit = 0 }) {
     return db(TABLE).insert({
       title, code, screen, service_category_id: serviceCategoryId, service_type: serviceType, icon, is_active: isActive,
-      provider_commission_type: providerCommissionType, provider_commission_value: providerCommissionValue, daily_limit: dailyLimit,
+      provider_commission_type: providerCommissionType, provider_commission_value: providerCommissionValue, daily_limit: dailyLimit, per_txn_limit: perTxnLimit,
     }).returning('id').then((r) => (typeof r[0] === 'object' ? r[0].id : r[0]));
   },
-  update(id, { title, code, screen, serviceCategoryId, serviceType, icon, isActive, providerCommissionType, providerCommissionValue, dailyLimit }) {
+  update(id, { title, code, screen, serviceCategoryId, serviceType, icon, isActive, providerCommissionType, providerCommissionValue, dailyLimit, perTxnLimit }) {
     const patch = { updated_at: db.fn.now() };
+    if (perTxnLimit !== undefined) patch.per_txn_limit = perTxnLimit;
     if (dailyLimit !== undefined) patch.daily_limit = dailyLimit;
     if (providerCommissionType !== undefined) patch.provider_commission_type = providerCommissionType;
     if (providerCommissionValue !== undefined) patch.provider_commission_value = providerCommissionValue;
