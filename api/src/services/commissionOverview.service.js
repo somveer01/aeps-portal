@@ -4,6 +4,7 @@ const db = require('../config/db');
 const { computeAmounts, rateOf, selectSlab, MAX_CHAIN_LEVELS } = require('./commission.service');
 const { operatorOptions } = require('./operatorOptions');
 const { round2 } = require('../utils/money');
+const { typeDepths } = require('../utils/typeTree');
 
 /*
  * Commission Overview (read only). For every service and operator: what the API pays the company, what each level of a sale chain is
@@ -22,15 +23,6 @@ const { round2 } = require('../utils/money');
  * parent but never change the total, so they are shown, not counted.
  */
 const lc = (v) => String(v == null ? '' : v).trim().toLowerCase();
-
-function typeDepths(types) {
-  const byId = new Map(types.map((t) => [t.id, t]));
-  return types.map((t) => {
-    let depth = 1; let p = t.parent_type_id; const seen = new Set([t.id]);
-    while (p && byId.has(p) && !seen.has(p)) { seen.add(p); depth += 1; p = byId.get(p).parent_type_id; }
-    return { id: t.id, name: t.name, parentTypeId: t.parent_type_id || null, depth };
-  });
-}
 
 // "3:7,4:9" -> Map(3 -> 7, 4 -> 9)
 function parsePlans(raw) {

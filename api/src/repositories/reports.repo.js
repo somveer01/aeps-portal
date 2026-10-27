@@ -3,6 +3,8 @@
 const db = require('../config/db');
 const { downlineIds } = require('./network.repo');
 const { applyGridFilters, applyGridSort, DATE_TEXT } = require('../utils/gridQuery');
+const { typeDepths } = require('../utils/typeTree');
+const { round2 } = require('../utils/money');
 
 // Common date + user filters (query aliased `x`, joined to users `u`).
 function applyCommon(qb, { startDate, endDate, userTypeId, userId }) {
@@ -297,6 +299,10 @@ module.exports = {
   },
 
   // Admin margin per successful transaction, plus totals over the whole filter.
+  // Admin margin rows + totals, and who was paid: `commission_paid` is the sum of the commission credits (commission + GST) of that
+  // transaction's commission_ledger entries, so each row carries its payees (`breakup`) and the amount per user type (`by_type`), and the
+  // result carries `breakup.types` = the types that were paid anything in the filtered result (top type level first) with their totals.
+  // Rows whose ledger entries are not linked to the transaction (very old data) show the difference as `unlinked`.
   async adminMargins(f) {
     const filter = (qb) => { applyCommon(qb, f); if (f.service) qb.where('x.service_name', f.service); };
     const page = await paginate(marginJoins, ['x.*', ...USER_COLS, 'ap.name as provider_name'], filter, f);
@@ -304,7 +310,35 @@ module.exports = {
       .sum({ amount: 'x.amount', provider_commission: 'x.provider_commission', charges_collected: 'x.charges_collected', commission_paid: 'x.commission_paid', margin: 'x.margin' })
       .first();
     const totals = Object.fromEntries(Object.entries(t || {}).map(([k, v]) => [k, Number(v || 0)]));
-    return { ...page, totals };
+
+    // Payees of the rows on this page.
+    const ids = page.rows.map((r) => r.service_transaction_id).filter(Boolean);
+    const payees = ids.length ? await db('commission_ledger as l').join('users as eu', 'eu.id', 'l.user_id').leftJoin('user_types as et', 'et.id', 'eu.user_type_id')
+      .whereIn('l.service_transaction_id', ids).where('l.wallet_txn_type', 'credit')
+      .select('l.service_transaction_id', 'l.user_id', 'l.level', 'l.net_amount', 'eu.user_code', 'eu.username', 'eu.full_name', 'eu.user_type_id', 'et.name as type_name')
+      .orderBy('l.level', 'desc') : [];
+    const byTxn = new Map();
+    payees.forEach((p) => {
+      const list = byTxn.get(p.service_transaction_id) || []; list.push(p); byTxn.set(p.service_transaction_id, list);
+    });
+    page.rows.forEach((r) => {
+      const list = byTxn.get(r.service_transaction_id) || [];
+      r.breakup = list.map((p) => ({ userId: p.user_id, userCode: p.user_code || p.username, name: p.full_name, typeId: p.user_type_id || 0, typeName: p.type_name || 'Other', level: p.level, amount: Number(p.net_amount) }));
+      r.by_type = {};
+      r.breakup.forEach((p) => { r.by_type[p.typeId] = round2((r.by_type[p.typeId] || 0) + p.amount); });
+      r.unlinked = round2(Number(r.commission_paid) - r.breakup.reduce((s, p) => s + p.amount, 0));
+    });
+
+    // Per type, over the whole filtered result (every page): which types were paid and how much.
+    const per = await marginJoins().where(filter).where((qb) => applyGridFilters(qb, f.grid))
+      .join('commission_ledger as cl', function joinLedger() { this.on('cl.service_transaction_id', '=', 'x.service_transaction_id').andOn('cl.wallet_txn_type', '=', db.raw('?', ['credit'])); })
+      .join('users as eu', 'eu.id', 'cl.user_id').leftJoin('user_types as et', 'et.id', 'eu.user_type_id')
+      .groupBy('eu.user_type_id', 'et.name').select('eu.user_type_id as type_id', 'et.name as type_name').sum({ total: 'cl.net_amount' });
+    const depth = new Map(typeDepths(await db('user_types').select('id', 'name', 'parent_type_id')).map((d) => [d.id, d.depth]));
+    const types = per.map((p) => ({ id: p.type_id || 0, name: p.type_name || 'Other', depth: depth.get(p.type_id) || 99, total: round2(Number(p.total || 0)) }))
+      .sort((a, b) => a.depth - b.depth || a.id - b.id);
+    const linked = types.reduce((s, x) => s + x.total, 0);
+    return { ...page, totals, breakup: { types, unlinked: round2(totals.commission_paid - linked) } };
   },
 
   fundRequestById(id) { return fundRequestJoins().select(FR_COLS).where('x.id', id).first(); },

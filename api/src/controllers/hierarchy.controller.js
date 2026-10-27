@@ -1,21 +1,12 @@
 'use strict';
 
 const db = require('../config/db');
+const { typeDepths } = require('../utils/typeTree');
 
 // Hierarchy Tree (admin): every managed user with the user it sits under, so the screen can draw Admin -> Super Distributor ->
 // Distributor -> Retailer, plus the User Type Master tree (types, their parent type and depth) that decides which parent a user may have
 // (the screen marks users that sit outside it). Read only. The tree and the counts are built by the screen from these flat lists.
 const MAX_ROWS = 20000;
-
-// Depth of every user type in the User Type tree: a type with no parent type = 1, its child types 2, ... (a loop in bad data stops).
-function typeDepths(types) {
-  const byId = new Map(types.map((t) => [t.id, t]));
-  return types.map((t) => {
-    let depth = 1; let p = t.parent_type_id; const seen = new Set([t.id]);
-    while (p && byId.has(p) && !seen.has(p)) { seen.add(p); depth += 1; p = byId.get(p).parent_type_id; }
-    return { id: t.id, name: t.name, parentTypeId: t.parent_type_id || null, depth };
-  });
-}
 
 // GET /api/hierarchy-tree
 async function tree(req, res, next) {
