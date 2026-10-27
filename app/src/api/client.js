@@ -198,6 +198,11 @@ export const api = {
 
   // Modules → Service Categories
   // Operator Master (admin): the operators the retailer screens, Commission Slots and SP Keys offer.
+  // Admin: per service / operator, the API's commission, what each level of a sale chain is paid and the margin (Commission Overview).
+  // params: amount, typeId (the type that did the sale), plans ('typeId:planId,...'). Slabs are edited with commissionSlots.update / create.
+  commissionOverview: {
+    get: (params = {}) => request(`/api/commission-overview?${qs(params)}`, { auth: true }),
+  },
   // Admin: every managed user with its parent (Hierarchy Tree).
   hierarchy: {
     tree: () => request('/api/hierarchy-tree', { auth: true }),

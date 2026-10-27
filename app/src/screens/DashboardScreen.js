@@ -10,6 +10,7 @@ import PlanMasterScreen from './PlanMasterScreen';
 import CommissionSlotScreen from './CommissionSlotScreen';
 import ApplicationBannerScreen from './ApplicationBannerScreen';
 import HierarchyTreeScreen from './HierarchyTreeScreen';
+import CommissionOverviewScreen from './CommissionOverviewScreen';
 import TicketDepartmentScreen from './TicketDepartmentScreen';
 import AnnouncementScreen from './AnnouncementScreen';
 import CompanyBankScreen from './CompanyBankScreen';
@@ -122,6 +123,8 @@ export default function DashboardScreen({ user, onLogout }) {
               <AnnouncementScreen />
             ) : active.route === '/company-banks' ? (
               <CompanyBankScreen />
+            ) : active.route === '/commission-overview' ? (
+              <CommissionOverviewScreen />
             ) : active.route === '/hierarchy-tree' ? (
               <HierarchyTreeScreen onOpenUser={(u) => { setOpenUser(u); core.open({ route: '/users-manager', title: 'Users Manager' }); }} />
             ) : active.route === '/users-manager' ? (
