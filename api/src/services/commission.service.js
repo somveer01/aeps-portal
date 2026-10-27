@@ -73,6 +73,31 @@ async function findSlab({ userTypeId, planId = null, serviceName, amount, operat
 }
 
 /**
+ * The same choice as findSlab, made in memory over slabs that are already loaded (read-only screens such as Commission Overview use it,
+ * so there is ONE statement of the rule outside the SQL). `slabs` = rows of commission_slots (of one service) with user_type_id, plan_id,
+ * operator, specific_user, min_amount, max_amount, chain_type, txn_type, is_active, id. Same filters (type, plan, amount range,
+ * operator / mode, specific user, chain-only, credit-only) and the same order (specific user, then operator, then the oldest).
+ * `txnType` ('credit' | 'debit') is an extra filter findSlab does not have. test/commissionoverview.test.js checks both give the same slab.
+ */
+function selectSlab(slabs, { userTypeId, planId = null, userCode = null, operator = null, mode = null, amount, chainOnly = false, creditOnly = false, txnType = null }) {
+  const norm = (v) => String(v == null ? '' : v).trim().toLowerCase();
+  const keys = [operator, mode].map(norm).filter(Boolean);
+  const code = norm(userCode);
+  const fits = slabs.filter((x) => x.is_active !== false
+    && x.user_type_id === userTypeId
+    && Number(x.min_amount) <= amount && Number(x.max_amount) >= amount
+    && (norm(x.operator) === '' || keys.includes(norm(x.operator)))
+    && (norm(x.specific_user) === '' || (code && norm(x.specific_user) === code))
+    && (!planId || x.plan_id === planId)
+    && (!chainOnly || x.chain_type === 'chain')
+    && (!creditOnly || x.txn_type === 'credit')
+    && (!txnType || x.txn_type === txnType));
+  fits.sort((a, b) => (norm(a.specific_user) !== '' ? 0 : 1) - (norm(b.specific_user) !== '' ? 0 : 1)
+    || (norm(a.operator) !== '' ? 0 : 1) - (norm(b.operator) !== '' ? 0 : 1) || a.id - b.id);
+  return fits[0] || null;
+}
+
+/**
  * Write one commission_ledger row for `userId`. Returns null when no slab matches.
  * `wallet.before` is the earner's balance before this payout; the caller credits the
  * wallet when walletTxnType is 'credit'.
@@ -294,7 +319,7 @@ async function recordAdminMargin({
 }
 
 module.exports = {
-  computeAmounts, findSlab, recordServiceCommission, recordAdminMargin, providerCommissionFor, rateOf, capShares,
+  computeAmounts, findSlab, selectSlab, recordServiceCommission, recordAdminMargin, providerCommissionFor, rateOf, capShares,
   packageItemFor, resolveShares, payUplines,
   DEFAULT_GST, DEFAULT_TDS, MAX_CHAIN_LEVELS,
 };

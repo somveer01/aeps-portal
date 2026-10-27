@@ -11,8 +11,9 @@ const PORT = 3898;
 const BASE = `http://localhost:${PORT}`;
 const TAG = `co${Date.now()}`;
 const idOf = (r) => (typeof r === 'object' ? r.id : r);
+const { findSlab, selectSlab } = require('../src/services/commission.service');
 let server; let A; let retailerToken; let catId; let sd; let d; let r; let planSd; let planD; let planR; let svcId; let mockId; let userId; let productId = null;
-const slots = [];
+const slots = []; const extraUsers = []; let pkgId = null; let uSd; let uD; let uR;
 
 const mkSlot = async (typeId, planId, o) => {
   const id = idOf((await db('commission_slots').insert({
@@ -53,9 +54,11 @@ before(async () => {
 });
 
 after(async () => {
+  if (pkgId) { await db('commission_package_items').where({ package_id: pkgId }).del(); await db('commission_packages').where({ id: pkgId }).del(); }
   if (productId) await db('provider_products').where({ id: productId }).del();
   await db('commission_slots').whereIn('id', slots).del();
   await db('users').where({ id: userId }).del();
+  for (const u of [...extraUsers].reverse()) await db('users').where({ id: u }).del();
   await db('services').where({ id: svcId }).del();
   await db('plans').whereIn('id', [planSd, planD, planR]).del();
   await db('user_types').whereIn('id', [r, d, sd]).del();
@@ -122,4 +125,99 @@ test('an upper type without a chain slab earns nothing and the row says so (gap)
 
 test('a bad sample amount is refused', async () => {
   for (const v of ['abc', '-5', '0', '1e3', '99999999999']) assert.equal((await get(`amount=${v}`)).s, 400, v);
+});
+
+// ── by user ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+const mkUser = async (key, typeId, planId, parentId, extra = {}) => {
+  const id = idOf((await db('users').insert({
+    username: `${TAG}${key}`, user_code: `${TAG}${key}`, password_hash: await bcrypt.hash('Test@1234', 4), mobile: '9000000000', full_name: `Chain ${key}`,
+    role: 'user', user_type_id: typeId, plan_id: planId, parent_id: parentId, kyc_status: 'verified', ...extra,
+  }).returning('id'))[0]);
+  extraUsers.push(id); return id;
+};
+const byUser = (id, q = '') => A.get(`/api/commission-overview?userId=${id}&${q}`);
+
+test('by user: the real chain above him (parent_id), each with his own plan, top first', async () => {
+  uSd = await mkUser('sd', sd, planSd, null);
+  uD = await mkUser('d', d, planD, uSd);
+  uR = await mkUser('r', r, planR, uD);
+  const b = (await byUser(uR)).b;
+  assert.equal(b.mode, 'user'); assert.equal(b.user.id, uR); assert.equal(b.user.typeName, `${TAG} R`);
+  assert.deepEqual(b.chain.map((c) => c.userId), [uSd, uD, uR]);
+  assert.deepEqual(b.chain.map((c) => c.planId), [planSd, planD, planR]);
+  const x = rowOf(b);
+  assert.deepEqual(x.cells.map((c) => c.net), [2.95, 5.9, 23.6], 'with no user-specific slab it is the type slabs');
+  assert.ok(x.cells.every((c) => c.scope === 'type'));
+  assert.equal(x.margin, -2.45);
+});
+
+test('by user: a slab written for one user beats the type slab; it is marked scope user; the others stay on the type slab', async () => {
+  await mkSlot(r, planR, { value: 1.5, chain_type: 'self', specific_user: `${TAG}r` });
+  const x = rowOf((await byUser(uR)).b);
+  assert.equal(x.cells[2].value, 1.5); assert.equal(x.cells[2].scope, 'user'); assert.equal(x.cells[2].specificUser, `${TAG}r`);
+  assert.equal(x.cells[2].net, 17.7); assert.equal(x.cells[2].userSlabs, 1);
+  assert.equal(x.cells[1].scope, 'type');
+  assert.equal(x.totalPaid, 26.55); assert.equal(x.margin, 3.45);
+  // by type the same slab is only counted, never applied
+  const t = rowOf((await get()).b);
+  assert.equal(t.cells[2].value, 2); assert.equal(t.cells[2].userSlabs, 1);
+});
+
+test('by user: what he earns on his downline\'s sales (his chain slab) is shown next to his own', async () => {
+  const x = rowOf((await byUser(uD)).b);
+  assert.equal(x.asUpline.value, 0.5); assert.equal(x.asUpline.chainType, 'chain');
+  const r2 = rowOf((await byUser(uR)).b);
+  assert.equal(r2.asUpline.slotId, null, 'a retailer with only a self slab earns nothing from a downline');
+});
+
+test('by user: the commission package a member holds is shown (not counted: packages never change the total)', async () => {
+  pkgId = idOf((await db('commission_packages').insert({ owner_user_id: uD, name: `${TAG} pkg`, user_type_id: r, is_active: true }).returning('id'))[0]);
+  await db('commission_package_items').insert({ package_id: pkgId, service_id: svcId, operator: '', commission_type: 'percentage', value: 1.2 });
+  await db('users').where({ id: uR }).update({ commission_package_id: pkgId });
+  const x = rowOf((await byUser(uR)).b);
+  assert.equal(x.cells[2].package.name, `${TAG} pkg`); assert.equal(x.cells[2].package.value, 1.2); assert.equal(x.cells[2].package.net, 14.16);
+  assert.equal(x.totalPaid, 26.55, 'the total is the slabs, packages only move share between levels');
+  assert.equal(x.cells[1].package, undefined);
+});
+
+test('by user: a user without a type, an unknown id and a bad id are refused', async () => {
+  assert.equal((await byUser(99999999)).s, 404);
+  assert.equal((await byUser('abc')).s, 400);
+  assert.equal((await byUser('-1')).s, 400);
+  const admin = await adminUser();
+  assert.equal((await byUser(admin.id)).s, 404, 'the admin is not a managed user');
+});
+
+test('selectSlab (in memory) picks the same slab as the engine\'s findSlab in every case', async () => {
+  const all = await db('commission_slots').where({ service_id: svcId });
+  const title = `${TAG} Recharge`;
+  const cases = [
+    { userTypeId: r, planId: planR, operator: null, amount: 1000 },
+    { userTypeId: r, planId: planR, operator: 'Jio', amount: 1000 },
+    { userTypeId: r, planId: planR, operator: 'jio', amount: 1000 },
+    { userTypeId: r, planId: planR, operator: 'Airtel', amount: 1000 },
+    { userTypeId: r, planId: planR, operator: null, amount: 1000, userCode: `${TAG}r` },
+    { userTypeId: r, planId: planR, operator: 'Jio', amount: 1000, userCode: `${TAG}r` },
+    { userTypeId: r, planId: planR, operator: null, amount: 1000, userCode: `${TAG}other` },
+    { userTypeId: r, planId: planR, operator: null, amount: 1000, chainOnly: true },
+    { userTypeId: d, planId: planD, operator: null, amount: 1000, chainOnly: true },
+    { userTypeId: d, planId: planD, operator: null, amount: 1000, chainOnly: true, creditOnly: true },
+    { userTypeId: sd, planId: planSd, operator: 'Jio', amount: 50, chainOnly: true },
+    { userTypeId: r, planId: planR, operator: null, amount: 500000 },
+    { userTypeId: r, planId: null, operator: null, amount: 1000 },
+    { userTypeId: r, planId: planD, operator: null, amount: 1000 },
+    { userTypeId: r, planId: planR, operator: null, mode: 'IMPS', amount: 1000 },
+  ];
+  for (const c of cases) {
+    const want = await findSlab({ ...c, serviceName: title });
+    const got = selectSlab(all, c);
+    assert.equal(got ? got.id : null, want ? want.id : null, JSON.stringify(c));
+  }
+});
+
+test('by user: a cell with his own slab also carries the type slab underneath (base), so the type one can be changed instead', async () => {
+  const x = rowOf((await byUser(uR)).b);
+  assert.equal(x.cells[2].scope, 'user');
+  assert.equal(x.cells[2].base.value, 2); assert.equal(x.cells[2].base.commissionType, 'percentage'); assert.ok(x.cells[2].base.slotId);
+  assert.equal(x.cells[1].base, undefined, 'only when his own slab is the one shown');
 });
