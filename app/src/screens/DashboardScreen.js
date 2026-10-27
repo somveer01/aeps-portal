@@ -9,6 +9,7 @@ import ServiceMasterScreen from './ServiceMasterScreen';
 import PlanMasterScreen from './PlanMasterScreen';
 import CommissionSlotScreen from './CommissionSlotScreen';
 import ApplicationBannerScreen from './ApplicationBannerScreen';
+import HierarchyTreeScreen from './HierarchyTreeScreen';
 import TicketDepartmentScreen from './TicketDepartmentScreen';
 import AnnouncementScreen from './AnnouncementScreen';
 import CompanyBankScreen from './CompanyBankScreen';
@@ -65,6 +66,7 @@ export default function DashboardScreen({ user, onLogout }) {
   const [announcements, setAnnouncements] = useState([]);
   const [balance, setBalance] = useState(null);
   const [dash, setDash] = useState(null);
+  const [openUser, setOpenUser] = useState(null); // set by the Hierarchy Tree: the user whose edit form Users Manager opens next
 
   useEffect(() => {
     // Active announcements shown as a banner on the dashboard.
@@ -120,8 +122,10 @@ export default function DashboardScreen({ user, onLogout }) {
               <AnnouncementScreen />
             ) : active.route === '/company-banks' ? (
               <CompanyBankScreen />
+            ) : active.route === '/hierarchy-tree' ? (
+              <HierarchyTreeScreen onOpenUser={(u) => { setOpenUser(u); core.open({ route: '/users-manager', title: 'Users Manager' }); }} />
             ) : active.route === '/users-manager' ? (
-              <UserManagerScreen onDone={refreshBalance} />
+              <UserManagerScreen onDone={refreshBalance} openUser={openUser} onOpened={() => setOpenUser(null)} />
             ) : active.route === '/account-history' ? (
               <AccountHistoryScreen />
             ) : active.route === '/service-report' ? (

@@ -198,6 +198,10 @@ export const api = {
 
   // Modules → Service Categories
   // Operator Master (admin): the operators the retailer screens, Commission Slots and SP Keys offer.
+  // Admin: every managed user with its parent (Hierarchy Tree).
+  hierarchy: {
+    tree: () => request('/api/hierarchy-tree', { auth: true }),
+  },
   operatorMaster: {
     list: (params = {}) => request(`/api/operator-master?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     groups: () => request('/api/operator-master/groups', { auth: true }),

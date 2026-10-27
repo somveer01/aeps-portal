@@ -21,6 +21,7 @@ const fundTransfer = require('../controllers/fundTransfer.controller');
 const verify = require('../controllers/verify.controller');
 const adminWallet = require('../controllers/adminWallet.controller');
 const operatorMaster = require('../controllers/operator.controller');
+const hierarchy = require('../controllers/hierarchy.controller');
 const dashboard = require('../controllers/dashboard.controller');
 const account = require('../controllers/account.controller');
 const retailer = require('../controllers/retailer.controller');
@@ -66,6 +67,7 @@ router.post('/settings/logo-colors', requireAdmin, settings.logoColors);
 
 // Modules → Service Categories (admin CRUD).
 // Operator Master (admin): the operators the retailer screens, Commission Slots and SP Keys offer.
+router.get('/hierarchy-tree', requireAdmin, hierarchy.tree);
 router.get('/operator-master', requireAdmin, operatorMaster.list);
 router.get('/operator-master/groups', requireAdmin, operatorMaster.groups);
 router.post('/operator-master', requireAdmin, operatorMaster.create);

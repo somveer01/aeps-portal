@@ -76,7 +76,7 @@ const EMPTY = {
 
 // network: the distributor / MD panel — same screen, limited to the caller's downline,
 // without the admin-only fields (KYC, service access, parent, employee, merchant, min balance).
-export default function UserManagerScreen({ network = false, onDone }) {
+export default function UserManagerScreen({ network = false, onDone, openUser = null, onOpened }) {
   const usersApi = network ? api.network.users : api.managedUsers;
   const [meId, setMeId] = useState(null); const [filterTypes, setFilterTypes] = useState([]); const [fundPin, setFundPin] = useState('');
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
@@ -222,6 +222,18 @@ export default function UserManagerScreen({ network = false, onDone }) {
   const parentIsAdmin = !network && !!selectedType.id && !selectedType.parent_type_id;
   const isEmployee = selectedTypeName.toLowerCase() === 'employee';
   const allServiceIds = services.map((s) => s.id);
+  // Opened from the Hierarchy Tree: jump straight to that user's edit form once the lists the form needs have loaded.
+  useEffect(() => {
+    if (!openUser || network || !userTypes.length) return undefined;
+    let live = true;
+    usersApi.list({ q: openUser.userCode, pageSize: 20 }).then((res) => {
+      const row = (res.rows || []).find((r) => r.id === openUser.id);
+      if (live && row) openEdit(row);
+      if (live && onOpened) onOpened();
+    }).catch(() => { if (live && onOpened) onOpened(); });
+    return () => { live = false; };
+    /* eslint-disable-next-line */
+  }, [openUser, userTypes.length]);
   const allModuleRoutes = modules.map((m) => m.route);
   const toggleAll = (key, allVals) => setF((p) => ({ ...p, [key]: (p[key] || []).length === allVals.length ? [] : [...allVals] }));
 
