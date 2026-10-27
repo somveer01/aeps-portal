@@ -12,7 +12,7 @@ exports.up = async function up(knex) {
   if (!group) return;
   if (await knex('menu_items').where({ scope: SCOPE, route: ROUTE }).first('id')) return;
   const last = await knex('menu_items').where({ parent_id: group.id }).max('sort_order as m').first();
-  await knex('menu_items').insert({ parent_id: group.id, title: 'Hierarchy Tree', icon: 'layers', route: ROUTE, scope: SCOPE, sort_order: Number(last.m || 0) + 1, is_active: true });
+  await knex('menu_items').insert({ parent_id: group.id, title: 'Users Hierarchy Tree', icon: 'layers', route: ROUTE, scope: SCOPE, sort_order: Number(last.m || 0) + 1, is_active: true });
 };
 
 exports.down = async function down(knex) {

@@ -98,7 +98,7 @@ export default function HierarchyTreeScreen({ onOpenUser }) {
       <Card>
         <View style={st.head}>
           <View style={{ flexShrink: 1, flexBasis: 300, flexGrow: 1, gap: 4 }}>
-            <Text style={st.title}>Hierarchy Tree</Text>
+            <Text style={st.title}>Users Hierarchy Tree</Text>
             <Text style={st.sub}>Who sits under whom. Tap the arrow to open or close a team. Double-click a user to open the edit form. Use Copy to copy a user ID (it is also the login ID).</Text>
           </View>
         </View>
