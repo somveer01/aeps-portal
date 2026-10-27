@@ -134,7 +134,7 @@ export default function DashboardScreen({ user, onLogout }) {
             ) : active.route === '/service-report' ? (
               <ServiceReportScreen />
             ) : active.route === '/fund-requests' ? (
-              <FundRequestScreen />
+              <FundRequestScreen onDone={refreshBalance} />
             ) : active.route === '/payout-banks' ? (
               <PayoutBankScreen />
             ) : active.route === '/fund-transfer' ? (

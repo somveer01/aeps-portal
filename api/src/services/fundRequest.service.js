@@ -2,15 +2,17 @@
 
 const db = require('../config/db');
 const wallet = require('./wallet.service');
+const adminWalletHistory = require('../repositories/adminWalletHistory.repo');
 const { round2, isMoneyAmount, toAmount } = require('../utils/money');
 
 /**
  * Fund requests. Any managed user (retailer, distributor, super distributor, employee) asks for wallet
  * balance after depositing into one of the COMPANY bank accounts (chosen on the request), and the ADMIN
- * approves every request (owner's decision, 2026-10-15): approval credits the requester's wallet - new
- * money into the system. Distributors no longer approve their users' requests (to move their own balance
- * down they use Fund Transfer). `act` keeps the old zero-sum branch only for a request that somehow still
- * names a non-admin approver; migration 20261015110000 moved the pending ones to the admin.
+ * approves every request (owner's decision, 2026-10-15). Since 2026-10-27 the ADMIN WALLET is the treasury (owner's decision): approval
+ * moves the amount from the approver's wallet to the requester's (debit + credit, both in the ledger; the admin's Admin Wallet history
+ * shows it too) and is refused with INSUFFICIENT_BALANCE when that wallet cannot cover it, so no wallet money appears from nowhere. The
+ * admin tops the wallet up with Add Fund when a deposit reaches the company bank. Distributors do not approve their users' requests (to
+ * move their own balance down they use Fund Transfer); `act` still handles a request that names a non-admin approver the same way.
  */
 const err = (status, code, message) => Object.assign(new Error(message), { status, code });
 const MODES = ['NEFT', 'IMPS', 'RTGS', 'UPI', 'Cash', 'Cheque'];
@@ -79,11 +81,16 @@ async function act(id, actor, { status, remark }) {
       // Lock requester then approver (child → parent, the order every money flow uses).
       const user = await trx('users').where({ id: fr.user_id }).forUpdate().first('wallet_balance', 'is_active');
       if (!user.is_active) throw err(400, 'USER_BLOCKED', 'This user is blocked');
-      if (actor.role !== 'admin') {
-        const myBefore = await wallet.lock(trx, actor.id);
-        if (myBefore < amount) throw err(400, 'INSUFFICIENT_BALANCE', `Your wallet has ₹${myBefore.toFixed(2)}; add balance before approving ₹${amount.toFixed(2)}`);
-        await wallet.debit(trx, { userId: actor.id, amount, service: 'Fund Request', remark: `Fund request ${fr.request_id} approved` });
+      // The approver's wallet pays - the Admin wallet is the treasury, so a credit to a user always comes out of a wallet and no wallet money
+      // is created from nothing. The Admin tops it up (Fund Management -> Add Fund) when the deposit reaches the company bank.
+      const admin = actor.role === 'admin';
+      const myBefore = await wallet.lock(trx, actor.id);
+      if (myBefore < amount) {
+        throw err(400, 'INSUFFICIENT_BALANCE', `${admin ? 'The Admin wallet' : 'Your wallet'} has ₹${myBefore.toFixed(2)}; add balance${admin ? ' (Fund Management → Add Fund)' : ''} before approving ₹${amount.toFixed(2)}`);
       }
+      const paid = await wallet.apply(trx, { userId: actor.id, type: 'debit', amount, service: 'Fund Request', remark: `Fund request ${fr.request_id} approved` });
+      // The Admin Wallet screen's own history must show every move of the admin wallet.
+      if (admin) await adminWalletHistory.record(trx, { adminId: actor.id, type: 'debit', amount, remark: `Fund request ${fr.request_id} approved`, before: paid.before, after: paid.after });
       await wallet.credit(trx, { userId: fr.user_id, amount, service: 'Fund Request', remark: `Fund request ${fr.request_id} approved` });
     }
     await trx('fund_requests').where({ id }).update({ status, admin_remark: note, acted_by: actor.id, acted_at: trx.fn.now(), updated_at: trx.fn.now() });

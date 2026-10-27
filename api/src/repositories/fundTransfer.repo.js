@@ -3,6 +3,7 @@
 const db = require('../config/db');
 const { applyGridFilters, applyGridSortFirst, DATE_COL } = require('../utils/gridQuery');
 const wallet = require('../services/wallet.service');
+const adminWalletHistory = require('./adminWalletHistory.repo');
 const { round2 } = require('../utils/money');
 
 // Sortable / filterable grid columns (keys = the app's DataGrid column keys).
@@ -90,10 +91,10 @@ module.exports = {
         });
         // The admin's own Wallet History (Admin Wallet screen) must show every move of the admin wallet, not only the manual top-ups.
         if (sender.role === 'admin') {
-          await trx('admin_wallet_transactions').insert({
-            admin_id: fromUserId, amount, txn_type: transferType === 'debit' ? 'credit' : 'debit',
+          await adminWalletHistory.record(trx, {
+            adminId: fromUserId, amount, type: transferType === 'debit' ? 'credit' : 'debit',
             remark: remark || `Fund ${transferType === 'debit' ? 'taken back from' : 'sent to'} ${receiver.full_name}`,
-            before_balance: sent.before, updated_balance: sent.after,
+            before: sent.before, after: sent.after,
           });
         }
       }

@@ -4,6 +4,7 @@ const { parseGrid, applyGridFilters, applyGridSortFirst, DATE_COL } = require('.
 const db = require('../config/db');
 const audit = require('../repositories/audit.repo');
 const wallet = require('../services/wallet.service');
+const adminWalletHistory = require('../repositories/adminWalletHistory.repo');
 const { isMoneyAmount, toAmount } = require('../utils/money');
 
 const clean = (v) => String(v || '').trim();
@@ -64,11 +65,8 @@ async function add(req, res, next) {
       if (txnType === 'debit' && (await wallet.lock(trx, req.user.id)) < amount) return { ok: false, error: 'Insufficient wallet balance for debit' };
       // The wallet service also writes the Account History row, so the admin wallet's balances chain with every other move.
       const w = await wallet.apply(trx, { userId: req.user.id, type: txnType, amount, service: 'Admin Wallet', remark });
-      const [row] = await trx('admin_wallet_transactions').insert({
-        admin_id: req.user.id, amount, txn_type: txnType, remark,
-        before_balance: w.before, updated_balance: w.after,
-      }).returning('id');
-      return { ok: true, id: typeof row === 'object' ? row.id : row, balance: w.after };
+      const id = await adminWalletHistory.record(trx, { adminId: req.user.id, type: txnType, amount, remark, before: w.before, after: w.after });
+      return { ok: true, id, balance: w.after };
     });
     if (!result.ok) return res.status(400).json({ error: result.error, code: 'ADD_FAILED' });
     await audit.log({ userId: req.user.id, username: req.user.username, event: 'admin_wallet_adjust', detail: { amount, txnType, balance: result.balance }, ip: req.ip, userAgent: req.get('user-agent') });

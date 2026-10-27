@@ -73,7 +73,11 @@ For quick one-offs you can still write an ad-hoc in-process script to the scratc
   parent must be of a type above the new user's type (`PARENT_TYPE_MISMATCH`); types with no parent type always sit under
   the admin. **Fund requests always go to the ADMIN** (owner's decision 2026-10-15, `services/fundRequest.service.js`
   `approverFor`): every managed user picks an active company bank on the request (required, `INVALID_BANK`), the admin
-  approves in Fund Requests and the requester's wallet is credited (new money; no wallet is debited). Distributors no
+  approves in Fund Requests and the amount moves **out of the ADMIN WALLET into the requester's wallet** (owner's decision 2026-10-27: the
+  Admin wallet is the treasury, no wallet money is created from nothing; debit + credit both in the ledger, the admin's Admin Wallet history
+  row via `repositories/adminWalletHistory.repo.js`; refused with `400 INSUFFICIENT_BALANCE` when the Admin wallet cannot cover it - the
+  admin tops it up with Fund Management -> Add Fund when the deposit reaches the company bank). Commission credits, refunds and the sale /
+  service-charge debits still move wallet money outside the Admin wallet, as before. Distributors no
   longer approve their users' requests - "My Network -> Fund Requests" is hidden and old pending ones were handed to the
   admin (`20261015110000_fund_requests_admin_only.js`); they move their own balance down with Fund Transfer.
 - **Changing a user's type or parent** (admin, `PUT /api/users/:id`, preview `GET /api/users/:id/change-impact`): the

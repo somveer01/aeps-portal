@@ -1,19 +1,23 @@
 'use strict';
 
-// Fund requests: every managed user picks a company bank and the ADMIN approves all of them (2026-10-15 rule).
+// Fund requests: every managed user picks a company bank and the ADMIN approves all of them (2026-10-15 rule). Since 2026-10-27 an approval is paid
+// out of the ADMIN WALLET (the treasury): debit the admin, credit the requester, refused when the admin wallet cannot cover it.
 // Throwaway user types, users and company bank, removed afterwards.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const bcrypt = require('bcryptjs');
 const { db, startServer, api, signFor, adminUser } = require('./helper');
+const wallet = require('../src/services/wallet.service');
+const { round2 } = require('../src/utils/money');
 
 const PORT = 3899;
 const BASE = `http://localhost:${PORT}`;
 const TAG = `fr${Date.now()}`;
 const PIN = 'Test@1234';
-let server; let admin; let bankId; let offBankId;
+let server; let admin; let bankId; let offBankId; let adminStart;
 const types = {}; const users = {};
 const tok = async (key) => signFor(key === 'ADMIN' ? await adminUser() : await db('users').where({ id: users[key].id }).first());
+const adminBal = async () => Number((await db('users').where({ id: admin.id }).first('wallet_balance')).wallet_balance);
 const bal = async (key) => Number((await db('users').where({ id: users[key].id }).first('wallet_balance')).wallet_balance);
 const today = () => new Date().toISOString().slice(0, 10);
 let seq = 0;
@@ -36,6 +40,8 @@ async function mkUser(key, typeKey, wallet, creatorId) {
 before(async () => {
   server = await startServer(PORT);
   admin = await adminUser();
+  adminStart = Number(admin.wallet_balance);
+  await db.transaction((trx) => wallet.credit(trx, { userId: admin.id, amount: 1000, service: 'Admin Wallet', remark: `${TAG} topup` }));
   const bank = (b) => ({ bank_name: `${TAG} Bank ${b}`, account_holder: 'Test Company', account_no: `00000000${b}`, ifsc_code: 'TEST0000001' });
   bankId = idOf((await db('company_banks').insert({ ...bank(1), is_active: true }).returning('id'))[0]);
   offBankId = idOf((await db('company_banks').insert({ ...bank(2), is_active: false }).returning('id'))[0]);
@@ -47,6 +53,13 @@ before(async () => {
 
 after(async () => {
   const ids = Object.values(users).map((u) => u.id);
+  // The admin wallet goes back to what it was (through the wallet service), then the admin rows this file wrote are removed: the last
+  // row left is the one from before this file, so the admin's ledger still matches its balance.
+  const diff = round2((await adminBal()) - adminStart);
+  if (diff !== 0) await db.transaction((trx) => wallet.apply(trx, { userId: admin.id, type: diff > 0 ? 'debit' : 'credit', amount: Math.abs(diff), service: 'Admin Wallet', remark: `${TAG} restore` }));
+  const remarks = (await db('fund_requests').whereIn('user_id', ids).pluck('request_id')).map((r) => `Fund request ${r} approved`);
+  await db('account_transactions').where({ user_id: admin.id }).where((w) => w.where('remark', 'like', `${TAG}%`).orWhereIn('remark', remarks)).del();
+  await db('admin_wallet_transactions').where({ admin_id: admin.id }).whereIn('remark', remarks).del();
   await db('fund_requests').whereIn('user_id', ids).del();
   await db('account_transactions').whereIn('user_id', ids).del();
   await db('audit_log').whereIn('user_id', ids).del();
@@ -85,12 +98,12 @@ test('a retailer made by a distributor still sends the request to the admin and 
   assert.equal((await api(BASE, r).get('/api/my/fund-requests')).b.total, 2);
 });
 
-test('only the admin acts: the distributor who created the retailer cannot; approval is new money from the company bank', async () => {
+test('only the admin acts: the distributor who created the retailer cannot; approval is paid out of the Admin wallet', async () => {
   const dList = await api(BASE, await tok('D')).get('/api/network/fund-requests?status=pending');
   assert.ok(!(dList.b.rows || []).some((x) => x.id === users.R.req), 'the distributor no longer sees it to approve');
   assert.equal((await api(BASE, await tok('D')).put(`/api/network/fund-requests/${users.R.req}`, { status: 'approved', transactionPassword: PIN })).b.code, 'NOT_APPROVER');
 
-  const adminBefore = Number((await adminUser()).wallet_balance);
+  const adminBefore = await adminBal();
   const dBefore = await bal('D');
   const ok = await api(BASE, await tok('ADMIN')).put(`/api/fund-requests/${users.R.req}`, { status: 'approved', adminRemark: 'Seen in bank' });
   assert.equal(ok.s, 200);
@@ -98,8 +111,38 @@ test('only the admin acts: the distributor who created the retailer cannot; appr
   assert.equal(ok.b.row.acted_by, admin.id);
   assert.equal(await bal('R'), 200);
   assert.equal(await bal('D'), dBefore, 'the distributor\'s wallet is not touched');
-  assert.equal(Number((await adminUser()).wallet_balance), adminBefore, 'a deposit into a company bank is new money, not taken from the admin wallet');
+  assert.equal(await adminBal(), adminBefore - 200, 'the amount comes out of the Admin wallet: no wallet money is created');
+  // both sides are in the ledger and the Admin Wallet screen history shows the debit
+  const led = await db('account_transactions').where({ user_id: admin.id, service_name: 'Fund Request', type: 'debit' }).orderBy('id', 'desc').first();
+  assert.equal(Number(led.amount), 200); assert.equal(Number(led.before_balance), adminBefore); assert.equal(Number(led.updated_balance), adminBefore - 200);
+  const hist = await db('admin_wallet_transactions').where({ admin_id: admin.id, txn_type: 'debit' }).orderBy('id', 'desc').first();
+  assert.match(hist.remark, /^Fund request .* approved$/); assert.equal(Number(hist.amount), 200); assert.equal(Number(hist.updated_balance), adminBefore - 200);
+  const credit = await db('account_transactions').where({ user_id: users.R.id, service_name: 'Fund Request', type: 'credit' }).first();
+  assert.equal(Number(credit.amount), 200);
   assert.equal((await api(BASE, await tok('ADMIN')).put(`/api/fund-requests/${users.R.req}`, { status: 'approved' })).b.code, 'ALREADY_PROCESSED');
+});
+
+test('an approval the Admin wallet cannot cover is refused (INSUFFICIENT_BALANCE): nothing moves and the request stays pending; a rejection moves nothing', async () => {
+  const have = await adminBal();
+  const amount = Math.ceil(have) + 500;
+  const made = await api(BASE, await tok('R')).post('/api/my/fund-requests', req({ amount, utr: 'UTRNOCOVER01' }));
+  assert.equal(made.s, 201, JSON.stringify(made.b));
+  const rBefore = await bal('R');
+  const refused = await api(BASE, await tok('ADMIN')).put(`/api/fund-requests/${made.b.row.id}`, { status: 'approved' });
+  assert.equal(refused.s, 400); assert.equal(refused.b.code, 'INSUFFICIENT_BALANCE');
+  assert.match(refused.b.error, /Admin wallet/); assert.match(refused.b.error, /Add Fund/);
+  assert.equal(await adminBal(), have, 'the Admin wallet is untouched'); assert.equal(await bal('R'), rBefore, 'nothing credited');
+  assert.equal((await db('fund_requests').where({ id: made.b.row.id }).first('status')).status, 'pending');
+  const rej = await api(BASE, await tok('ADMIN')).put(`/api/fund-requests/${made.b.row.id}`, { status: 'rejected', adminRemark: 'no cover' });
+  assert.equal(rej.s, 200); assert.equal(await adminBal(), have); assert.equal(await bal('R'), rBefore);
+});
+
+test('after topping the Admin wallet up, the same kind of approval goes through; the admin balance + the requester balance stay equal to before (moved, not created)', async () => {
+  const made = await api(BASE, await tok('R')).post('/api/my/fund-requests', req({ amount: 300, utr: 'UTRMOVE00001' }));
+  const sumBefore = round2((await adminBal()) + (await bal('R')));
+  const ok = await api(BASE, await tok('ADMIN')).put(`/api/fund-requests/${made.b.row.id}`, { status: 'approved' });
+  assert.equal(ok.s, 200, JSON.stringify(ok.b));
+  assert.equal(round2((await adminBal()) + (await bal('R'))), sumBefore, 'what leaves the Admin wallet arrives in the requester\'s wallet');
 });
 
 test('distributors and super distributors also go to the admin; a rejected UTR can be reused', async () => {

@@ -33,6 +33,7 @@ export default function FundRequestScreen({ mode = 'admin', onDone }) {
   const [ff, setFf] = useState({ startDate: '', endDate: '', userTypeId: '', userId: '', status: '' });
   const [applied, setApplied] = useState({});
   const [act, setAct] = useState(null); const [actStatus, setActStatus] = useState('approved'); const [adminRemark, setAdminRemark] = useState(''); const [actPin, setActPin] = useState(''); const [acting, setActing] = useState(false); const [actError, setActError] = useState(null);
+  const [adminBal, setAdminBal] = useState(null); // admin mode: the Admin wallet the approval is paid from
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
   const [sort, setSort] = useState(null); const [colFilters, setColFilters] = useState({}); // DataGrid
 
@@ -63,7 +64,10 @@ export default function FundRequestScreen({ mode = 'admin', onDone }) {
 
   // The admin sees every request but approves only those whose approver is the admin.
   const canAct = (r) => r.status === 'pending' && (isNetwork || (!isMine && (r.approver_role === 'admin' || !r.approver_id)));
-  const openAct = (row) => { setAct(row); setActStatus('approved'); setAdminRemark(''); setActPin(''); setActError(null); };
+  const openAct = (row) => {
+    setAct(row); setActStatus('approved'); setAdminRemark(''); setActPin(''); setActError(null); setAdminBal(null);
+    if (!isNetwork) api.adminWallet.balance().then((r) => setAdminBal(Number(r.balance))).catch(() => {});
+  };
   const submitAct = async () => {
     if (isNetwork && actStatus === 'approved' && !actPin) { setActError('Enter your transaction PIN or login password.'); return; }
     setActing(true); setActError(null);
@@ -154,8 +158,11 @@ export default function FundRequestScreen({ mode = 'admin', onDone }) {
             {isNetwork && actStatus === 'approved' ? (
               <TextInput value={actPin} onChangeText={setActPin} secureTextEntry placeholder="Transaction PIN / login password" placeholderTextColor={colors.muted} style={styles.input} />
             ) : null}
+            {!isNetwork && actStatus === 'approved' && adminBal !== null && adminBal < Number(act?.amount) ? (
+              <Alert type="error">The Admin wallet has only {money(adminBal)}. Add balance first (Fund Management → Add Fund), then approve.</Alert>
+            ) : null}
             {actStatus === 'approved' ? (
-              <Text style={styles.sub}>{isNetwork ? `Approving moves ${money(act?.amount)} from your wallet to ${act?.user_code}.` : `Approving credits ${money(act?.amount)} to the user's wallet.`}</Text>
+              <Text style={styles.sub}>{isNetwork ? `Approving moves ${money(act?.amount)} from your wallet to ${act?.user_code}.` : `Approving moves ${money(act?.amount)} from the Admin wallet${adminBal === null ? '' : ` (${money(adminBal)})`} to the user's wallet.`}</Text>
             ) : null}
             <View style={styles.modalActions}>
               <Button title="Cancel" variant="ghost" onPress={() => setAct(null)} style={{ flex: 1 }} />
