@@ -16,7 +16,7 @@ export default function RetailerDashboard({ onOpen }) {
   const [net, setNet] = useState(null); // downline summary (only for distributor / super distributor)
   useEffect(() => {
     api.retailer.summary().then(setSummary).catch(() => {});
-    api.retailer.catalogue().then((c) => setTiles([...(c.b2b || []), ...(c.online || [])])).catch(() => setTiles([]));
+    api.retailer.catalogue().then((c) => setTiles(c.tiles || [...(c.b2b || []), ...(c.online || [])])).catch(() => setTiles([]));
     api.retailer.serviceStats().then((r) => setStats(r.rows || [])).catch(() => {});
     // Network users (with downline) get an extra section; retailers get 403 → stays null.
     api.network.summary().then(setNet).catch(() => setNet(null));

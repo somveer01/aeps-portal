@@ -131,7 +131,8 @@ async function serviceStats(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-// GET /api/services/catalogue  (B2B + Online tiles) - built from SERVICE MASTER: every switched-on service that has a Retailer screen
+// GET /api/services/catalogue  (`tiles` = every tile in one list, no tabs; `b2b` / `online` = the same tiles by their screen's group, kept for
+// the dashboards) - built from SERVICE MASTER: every switched-on service that has a Retailer screen
 // (services.screen, see services/retailerScreens.js) the user may use (Service Permissions). The title comes from the Master, the icon and
 // the tab from the screen. The main service of a screen (code = screen key) opens /services/<screen>; any further service on the same
 // screen adds ?service=<code>. Fund Request is always shown (it is also in the sidebar).
@@ -140,17 +141,20 @@ async function catalogue(req, res, next) {
     const allowed = await permission.allowedServiceIds(req.user.id);
     const rows = await db('services').where({ is_active: true }).whereNotNull('screen').where('screen', '<>', '').orderBy('id').select('id', 'title', 'code', 'screen');
     const out = { b2b: [], online: [] };
+    const tiles = []; // every tile, one flat list in Service Master order - the app shows them with no tabs
     rows.forEach((s) => {
       const sc = retailerScreens.SCREENS[s.screen];
       if (!sc || !allowed.has(s.id)) return;
       const main = !s.code || s.code === s.screen;
-      out[sc.group].push({
+      const tile = {
         key: s.code || `s${s.id}`, title: s.title, icon: sc.icon, screen: s.screen, service: s.code || null,
         route: `/services/${s.screen}${main ? '' : `?service=${s.code}`}`,
-      });
+      };
+      out[sc.group].push(tile); tiles.push(tile);
     });
-    out.b2b.push({ key: 'fund-request', title: 'Fund Request', icon: 'fund', screen: 'fund-request', service: null, route: '/services/fund-request' });
-    return res.json(out);
+    const fundRequest = { key: 'fund-request', title: 'Fund Request', icon: 'fund', screen: 'fund-request', service: null, route: '/services/fund-request' };
+    out.b2b.push(fundRequest); tiles.push(fundRequest);
+    return res.json({ ...out, tiles });
   } catch (e) { return next(e); }
 }
 

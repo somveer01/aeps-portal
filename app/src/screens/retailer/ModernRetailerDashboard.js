@@ -28,7 +28,7 @@ export default function ModernRetailerDashboard({ onOpen }) {
   useEffect(() => { load(applied); }, [applied, load]);
   useEffect(() => {
     api.retailer.summary().then(setSummary).catch(() => {});
-    api.retailer.catalogue().then((c) => setTiles([...(c.b2b || []), ...(c.online || [])])).catch(() => setTiles([]));
+    api.retailer.catalogue().then((c) => setTiles(c.tiles || [...(c.b2b || []), ...(c.online || [])])).catch(() => setTiles([]));
     api.network.summary().then(setNet).catch(() => setNet(null)); // a retailer gets 403 -> stays null
   }, []);
 

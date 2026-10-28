@@ -147,3 +147,15 @@ test('the code is locked once the service has history; an unused service can sti
   const changed = await A.put(`/api/services/${fresh.id}`, { code: `${TAG.toLowerCase()}-fresh-2` });
   assert.equal(changed.s, 200); assert.equal(changed.b.row.code, `${TAG.toLowerCase()}-fresh-2`);
 });
+
+test('the catalogue also carries ONE flat list of tiles (no tabs): every B2B and Online tile, in Service Master order, Fund Request last', async () => {
+  const c = (await R.get('/api/services/catalogue')).b;
+  assert.ok(Array.isArray(c.tiles));
+  const grouped = [...c.b2b, ...c.online].map((t) => t.key).sort();
+  assert.deepEqual(c.tiles.map((t) => t.key).sort(), grouped, 'the same tiles, nothing lost or added');
+  assert.equal(c.tiles[c.tiles.length - 1].key, 'fund-request');
+  const order = (await db('services').whereIn('screen', ['mobile-recharge', 'bus']).orderBy('id').select('code')).map((s) => s.code);
+  const keys = c.tiles.map((t) => t.key);
+  const idx = order.map((code) => keys.indexOf(code)).filter((i) => i >= 0);
+  assert.deepEqual(idx, [...idx].sort((a, b) => a - b), 'a B2B and an Online tile sit together in service order, not grouped by tab');
+});
