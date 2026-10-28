@@ -27,7 +27,7 @@ export default function AppShell({ panel, core, header, profileBlock, accountMen
   const sidebar = modern ? (
     <ModernSidebar
       menu={menu} active={active} expanded={expanded} collapsed={isWide && collapsed} drawer={!isWide}
-      onToggle={core.toggleGroup} onSelect={onSelect} onSearchSelect={onSearchSelect}
+      onToggle={core.toggleGroup} onSelect={onSelect} onSearchSelect={onSearchSelect} showSearch={!isWide}
       onExpandBar={(id) => { setCollapsed(false); core.expandGroups([id]); }}
     />
   ) : (
@@ -54,7 +54,7 @@ export default function AppShell({ panel, core, header, profileBlock, accountMen
             isWide={isWide} onToggle={() => (isWide ? setCollapsed((c) => !c) : setDrawerOpen(true))}
             appName={core.appName} balanceText={header.balanceText} onWallet={header.onWallet} onSettings={header.onSettings}
             name={header.name} role={header.role} photo={header.photo} onUser={header.onUser}
-            menu={menu} onSearchSelect={onSearchSelect} showSearch={isWide && collapsed}
+            menu={menu} onSearchSelect={onSearchSelect} showSearch={isWide}
           />
         ) : (
           <ClassicHeader

@@ -63,7 +63,7 @@ function Item({ node, index, active, expanded, onToggle, onSelect, collapsed, on
 
 const glow = (tone) => ({ boxShadow: `0 0 0 3px ${rgba(tone, 0.28)}`, shadowColor: tone, shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 });
 
-export default function ModernSidebar({ menu, active, expanded, onToggle, onSelect, onSearchSelect, collapsed = false, drawer = false, onExpandBar }) {
+export default function ModernSidebar({ menu, active, expanded, onToggle, onSelect, onSearchSelect, collapsed = false, drawer = false, onExpandBar, showSearch = true }) {
   const w = collapsed ? MODERN_SIDEBAR_COLLAPSED_W : MODERN_SIDEBAR_W;
   const scrollRef = useRef(null);
   // Web: a thin, always-visible scrollbar so it is obvious that a long menu scrolls (the native one was hidden).
@@ -77,7 +77,7 @@ export default function ModernSidebar({ menu, active, expanded, onToggle, onSele
       <View style={[styles.brand, collapsed && { paddingHorizontal: 0 }]}>
         <BrandLogo height={collapsed ? 36 : 38} maxWidth={w - 36} iconOnly={collapsed} />
       </View>
-      {!collapsed ? <View style={styles.search}><MenuSearch menu={menu} onSelect={onSearchSelect} variant="sidebar" /></View> : null}
+      {!collapsed && showSearch ? <View style={styles.search}><MenuSearch menu={menu} onSelect={onSearchSelect} variant="sidebar" /></View> : null}
       <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 8, paddingBottom: 24 }} showsVerticalScrollIndicator>
         {menu.map((node, i) => (
           <Item key={node.id} node={node} index={i} active={active} expanded={expanded} onToggle={onToggle} onSelect={onSelect} collapsed={collapsed} onExpandBar={onExpandBar} />
