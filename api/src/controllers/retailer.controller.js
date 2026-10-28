@@ -237,12 +237,14 @@ async function myCommissionSlab(req, res, next) {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
-    // Every slab of my type for services that are ON. Not limited by my own Service Permissions:
+    const me = await db('users').where({ id: req.user.id }).first('parent_id', 'user_type_id', 'commission_package_id', 'plan_id', 'user_code', 'username');
+    // The slabs that really apply to ME for services that are ON: of my plan, switched on, the type's slabs plus the ones written for me (never
+    // another user's), and my own slab instead of the type's where it covers it. Not limited by my own Service Permissions:
     // a distributor earns chain commission on its downline's transactions without using the service.
-    const { rows, total } = await commissionSlotRepo.slab({ userTypeId: req.user.userTypeId, serviceId: null, activeServicesOnly: true, grid: parseGrid(req.query, commissionSlotRepo.GRID), page, pageSize });
+    const forUser = { planId: me && me.plan_id, userCode: me && (me.user_code || me.username) };
+    const { rows, total } = await commissionSlotRepo.slab({ userTypeId: req.user.userTypeId, serviceId: null, activeServicesOnly: true, forUser, grid: parseGrid(req.query, commissionSlotRepo.GRID), page, pageSize });
     // A commission package from my direct parent replaces the admin rate on credit slabs
     // (the engine still caps it at what my parent earns).
-    const me = await db('users').where({ id: req.user.id }).first('parent_id', 'user_type_id', 'commission_package_id');
     const pkg = me && me.commission_package_id ? await db('commission_packages')
       .where({ id: me.commission_package_id, owner_user_id: me.parent_id, user_type_id: me.user_type_id, is_active: true }).first('id', 'name') : null;
     const items = pkg ? await db('commission_package_items').where({ package_id: pkg.id }).select('service_id', 'operator', 'commission_type', 'value') : [];

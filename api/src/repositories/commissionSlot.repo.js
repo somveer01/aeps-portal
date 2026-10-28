@@ -27,6 +27,32 @@ function joined() {
     );
 }
 
+// The slabs that apply to ONE user (his "My Commission Slab" view), as the engine would pick them: switched on, of his own plan (a user without
+// a plan matches any plan), generic or written for HIM - never another user's - and a generic slab is left out when his own slab of the same
+// service / operator / kind covers its whole amount range (his own beats it, as in a real sale). userCode = his login id.
+function applyUserView(qb, { planId, userCode }) {
+  const code = String(userCode || '').trim().toLowerCase();
+  qb.where('cs.is_active', true);
+  if (planId) qb.where('cs.plan_id', planId);
+  qb.where((w) => {
+    w.whereRaw("coalesce(trim(cs.specific_user), '') = ''");
+    if (code) w.orWhereRaw('lower(trim(cs.specific_user)) = ?', [code]);
+  });
+  if (code) {
+    qb.whereNot((w) => {
+      w.whereRaw("coalesce(trim(cs.specific_user), '') = ''").whereExists(function ownSlab() {
+        this.select(db.raw('1')).from(`${TABLE} as o`)
+          .whereRaw('o.id <> cs.id').where('o.is_active', true)
+          .whereRaw('o.user_type_id = cs.user_type_id AND o.service_id = cs.service_id AND o.plan_id = cs.plan_id')
+          .whereRaw("lower(trim(coalesce(o.operator, ''))) = lower(trim(coalesce(cs.operator, '')))")
+          .whereRaw('o.txn_type = cs.txn_type AND o.chain_type = cs.chain_type')
+          .whereRaw('lower(trim(o.specific_user)) = ?', [code])
+          .whereRaw('o.min_amount <= cs.min_amount AND o.max_amount >= cs.max_amount');
+      });
+    });
+  }
+}
+
 module.exports = {
   GRID,
   async list({ q = '', page = 1, pageSize = 10, grid = null } = {}) {
@@ -43,8 +69,10 @@ module.exports = {
     return { rows, total: Number(countRow.c) };
   },
   // Read-only "Commission Slab" listing filtered by user type + service.
-  async slab({ userTypeId = null, serviceId = null, activeServicesOnly = false, serviceIds = null, grid = null, page = 1, pageSize = 10 } = {}) {
+  // forUser = { planId, userCode } narrows the list to what applies to that one user (see applyUserView); the admin's own report leaves it off.
+  async slab({ userTypeId = null, serviceId = null, activeServicesOnly = false, serviceIds = null, forUser = null, grid = null, page = 1, pageSize = 10 } = {}) {
     const filter = (qb) => {
+      if (forUser) applyUserView(qb, forUser);
       if (activeServicesOnly) qb.where('s.is_active', true);
       if (serviceIds) qb.whereIn('cs.service_id', serviceIds);
       if (userTypeId) qb.where('cs.user_type_id', userTypeId);
