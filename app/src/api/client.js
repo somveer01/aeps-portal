@@ -333,7 +333,8 @@ export const api = {
   retailer: {
     summary: () => request('/api/retailer/summary', { auth: true }),
     dashboard: (params = {}) => request(`/api/retailer/dashboard?${qs(params)}`, { auth: true }),
-    reportServices: () => request('/api/retailer/report-services', { auth: true }),
+    // kind = the report ('serviceReport' | 'commission' | 'gst' | 'tds' | 'accountHistory'): the Service dropdown lists only what that report can show
+    reportServices: (kind) => request(`/api/retailer/report-services?${qs({ kind })}`, { auth: true }),
     serviceStats: (params = {}) => request(`/api/retailer/service-stats?${qs(params)}`, { auth: true }),
     catalogue: () => request('/api/services/catalogue', { auth: true }),
     operators: (params = {}) => request(`/api/operators?${qs(params)}`, { auth: true }),

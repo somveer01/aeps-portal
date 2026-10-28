@@ -66,14 +66,17 @@ export default function RetailerReportScreen({ kind }) {
   const [ff, setFf] = useState({ startDate: '', endDate: '', service: '', level: '', type: '', sourceUserId: '', branchChildId: '' }); const [applied, setApplied] = useState({});
   const [totals, setTotals] = useState(null); const [summary, setSummary] = useState(null); const [downline, setDownline] = useState([]);
   const [services, setServices] = useState([]); // the services in my own reports, for the Service filter
-  useEffect(() => { api.retailer.reportServices().then((r) => setServices(r.rows || [])).catch(() => setServices([])); }, []);
-  const svcOptions = [{ label: 'All Services', value: '' }, ...services.map((s) => ({ label: s, value: s }))];
+  useEffect(() => { api.retailer.reportServices(kind).then((r) => setServices(r.rows || [])).catch(() => setServices([])); }, [kind]);
+  // A Service Master service goes by its id (value 'id:<n>', labelled with its current title); a plain name only when it has no id.
+  const svcOptions = [{ label: 'All Services', value: '' }, ...services.map((s) => ({ label: s.name, value: s.id != null ? `id:${s.id}` : s.name }))];
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
   const grid = useGrid(); // DataGrid column sort + filters
 
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
-    try { const res = await cfg.fetch({ ...applied, ...grid.params, page: p, pageSize: PAGE }); setRows(res.rows); setTotal(res.total); setPage(res.page || p); setTotals(res.totals || null); }
+    const chosen = String(applied.service || '');
+    const scope = chosen.startsWith('id:') ? { service: '', serviceId: chosen.slice(3) } : {};
+    try { const res = await cfg.fetch({ ...applied, ...scope, ...grid.params, page: p, pageSize: PAGE }); setRows(res.rows); setTotal(res.total); setPage(res.page || p); setTotals(res.totals || null); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
     /* eslint-disable-next-line */
   }, [page, applied, kind, grid.sort, grid.filters]);

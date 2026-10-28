@@ -3,6 +3,7 @@
 const { parseGrid } = require('../utils/gridQuery');
 const db = require('../config/db');
 const permission = require('../services/servicePermission.service');
+const serviceGuard = require('../services/serviceGuard.service');
 const retailerScreens = require('../services/retailerScreens');
 const reportsRepo = require('../repositories/reports.repo');
 const commissionSlotRepo = require('../repositories/commissionSlot.repo');
@@ -24,6 +25,15 @@ function ownerFilters(req) {
     page: Math.max(1, parseInt(req.query.page, 10) || 1),
     pageSize: Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10)),
   };
+}
+
+// A service picked by id (Service Master): { serviceId, serviceNames } for the report filters; an unknown id matches nothing.
+async function serviceScope(req) {
+  const raw = String(req.query.serviceId || '');
+  if (!raw) return {};
+  const id = /^\d{1,9}$/.test(raw) ? parseInt(raw, 10) : 0;
+  const svc = id ? await db('services').where({ id }).first('id', 'title') : null;
+  return svc ? { serviceId: svc.id, serviceNames: serviceGuard.namesOf(svc) } : { serviceId: -1, serviceNames: [] };
 }
 
 // GET /api/retailer/summary
@@ -161,27 +171,52 @@ async function accountHistory(req, res, next) {
   try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.ACCOUNT_GRID) }; const r = await reportsRepo.accountTransactions(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
 async function serviceReport(req, res, next) {
-  try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.SERVICE_GRID) }; const r = await reportsRepo.serviceTransactions(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
+  try { const f = { ...ownerFilters(req), ...(await serviceScope(req)), grid: parseGrid(req.query, reportsRepo.SERVICE_GRID) }; const r = await reportsRepo.serviceTransactions(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
 async function gstReport(req, res, next) {
-  try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.COMMISSION_GRID) }; const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
+  try { const f = { ...ownerFilters(req), ...(await serviceScope(req)), grid: parseGrid(req.query, reportsRepo.COMMISSION_GRID) }; const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
 async function tdsReport(req, res, next) {
-  try { const f = { ...ownerFilters(req), grid: parseGrid(req.query, reportsRepo.COMMISSION_GRID) }; const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
+  try { const f = { ...ownerFilters(req), ...(await serviceScope(req)), grid: parseGrid(req.query, reportsRepo.COMMISSION_GRID) }; const r = await reportsRepo.commissionLedger(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); } catch (e) { return next(e); }
 }
-// GET /api/retailer/report-services — the services that appear in MY reports (own transactions, wallet history, commission earned),
-// for the "Service" filter of the Service / Commission / GST / TDS / history reports. Only the caller's own rows.
+// GET /api/retailer/report-services?kind= - the options of a report's Service dropdown: [{ id, name }].
+//   kind=serviceReport              -> the services in my service transactions
+//   kind=commission | gst | tds     -> the services I earned commission on (commission ledger)
+//   anything else (account history) -> every name in my history, plain names (the wallet history has no service id)
+// For the first two the name is the CURRENT title in Service Master and `id` is its id (the reports then filter by service_id, so a rename never
+// splits a service in two); a row with no id is matched to a service by its title / alias; a name that matches no service stays as a plain
+// name ({ id: null }) so old history of a removed service can still be reached. Only the caller's own rows, and only services that have some.
 async function reportServices(req, res, next) {
   try {
     const me = req.user.id;
-    const { rows } = await db.raw(
-      `SELECT DISTINCT name FROM (
-         SELECT service AS name FROM service_transactions WHERE user_id = ?
-         UNION SELECT service_name FROM commission_ledger WHERE user_id = ?
-         UNION SELECT service_name FROM account_transactions WHERE user_id = ?) s
-       WHERE name IS NOT NULL AND name <> '' ORDER BY name`, [me, me, me],
-    );
-    return res.json({ rows: rows.map((r) => r.name) });
+    const kind = String(req.query.kind || '');
+    const byId = ['serviceReport', 'commission', 'gst', 'tds'].includes(kind);
+    const lc = (v) => String(v || '').trim().toLowerCase();
+    const pairs = [];
+    const take = async (sql) => (await db.raw(sql, [me])).rows.forEach((r) => pairs.push({ id: r.id || null, name: r.name }));
+    if (kind === 'serviceReport') await take('SELECT DISTINCT service_id AS id, service AS name FROM service_transactions WHERE user_id = ?');
+    else if (byId) await take('SELECT DISTINCT service_id AS id, service_name AS name FROM commission_ledger WHERE user_id = ?');
+    else {
+      await take('SELECT DISTINCT NULL::int AS id, service AS name FROM service_transactions WHERE user_id = ?');
+      await take('SELECT DISTINCT NULL::int AS id, service_name AS name FROM commission_ledger WHERE user_id = ?');
+      await take('SELECT DISTINCT NULL::int AS id, service_name AS name FROM account_transactions WHERE user_id = ?');
+    }
+    let rows;
+    if (!byId) {
+      rows = [...new Set(pairs.map((p) => p.name).filter(Boolean))].map((name) => ({ id: null, name }));
+    } else {
+      const svcs = await db('services').select('id', 'title');
+      const ids = new Map(svcs.map((x) => [x.id, x]));
+      const names = new Map(); svcs.forEach((x) => serviceGuard.namesOf(x).forEach((n) => names.set(n, x)));
+      const found = new Map(); const loose = new Set();
+      pairs.forEach((p) => {
+        const svc = (p.id && ids.get(p.id)) || names.get(lc(p.name));
+        if (svc) found.set(svc.id, { id: svc.id, name: svc.title }); else if (p.name) loose.add(p.name);
+      });
+      rows = [...found.values(), ...[...loose].map((name) => ({ id: null, name }))];
+    }
+    rows.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    return res.json({ rows });
   } catch (e) { return next(e); }
 }
 
@@ -204,7 +239,7 @@ async function commissionReport(req, res, next) {
     if (sourceUserId && sourceUserId !== me && !(await networkRepo.levelOf(me, sourceUserId))) return res.status(404).json({ error: 'User is not in your network', code: 'NOT_IN_NETWORK' });
     if (branchChildId && (await networkRepo.levelOf(me, branchChildId)) !== 1) return res.status(404).json({ error: 'Not one of your direct users', code: 'NOT_IN_NETWORK' });
     const f = {
-      ...ownerFilters(req), ...levelFilter(req.query.level), sourceUserId, branchChildId,
+      ...ownerFilters(req), ...(await serviceScope(req)), ...levelFilter(req.query.level), sourceUserId, branchChildId,
       txnType: ['credit', 'debit'].includes(req.query.type) ? req.query.type : null, viaFor: me,
       grid: parseGrid(req.query, reportsRepo.COMMISSION_GRID),
     };

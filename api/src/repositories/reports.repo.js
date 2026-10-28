@@ -75,13 +75,22 @@ const ledgerJoins = () => withUser('commission_ledger')()
   .leftJoin('user_types as sut', 'sut.id', 'su.user_type_id')
   .leftJoin('service_transactions as st', 'st.id', 'x.service_transaction_id');
 
+// A service chosen from Service Master: rows that carry its service_id, plus older rows with no service_id whose name is the service's
+// title or an alias (f.serviceNames, lower case). Without f.serviceId the plain name filter (f.service) applies, as before.
+function byService(qb, f, nameCol) {
+  if (f.serviceId) {
+    qb.where((w) => w.where('x.service_id', f.serviceId)
+      .orWhere((o) => o.whereNull('x.service_id').whereRaw(`lower(${nameCol}) = any(?)`, [f.serviceNames || []])));
+  } else if (f.service) qb.where(nameCol, f.service);
+}
+
 // Ledger filters. level: a number (0 = own transactions); fromDownline: level > 0 only;
 // sourceUserId: one downline user's transactions; branchChildId: that direct child and everyone
 // below it; txnType: 'credit' (commission earned) or 'debit' (service charge taken).
 function ledgerFilter(f) {
   return (qb) => {
     applyCommon(qb, f);
-    if (f.service) qb.where('x.service_name', f.service);
+    byService(qb, f, 'x.service_name');
     if (Number.isInteger(f.level)) qb.where('x.level', f.level);
     if (f.fromDownline) qb.where('x.level', '>', 0);
     if (f.sourceUserId) qb.where('x.source_user_id', f.sourceUserId);
@@ -233,7 +242,7 @@ module.exports = {
   // f.downlineOf: only transactions by users below that user (distributor / MD panel).
   serviceTransactions(f) {
     return paginate(withUser('service_transactions'), ['x.*', ...USER_COLS],
-      (qb) => { applyCommon(qb, f); if (f.downlineOf) qb.whereIn('x.user_id', downlineIds(f.downlineOf)); if (f.service) qb.where('x.service', f.service); if (f.status) qb.where('x.status', f.status); }, f);
+      (qb) => { applyCommon(qb, f); if (f.downlineOf) qb.whereIn('x.user_id', downlineIds(f.downlineOf)); byService(qb, f, 'x.service'); if (f.status) qb.where('x.status', f.status); }, f);
   },
 
   // f.approverId: requests this user must approve. f.ownerId: one user's own requests.
