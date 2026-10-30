@@ -28,8 +28,10 @@ async function paginate(joinsFn, cols, filterFn, { page = 1, pageSize = 10, grid
 // Sortable / filterable columns of each report grid (keys = the app's DataGrid column keys).
 const USER_TEXT = "concat_ws(' ', u.full_name, u.user_code, u.mobile, u.shop_name)";
 const DATE_COL = (col) => ({ sort: col, filter: DATE_TEXT(col) });
+// The statement reference of a wallet row: always there and unique, because it is built from the row's own id (AH + 9 digits).
+const ACCOUNT_TXN_ID = "('AH' || lpad(x.id::text, 9, '0'))";
 const ACCOUNT_GRID = {
-  service_name: 'x.service_name', type: 'x.type', remark: 'x.remark', amount: 'x.amount',
+  txn_id: { sort: 'x.id', filter: ACCOUNT_TXN_ID }, service_name: 'x.service_name', type: 'x.type', remark: 'x.remark', amount: 'x.amount',
   before_balance: 'x.before_balance', updated_balance: 'x.updated_balance',
   user: { sort: 'u.full_name', filter: USER_TEXT }, created_at: DATE_COL('x.created_at'),
 };
@@ -234,9 +236,23 @@ module.exports = {
     return { user: asNumbers(user), services: rows.map(asNumbers) };
   },
 
-  accountTransactions(f) {
-    return paginate(withUser('account_transactions'), ['x.*', ...USER_COLS],
-      (qb) => { applyCommon(qb, f); if (f.service) qb.where('x.service_name', f.service); if (f.type) qb.where('x.type', f.type); }, f);
+  // Wallet history = the account statement. Besides the page: totals (debit / credit over the WHOLE filter) and, when the filter is one user,
+  // the opening balance (before the oldest row) and closing balance (after the newest row).
+  async accountTransactions(f) {
+    const filter = (qb) => { applyCommon(qb, f); if (f.service) qb.where('x.service_name', f.service); if (f.type) qb.where('x.type', f.type); };
+    const cols = ['x.*', db.raw(`${ACCOUNT_TXN_ID} as txn_id`), ...USER_COLS];
+    const page = await paginate(withUser('account_transactions'), cols, filter, f);
+    const where = (qb) => { qb.where(filter); applyGridFilters(qb, f.grid); };
+    const t = await withUser('account_transactions')().where(where).first(
+      db.raw("coalesce(sum(x.amount) filter (where x.type = 'debit'), 0) as debit"),
+      db.raw("coalesce(sum(x.amount) filter (where x.type = 'credit'), 0) as credit"));
+    const totals = { debit: round2(Number(t.debit)), credit: round2(Number(t.credit)) };
+    if (f.userId && page.total > 0) {
+      const first = await withUser('account_transactions')().where(where).orderBy('x.created_at', 'asc').orderBy('x.id', 'asc').first('x.before_balance');
+      const last = await withUser('account_transactions')().where(where).orderBy('x.created_at', 'desc').orderBy('x.id', 'desc').first('x.updated_balance');
+      totals.opening = round2(Number(first.before_balance)); totals.closing = round2(Number(last.updated_balance));
+    }
+    return { ...page, totals };
   },
 
   // f.downlineOf: only transactions by users below that user (distributor / MD panel).

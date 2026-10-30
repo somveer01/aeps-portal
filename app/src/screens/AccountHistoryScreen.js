@@ -4,6 +4,7 @@ import { Card, Button, Alert, Select, DateField } from '../components/UI';
 import UserPicker from '../components/UserPicker';
 import { api } from '../api/client';
 import DataGrid, { gridParams } from '../components/DataGrid';
+import StatementBar from '../components/StatementBar';
 import { colors, radius } from '../theme';
 import { fmtDateTime } from '../utils/dateTime';
 
@@ -12,7 +13,7 @@ const TYPE_OPTIONS = [{ label: 'All', value: '' }, { label: 'Credit', value: 'cr
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
 
 export default function AccountHistoryScreen() {
-  const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
+  const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1); const [totals, setTotals] = useState(null);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(null);
   const [userTypes, setUserTypes] = useState([]); const [users, setUsers] = useState([]); const [services, setServices] = useState([]);
   const [ff, setFf] = useState({ startDate: '', endDate: '', userTypeId: '', userId: '', service: '', type: '' });
@@ -22,7 +23,7 @@ export default function AccountHistoryScreen() {
 
   const load = useCallback(async (p = page) => {
     setLoading(true); setError(null);
-    try { const res = await api.reports.accountHistory({ ...applied, ...gridParams(sort, colFilters), page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); }
+    try { const res = await api.reports.accountHistory({ ...applied, ...gridParams(sort, colFilters), page: p, pageSize: PAGE_SIZE }); setRows(res.rows); setTotal(res.total); setPage(res.page); setTotals(res.totals || null); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
   }, [page, applied, sort, colFilters]);
 
@@ -62,17 +63,16 @@ export default function AccountHistoryScreen() {
           rows={rows} loading={loading} emptyText="No transactions found."
           sort={sort} onSort={setSort} filters={colFilters} onFilter={setColFilters}
           columns={[
-            { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (r, i) => <Text style={styles.td}>{from + i}</Text> },
-            { key: 'service_name', title: 'Service Name', width: 150 },
-            { key: 'type', title: 'Type', width: 100, render: (r) => <Text style={{ color: r.type === 'debit' ? colors.danger : colors.success, fontWeight: '700', fontSize: 13, textTransform: 'capitalize' }}>{r.type}</Text> },
-            { key: 'remark', title: 'Remark', flex: 1, minWidth: 240, render: (r) => <Text style={styles.td} numberOfLines={3}>{r.remark || '—'}</Text> },
-            { key: 'amount', title: 'Amount', width: 115, render: (r) => <Text style={styles.td}>{money(r.amount)}</Text> },
-            { key: 'before_balance', title: 'Before Bal', width: 120, render: (r) => <Text style={styles.td}>{money(r.before_balance)}</Text> },
-            { key: 'updated_balance', title: 'Updated Bal', width: 120, render: (r) => <Text style={styles.td}>{money(r.updated_balance)}</Text> },
-            { key: 'user', title: 'Retailer Details', width: 190, render: (r) => <View><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code} · {r.user_mobile}</Text></View> },
             { key: 'created_at', title: 'Date', width: 175, render: (r) => <Text style={styles.td}>{fmtDateTime(r.created_at)}</Text> },
+            { key: 'txn_id', title: 'Txn Id', width: 135, render: (r) => <Text style={[styles.td, { fontFamily: 'monospace' }]}>{r.txn_id}</Text> },
+            { key: 'user', title: 'User', width: 190, render: (r) => <View><Text style={styles.td}>{r.user_name}</Text><Text style={styles.sub}>{r.user_code} · {r.user_mobile}</Text></View> },
+            { key: 'remark', title: 'Narration', flex: 1, minWidth: 240, render: (r) => <View><Text style={styles.td} numberOfLines={3}>{r.remark || '—'}</Text><Text style={styles.sub}>{r.service_name}</Text></View> },
+            { key: 'debit', title: 'Debit', width: 115, sortable: false, filterable: false, render: (r) => <Text style={[styles.td, { color: colors.danger, fontWeight: '700' }]}>{r.type === 'debit' ? money(r.amount) : ''}</Text> },
+            { key: 'credit', title: 'Credit', width: 115, sortable: false, filterable: false, render: (r) => <Text style={[styles.td, { color: colors.success, fontWeight: '700' }]}>{r.type === 'credit' ? money(r.amount) : ''}</Text> },
+            { key: 'updated_balance', title: 'Balance', width: 120, sortable: false, filterable: false, render: (r) => <Text style={[styles.td, { fontWeight: '700' }]}>{money(r.updated_balance)}</Text> },
           ]}
         />
+        <StatementBar totals={totals} withUser fetchPage={(p) => api.reports.accountHistory(p)} params={{ ...applied, ...gridParams(null, colFilters) }} />
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
     </View>

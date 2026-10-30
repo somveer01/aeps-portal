@@ -19,7 +19,7 @@ function filters(req) {
 }
 
 async function accountHistory(req, res, next) {
-  try { const f = { ...filters(req), grid: parseGrid(req.query, repo.ACCOUNT_GRID) }; const { rows, total } = await repo.accountTransactions(f); return res.json({ rows, total, page: f.page, pageSize: f.pageSize }); }
+  try { const f = { ...filters(req), grid: parseGrid(req.query, repo.ACCOUNT_GRID) }; const r = await repo.accountTransactions(f); return res.json({ ...r, page: f.page, pageSize: f.pageSize }); }
   catch (err) { return next(err); }
 }
 

@@ -3,7 +3,8 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Card, Button, Alert, DateField, Select } from '../../components/UI';
 import UserPicker from '../../components/UserPicker';
 import { api } from '../../api/client';
-import DataGrid, { useGrid, useGridReload } from '../../components/DataGrid';
+import DataGrid, { gridParams, useGrid, useGridReload } from '../../components/DataGrid';
+import StatementBar from '../../components/StatementBar';
 import { colors, radius } from '../../theme';
 import { Fld, Pager, reportStyles } from '../AccountHistoryScreen';
 import { fmtDateTime as dt } from '../../utils/dateTime';
@@ -16,10 +17,12 @@ const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '—');
 const CONFIG = {
   accountHistory: {
     title: 'Transaction History', fetch: (p) => api.retailer.accountHistory(p),
+    // bank-statement layout: Date | Txn Id | Narration | Debit | Credit | Balance
     cols: [
-      ['#', (r, i) => i, 56, null, null], ['Service', (r) => r.service_name, 150, null, 'service_name'], ['Type', (r) => cap(r.type), 90, (r) => (r.type === 'debit' ? colors.danger : colors.success), 'type'],
-      ['Remark', (r) => r.remark || '—', 240, null, 'remark'], ['Amount', (r) => money(r.amount), 110, null, 'amount'], ['Before', (r) => money(r.before_balance), 110, null, 'before_balance'],
-      ['Updated', (r) => money(r.updated_balance), 110, null, 'updated_balance'], ['Date', (r) => dt(r.created_at), 175, null, 'created_at'],
+      ['Date', (r) => dt(r.created_at), 175, null, 'created_at'], ['Txn Id', (r) => r.txn_id, 135, null, 'txn_id'],
+      ['Narration', (r) => (r.remark || '—') + (r.service_name && !(r.remark || '').includes(r.service_name) ? ` · ${r.service_name}` : ''), 300, null, 'remark'],
+      ['Debit', (r) => (r.type === 'debit' ? money(r.amount) : ''), 115, () => colors.danger, null], ['Credit', (r) => (r.type === 'credit' ? money(r.amount) : ''), 115, () => colors.success, null],
+      ['Balance', (r) => money(r.updated_balance), 120, null, null],
     ],
   },
   serviceReport: {
@@ -164,6 +167,10 @@ export default function RetailerReportScreen({ kind }) {
             <Text style={cs.total}>TDS: <Text style={cs.totalVal}>{money(totals.tds)}</Text></Text>
             {totals.charges ? <Text style={cs.total}>Charges: <Text style={[cs.totalVal, { color: colors.danger }]}>{money(totals.charges)}</Text></Text> : null}
           </View>
+        ) : null}
+        {kind === 'accountHistory' ? (
+          <StatementBar totals={totals} fetchPage={(p) => api.retailer.accountHistory(p)}
+            params={{ ...applied, ...(String(applied.service || '').startsWith('id:') ? { service: '', serviceId: String(applied.service).slice(3) } : {}), ...gridParams(null, grid.filters) }} />
         ) : null}
         <Pager page={page} totalPages={totalPages} from={from} to={to} total={total} onGo={load} />
       </Card>
