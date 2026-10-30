@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Button } from './UI';
 import { toast } from './Toast';
 import { colors } from '../theme';
+import { todayISO } from '../utils/dateTime';
 import { buildCsv, canDownload, fetchAllRows, openPrintWindow, printStatement, saveCsv, statementLines } from '../utils/statementExport';
 
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
@@ -20,7 +21,7 @@ export default function StatementBar({ totals, fetchPage, params, withUser = fal
       const all = await fetchAllRows(fetchPage, params);
       if (!all.rows.length) { if (win) win.close(); toast.info('No transactions to download.'); return; }
       const lines = statementLines(all.rows, { withUser });
-      const stamp = new Date().toISOString().slice(0, 10);
+      const stamp = todayISO();
       if (kind === 'csv') saveCsv(`account-statement-${stamp}.csv`, buildCsv(lines, { withUser }));
       else printStatement(win, { title: 'Account Statement', subtitle: subtitle || `${all.total} transactions`, lines, totals: all.totals || totals, withUser });
       if (all.truncated) toast.warning(`Only the latest ${all.rows.length} of ${all.total} transactions were downloaded. Narrow the dates for the rest.`);

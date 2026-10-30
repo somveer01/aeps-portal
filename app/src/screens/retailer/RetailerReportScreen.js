@@ -7,7 +7,7 @@ import DataGrid, { gridParams, useGrid, useGridReload } from '../../components/D
 import StatementBar from '../../components/StatementBar';
 import { colors, radius } from '../../theme';
 import { Fld, Pager, reportStyles } from '../AccountHistoryScreen';
-import { fmtDateTime as dt } from '../../utils/dateTime';
+import { fmtDateTime as dt, todayISO } from '../../utils/dateTime';
 
 const PAGE = 10;
 const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
@@ -66,7 +66,10 @@ export default function RetailerReportScreen({ kind }) {
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(null);
   const isComm = kind === 'commission';
-  const [ff, setFf] = useState({ startDate: '', endDate: '', service: '', level: '', type: '', sourceUserId: '', branchChildId: '' }); const [applied, setApplied] = useState({});
+  // Account History opens on today's transactions (clear the dates and press Search for everything); the other reports open on all dates
+  const day = kind === 'accountHistory' ? todayISO() : '';
+  const [ff, setFf] = useState({ startDate: day, endDate: day, service: '', level: '', type: '', sourceUserId: '', branchChildId: '' });
+  const [applied, setApplied] = useState(day ? { startDate: day, endDate: day } : {});
   const [totals, setTotals] = useState(null); const [summary, setSummary] = useState(null); const [downline, setDownline] = useState([]);
   const [services, setServices] = useState([]); // the services in my own reports, for the Service filter
   useEffect(() => { api.retailer.reportServices(kind).then((r) => setServices(r.rows || [])).catch(() => setServices([])); }, [kind]);

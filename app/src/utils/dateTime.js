@@ -11,6 +11,12 @@ function toDate(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+// Today as YYYY-MM-DD in the viewer's local time (what a DateField holds), e.g. a report that opens on today's rows.
+export function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+}
+
 export function fmtDate(value) {
   const d = toDate(value);
   return d ? `${two(d.getDate())} ${MONTHS[d.getMonth()]} ${d.getFullYear()}` : '—';

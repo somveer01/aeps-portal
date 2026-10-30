@@ -6,7 +6,7 @@ import { api } from '../api/client';
 import DataGrid, { gridParams } from '../components/DataGrid';
 import StatementBar from '../components/StatementBar';
 import { colors, radius } from '../theme';
-import { fmtDateTime } from '../utils/dateTime';
+import { fmtDateTime, todayISO } from '../utils/dateTime';
 
 const PAGE_SIZE = 10;
 const TYPE_OPTIONS = [{ label: 'All', value: '' }, { label: 'Credit', value: 'credit' }, { label: 'Debit', value: 'debit' }];
@@ -16,8 +16,9 @@ export default function AccountHistoryScreen() {
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1); const [totals, setTotals] = useState(null);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(null);
   const [userTypes, setUserTypes] = useState([]); const [users, setUsers] = useState([]); const [services, setServices] = useState([]);
-  const [ff, setFf] = useState({ startDate: '', endDate: '', userTypeId: '', userId: '', service: '', type: '' });
-  const [applied, setApplied] = useState({});
+  // opens on today's transactions; clear the dates and press Search for everything
+  const [ff, setFf] = useState(() => ({ startDate: todayISO(), endDate: todayISO(), userTypeId: '', userId: '', service: '', type: '' }));
+  const [applied, setApplied] = useState(() => ({ startDate: todayISO(), endDate: todayISO() }));
   const [sort, setSort] = useState(null); const [colFilters, setColFilters] = useState({}); // DataGrid
   const set = (k, v) => setFf((p) => ({ ...p, [k]: v }));
 
