@@ -73,3 +73,14 @@ test('only the admin may read it', async () => {
   assert.equal((await u.get('/api/admin-wallet')).s, 403);
   assert.equal((await api(BASE, '').get('/api/admin-wallet')).s, 401);
 });
+
+test('the Admin Wallet history menu row is called "Admin Wallet Statement" (admin menu only)', async () => {
+  const row = await db('menu_items').where({ scope: 'admin', route: '/admin-wallet/all' }).first();
+  assert.ok(row, 'the menu row exists');
+  assert.equal(row.title, 'Admin Wallet Statement');
+  const menu = await A.get('/api/menu');
+  assert.equal(menu.s, 200);
+  const titles = JSON.stringify(menu.b);
+  assert.ok(titles.includes('Admin Wallet Statement'), 'the admin menu shows the new name');
+  assert.ok(!titles.includes('"title":"View All"'), 'no menu row is still called View All');
+});

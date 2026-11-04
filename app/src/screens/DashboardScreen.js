@@ -285,7 +285,7 @@ export default function DashboardScreen({ user, onLogout }) {
       onSelect={selForm}
       header={{
         name, photo: profile?.photo, role: 'Admin', brandText: 'AEPS Portal', balanceText: money(balance),
-        onWallet: () => selForm({ title: 'Wallet Transactions', route: '/admin-wallet/all' }),
+        onWallet: () => selForm({ title: 'Admin Wallet Statement', route: '/admin-wallet/all' }),
         onSettings: () => selForm({ title: 'Application Settings', route: '/modules/settings' }),
         onUser: () => { core.setUserMenu(true); refreshBalance(); },
       }}
