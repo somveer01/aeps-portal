@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { Card, Alert, Button, Select } from '../components/UI';
 import { api } from '../api/client';
@@ -29,7 +29,7 @@ function Tag({ text, tone }) {
 }
 
 // Admin: the whole network as a tree (Admin -> Super Distributor -> Distributor -> Retailer). Click the arrow to open / close the users
-// below; click a user to open the Users Manager edit form for that user. Search / type / status keep the path to every match visible.
+// below; click a user's name (a link) to open the Users Manager edit form for that user. Search / type / status keep the path to every match visible.
 // `network` (Super Distributor / Distributor panel): the same screen, read only, showing just my own downline with me at the root.
 export default function HierarchyTreeScreen({ onOpenUser, network = false }) {
   const { width } = useWindowDimensions();
@@ -38,14 +38,9 @@ export default function HierarchyTreeScreen({ onOpenUser, network = false }) {
   const [loading, setLoading] = useState(true); const [error, setError] = useState(null);
   const [text, setText] = useState(''); const [typeId, setTypeId] = useState(''); const [status, setStatus] = useState('');
   const [expanded, setExpanded] = useState(new Set());
-  const lastTap = useRef({ id: null, t: 0 }); // double-tap detection (a single tap only selects, a double tap opens the edit form)
   const [copiedId, setCopiedId] = useState(null);
 
-  const tapUser = (n) => {
-    const now = Date.now();
-    if (lastTap.current.id === n.id && now - lastTap.current.t < 450) { lastTap.current = { id: null, t: 0 }; if (onOpenUser) onOpenUser({ id: n.id, userCode: n.userCode }); return; }
-    lastTap.current = { id: n.id, t: now };
-  };
+  const openUser = (n) => { if (onOpenUser) onOpenUser({ id: n.id, userCode: n.userCode }); };
   // The user ID is the login username: copy it so it can be pasted into the sign-in screen.
   const copyId = (n) => {
     copyText(n.userCode).then((ok) => { if (!ok) return; setCopiedId(n.id); setTimeout(() => setCopiedId((c) => (c === n.id ? null : c)), 1800); });
@@ -101,8 +96,8 @@ export default function HierarchyTreeScreen({ onOpenUser, network = false }) {
           <View style={{ flexShrink: 1, flexBasis: 300, flexGrow: 1, gap: 4 }}>
             <Text style={st.title}>Users Hierarchy Tree</Text>
             <Text style={st.sub}>{network
-              ? 'The users below you, and who sits under whom. Tap the arrow to open or close a team. Double-click a user to open them in My Users. Use Copy to copy a user ID (it is also the login ID).'
-              : 'Who sits under whom. Tap the arrow to open or close a team. Double-click a user to open the edit form. Use Copy to copy a user ID (it is also the login ID).'}</Text>
+              ? 'The users below you, and who sits under whom. Tap the arrow to open or close a team. Click a user name to open them in My Users. Use Copy to copy a user ID (it is also the login ID).'
+              : 'Who sits under whom. Tap the arrow to open or close a team. Click a user name to open the edit form. Use Copy to copy a user ID (it is also the login ID).'}</Text>
           </View>
         </View>
 
@@ -170,7 +165,7 @@ export default function HierarchyTreeScreen({ onOpenUser, network = false }) {
               const c = levelColor(n.typeDepth);
               const hasKids = n.children.length > 0;
               return (
-                <Pressable key={n.id} onPress={() => tapUser(n)}
+                <Pressable key={n.id}
                   style={({ hovered, pressed }) => [st.row, hit && st.rowHit, (hovered || pressed) && st.rowHover, !n.isActive && { opacity: 0.75 }]}>
                   {/* tree guide lines, one per level */}
                   {Array.from({ length: depth }).map((_, i) => <View key={i} style={st.guide} />)}
@@ -181,7 +176,11 @@ export default function HierarchyTreeScreen({ onOpenUser, network = false }) {
                     <View style={[st.avatar, { backgroundColor: c.bg }]}><Text style={[st.avatarText, { color: c.fg }]}>{initials(n.name)}</Text></View>
                     <View style={st.nameBlock}>
                       <View style={st.nameLine}>
-                        <Text style={st.name} numberOfLines={1}>{n.name}</Text>
+                        {onOpenUser ? (
+                          <Pressable onPress={() => openUser(n)} hitSlop={6} style={st.nameLink}>
+                            <Text style={[st.name, st.nameLinkText]} numberOfLines={1}>{n.name}</Text>
+                          </Pressable>
+                        ) : <Text style={st.name} numberOfLines={1}>{n.name}</Text>}
                         <Tag text={n.userType || '—'} tone={c} />
                       </View>
                       <View style={st.nameLine}>
@@ -258,6 +257,8 @@ const st = StyleSheet.create({
   nameBlock: { flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 0, gap: 4 },
   nameLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   name: { fontSize: 17, fontWeight: '700', color: colors.text, flexShrink: 1 },
+  nameLink: { flexShrink: 1, cursor: 'pointer' },
+  nameLinkText: { color: colors.primary, textDecorationLine: 'underline' },
   meta: { fontSize: 14, color: colors.muted },
   code: { fontSize: 15, fontWeight: '700', color: colors.text, letterSpacing: 0.3 },
   copyBtn: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: colors.border, backgroundColor: '#f8fafc' },
