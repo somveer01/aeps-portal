@@ -39,6 +39,7 @@ export default function RetailerShell({ user, onLogout }) {
   const modern = ui.layout === 'modern';
   const { active, profile, setProfile } = core;
   const [summary, setSummary] = useState(null);
+  const [openUser, setOpenUser] = useState(null); // set by the Users Hierarchy Tree: the user whose edit form My Users opens next
 
   const loadSummary = useCallback(() => { api.retailer.summary().then(setSummary).catch(() => {}); }, []);
   useEffect(() => { loadSummary(); }, [loadSummary]);
@@ -72,8 +73,8 @@ export default function RetailerShell({ user, onLogout }) {
     if (r === '/services/bus') return <BookingScreen {...sv} type="bus" onBack={back} onDone={loadSummary} />;
     if (r === '/fund-request' || r === '/services/fund-request') return <FundRequestScreen mode="mine" onDone={loadSummary} />;
     if (r.startsWith('/services/')) return <SimplePage title={active.title} note="This service will be enabled in a later phase (the API pipeline is ready)." onBack={back} />;
-    if (r === '/network/users') return <UserManagerScreen network onDone={loadSummary} />;
-    if (r === '/network/hierarchy-tree') return <HierarchyTreeScreen network />;
+    if (r === '/network/users') return <UserManagerScreen network onDone={loadSummary} openUser={openUser} onOpened={() => setOpenUser(null)} />;
+    if (r === '/network/hierarchy-tree') return <HierarchyTreeScreen network onOpenUser={(u) => { setOpenUser(u); go('/network/users', 'My Users'); }} />;
     if (r === '/network/fund-transfer') return <FundTransferScreen network onDone={loadSummary} />;
     if (r === '/network/fund-transfers') return <FundTransferListScreen network />;
     if (r === '/network/report') return <ServiceReportScreen network />;

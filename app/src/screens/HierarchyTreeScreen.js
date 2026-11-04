@@ -101,7 +101,7 @@ export default function HierarchyTreeScreen({ onOpenUser, network = false }) {
           <View style={{ flexShrink: 1, flexBasis: 300, flexGrow: 1, gap: 4 }}>
             <Text style={st.title}>Users Hierarchy Tree</Text>
             <Text style={st.sub}>{network
-              ? 'The users below you, and who sits under whom. Tap the arrow to open or close a team. Use Copy to copy a user ID (it is also the login ID).'
+              ? 'The users below you, and who sits under whom. Tap the arrow to open or close a team. Double-click a user to open them in My Users. Use Copy to copy a user ID (it is also the login ID).'
               : 'Who sits under whom. Tap the arrow to open or close a team. Double-click a user to open the edit form. Use Copy to copy a user ID (it is also the login ID).'}</Text>
           </View>
         </View>

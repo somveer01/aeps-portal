@@ -222,9 +222,10 @@ export default function UserManagerScreen({ network = false, onDone, openUser = 
   const parentIsAdmin = !network && !!selectedType.id && !selectedType.parent_type_id;
   const isEmployee = selectedTypeName.toLowerCase() === 'employee';
   const allServiceIds = services.map((s) => s.id);
-  // Opened from the Hierarchy Tree: jump straight to that user's edit form once the lists the form needs have loaded.
+  // Opened from the Hierarchy Tree (admin: Users Manager, Distributor / Super Distributor: My Users, own downline only): jump straight to
+  // that user's edit form once the lists the form needs have loaded.
   useEffect(() => {
-    if (!openUser || network || !userTypes.length) return undefined;
+    if (!openUser || !userTypes.length) return undefined;
     let live = true;
     usersApi.list({ q: openUser.userCode, pageSize: 20 }).then((res) => {
       const row = (res.rows || []).find((r) => r.id === openUser.id);
