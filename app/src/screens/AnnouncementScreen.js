@@ -31,9 +31,10 @@ export default function AnnouncementScreen() {
   useEffect(() => { load({ page: 1 }); api.userTypes.list({ pageSize: 100 }).then((r) => setUserTypes(r.rows)).catch(() => {}); /* eslint-disable-next-line */ }, []);
   useEffect(() => { const t = setTimeout(() => load({ page: 1, q }), 350); return () => clearTimeout(t); /* eslint-disable-next-line */ }, [q]);
 
-  const utOptions = userTypes.map((u) => ({ label: u.name, value: u.id }));
-  const openAdd = () => { setEditing(null); setUserTypeId(userTypes[0]?.id ?? ''); setMessage(''); setActive(true); setFormError(null); setView('form'); };
-  const openEdit = (r) => { setEditing(r); setUserTypeId(r.user_type_id); setMessage(r.message || ''); setActive(r.is_active); setFormError(null); setView('form'); };
+  // 'all' = every user type (Super Distributor, Distributor, Retailer, ...)
+  const utOptions = [{ label: 'All users (every user type)', value: 'all' }, ...userTypes.map((u) => ({ label: u.name, value: u.id }))];
+  const openAdd = () => { setEditing(null); setUserTypeId('all'); setMessage(''); setActive(true); setFormError(null); setView('form'); };
+  const openEdit = (r) => { setEditing(r); setUserTypeId(r.user_type_id || 'all'); setMessage(r.message || ''); setActive(r.is_active); setFormError(null); setView('form'); };
 
   const save = async () => {
     if (!userTypeId) { setFormError('Please select a user type.'); return; }
@@ -91,7 +92,7 @@ export default function AnnouncementScreen() {
           sort={grid.sort} onSort={grid.setSort} filters={grid.filters} onFilter={grid.setFilters}
           columns={[
             { key: 'no', title: '#', width: 56, sortable: false, filterable: false, render: (row, i) => <Text style={styles.td}>{from + i}</Text> },
-            { key: 'user_type', title: 'User Type', width: 170, render: (row) => <Text style={styles.td}>{row.user_type_name || '—'}</Text> },
+            { key: 'user_type', title: 'User Type', width: 170, render: (row) => <Text style={styles.td}>{row.user_type_name || 'All users'}</Text> },
             { key: 'message', title: 'Message', flex: 1, minWidth: 260, render: (row) => <Text style={styles.td} numberOfLines={2}>{row.message || '—'}</Text> },
             { key: 'created_at', title: 'Created on', width: 175, render: (row) => <Text style={styles.td}>{fmtDate(row.created_at)}</Text> },
             { key: 'status', title: 'Status', width: 100, render: (row) => <Switch value={!!row.is_active} onValueChange={() => toggleStatus(row)} trackColor={{ true: colors.success, false: '#cbd5e1' }} thumbColor="#fff" /> },
@@ -117,7 +118,7 @@ export default function AnnouncementScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Delete Announcement</Text>
-            <Text style={styles.para}>Delete this announcement for <Text style={{ fontWeight: '700' }}>{toDelete?.user_type_name || 'user'}</Text>? This cannot be undone.</Text>
+            <Text style={styles.para}>Delete this announcement for <Text style={{ fontWeight: '700' }}>{toDelete?.user_type_name || 'all users'}</Text>? This cannot be undone.</Text>
             <View style={styles.modalActions}>
               <Button title="Cancel" variant="ghost" onPress={() => setToDelete(null)} style={{ flex: 1 }} />
               <Button title="Delete" onPress={confirmDelete} loading={deleting} style={{ flex: 1, backgroundColor: colors.danger }} />

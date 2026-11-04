@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Card } from '../components/UI';
+import NoticeBanner from '../components/NoticeBanner';
 import SettingsScreen from './SettingsScreen';
 import ServiceCategoryScreen from './ServiceCategoryScreen';
 import CityMasterScreen from './CityMasterScreen';
@@ -309,24 +310,6 @@ export default function DashboardScreen({ user, onLogout }) {
   );
 }
 
-function NoticeBanner({ items }) {
-  const [idx, setIdx] = useState(0);
-  useEffect(() => {
-    if (!items || items.length <= 1) return undefined;
-    const t = setInterval(() => setIdx((i) => (i + 1) % items.length), 4000);
-    return () => clearInterval(t);
-  }, [items]);
-  if (!items || items.length === 0) return null;
-  const cur = items[idx % items.length];
-  return (
-    <View style={styles.notice}>
-      <Text style={styles.noticeIcon}>📢</Text>
-      <Text style={styles.noticeText} numberOfLines={2}>{cur.message}</Text>
-      {items.length > 1 ? <Text style={styles.noticeCount}>{(idx % items.length) + 1}/{items.length}</Text> : null}
-    </View>
-  );
-}
-
 function ActionRow({ label, count, onPress }) {
   const n = count ?? 0;
   const [hover, setHover] = useState(false);
@@ -367,10 +350,6 @@ const styles = StyleSheet.create({
 
 
 
-  notice: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: '#bfdbfe', borderLeftWidth: 4, borderLeftColor: colors.primary, borderRadius: radius.md, paddingVertical: 13, paddingHorizontal: 16, marginBottom: 18, ...shadows.sm },
-  noticeIcon: { fontSize: 18 },
-  noticeText: { flex: 1, color: colors.primaryDark, fontWeight: '600' },
-  noticeCount: { color: colors.muted, fontSize: 12, fontWeight: '700' },
   cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   stat: { flexGrow: 1, minWidth: 200, gap: 6, borderTopWidth: 3, borderTopColor: colors.primary },
   statLabel: { color: colors.muted, fontSize: 12.5, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 },

@@ -175,6 +175,7 @@ export const api = {
   announcements: {
     list: (params = {}) => request(`/api/announcements?${qs({ page: 1, pageSize: 10, ...params })}`, { auth: true }),
     active: (userTypeId = '') => request(`/api/announcements/active?userTypeId=${userTypeId}`, { auth: true }),
+    mine: () => request('/api/announcements/mine', { auth: true }), // a user panel's banner
     create: (body) => request('/api/announcements', { method: 'POST', body, auth: true }),
     update: (id, body) => request(`/api/announcements/${id}`, { method: 'PUT', body, auth: true }),
     remove: (id) => request(`/api/announcements/${id}`, { method: 'DELETE', auth: true }),

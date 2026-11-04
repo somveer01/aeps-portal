@@ -24,10 +24,19 @@ async function active(req, res, next) {
   } catch (err) { return next(err); }
 }
 
+// GET /api/announcements/mine -> what the signed-in user (distributor / retailer / ...) sees: active announcements for their user type and for all users
+async function mine(req, res, next) {
+  try { return res.json({ rows: await repo.activeForUserType(req.user.userTypeId) }); } catch (err) { return next(err); }
+}
+
+// userTypeId 'all' = an announcement for every user type (stored as no user type)
+const FOR_ALL = 'all';
+
 async function create(req, res, next) {
   try {
-    const userTypeId = parseInt(req.body.userTypeId, 10);
-    if (!userTypeId || !(await userTypeRepo.findById(userTypeId))) return res.status(400).json({ error: 'Please select a valid user type', code: 'INVALID_USER_TYPE' });
+    const forAll = String(req.body.userTypeId) === FOR_ALL;
+    const userTypeId = forAll ? null : parseInt(req.body.userTypeId, 10);
+    if (!forAll && (!userTypeId || !(await userTypeRepo.findById(userTypeId)))) return res.status(400).json({ error: 'Please select a valid user type', code: 'INVALID_USER_TYPE' });
     const message = String(req.body.message || '').trim();
     if (message.length < 2) return res.status(400).json({ error: 'Announcement message is required', code: 'INVALID_MESSAGE' });
     if (message.length > 5000) return res.status(400).json({ error: 'Message is too long', code: 'TOO_LONG' });
@@ -42,9 +51,12 @@ async function update(req, res, next) {
     if (!(await repo.findById(id))) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
     const patch = {};
     if (req.body.userTypeId !== undefined) {
-      const utId = parseInt(req.body.userTypeId, 10);
-      if (!utId || !(await userTypeRepo.findById(utId))) return res.status(400).json({ error: 'Invalid user type', code: 'INVALID_USER_TYPE' });
-      patch.userTypeId = utId;
+      if (String(req.body.userTypeId) === FOR_ALL) patch.userTypeId = null;
+      else {
+        const utId = parseInt(req.body.userTypeId, 10);
+        if (!utId || !(await userTypeRepo.findById(utId))) return res.status(400).json({ error: 'Invalid user type', code: 'INVALID_USER_TYPE' });
+        patch.userTypeId = utId;
+      }
     }
     if (req.body.message !== undefined) {
       const message = String(req.body.message || '').trim();
@@ -67,4 +79,4 @@ async function remove(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, active, create, update, remove };
+module.exports = { list, active, mine, create, update, remove };

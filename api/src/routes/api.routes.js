@@ -155,6 +155,7 @@ router.delete('/ticket-departments/:id', requireAdmin, ticketDept.remove);
 // Modules → Announcements (admin CRUD).
 router.get('/announcements', requireAdmin, announcement.list);
 router.get('/announcements/active', requireAdmin, announcement.active);
+router.get('/announcements/mine', requireManaged, announcement.mine); // the banner on a user panel: the active ones for my user type + the ones for everybody
 router.post('/announcements', requireAdmin, announcement.create);
 router.put('/announcements/:id', requireAdmin, announcement.update);
 router.delete('/announcements/:id', requireAdmin, announcement.remove);

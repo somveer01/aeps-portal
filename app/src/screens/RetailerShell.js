@@ -29,6 +29,7 @@ import FundRequestScreen from './FundRequestScreen';
 import CommissionPackageScreen from './CommissionPackageScreen';
 import KycScreen from './retailer/KycScreen';
 import HierarchyTreeScreen from './HierarchyTreeScreen';
+import NoticeBanner from '../components/NoticeBanner';
 
 const money = (v) => (v == null ? '₹0.00' : `₹${Number(v).toFixed(2)}`);
 
@@ -39,10 +40,12 @@ export default function RetailerShell({ user, onLogout }) {
   const modern = ui.layout === 'modern';
   const { active, profile, setProfile } = core;
   const [summary, setSummary] = useState(null);
+  const [announcements, setAnnouncements] = useState([]); // the admin's announcements for my user type (and for everybody), shown above the dashboard
   const [openUser, setOpenUser] = useState(null); // set by the Users Hierarchy Tree: the user whose edit form My Users opens next
 
   const loadSummary = useCallback(() => { api.retailer.summary().then(setSummary).catch(() => {}); }, []);
   useEffect(() => { loadSummary(); }, [loadSummary]);
+  useEffect(() => { api.announcements.mine().then((r) => setAnnouncements(r.rows || [])).catch(() => {}); }, []);
 
   const go = (route, title) => { core.open({ route, title }); loadSummary(); };
   const doLogout = () => { api.account.logout().catch(() => {}).finally(() => onLogout()); };
@@ -55,7 +58,14 @@ export default function RetailerShell({ user, onLogout }) {
     const [r, qs] = String(active.route).split('?');
     const service = new URLSearchParams(qs || '').get('service') || undefined; // a further Service Master service on the same screen
     const sv = { service, title: active.title };
-    if (r === '/') return modern ? <ModernRetailerDashboard onOpen={go} /> : <RetailerDashboard onOpen={go} />;
+    if (r === '/') {
+      return (
+        <View>
+          <NoticeBanner items={announcements} />
+          {modern ? <ModernRetailerDashboard onOpen={go} /> : <RetailerDashboard onOpen={go} />}
+        </View>
+      );
+    }
     if (r === '/services') return <ServicesScreen onOpen={(route, title) => go(route, title)} />;
     if (r === '/services/mobile-recharge') return <MobileRechargeScreen {...sv} onBack={back} onDone={loadSummary} />;
     if (r === '/services/dth-recharge') return <DthRechargeScreen {...sv} onBack={back} onDone={loadSummary} />;
