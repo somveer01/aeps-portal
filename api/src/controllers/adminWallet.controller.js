@@ -5,7 +5,7 @@ const db = require('../config/db');
 const audit = require('../repositories/audit.repo');
 const wallet = require('../services/wallet.service');
 const adminWalletHistory = require('../repositories/adminWalletHistory.repo');
-const { isMoneyAmount, toAmount } = require('../utils/money');
+const { isMoneyAmount, toAmount, round2 } = require('../utils/money');
 
 const clean = (v) => String(v || '').trim();
 
@@ -19,8 +19,10 @@ async function balance(req, res, next) {
 
 // GET /api/admin-wallet  (Wallet Transaction History, filterable)
 // Sortable / filterable grid columns of the Admin Wallet list.
+// A statement reference that is always there and unique: AW + the row id (9 digits).
+const TXN_ID = "('AW' || lpad(x.id::text, 9, '0'))";
 const GRID = {
-  amount: 'x.amount', txn_type: 'x.txn_type', before_balance: 'x.before_balance', updated_balance: 'x.updated_balance',
+  txn_id: { sort: 'x.id', filter: TXN_ID }, amount: 'x.amount', txn_type: 'x.txn_type', before_balance: 'x.before_balance', updated_balance: 'x.updated_balance',
   remark: 'x.remark', user: { sort: 'u.full_name', filter: "concat_ws(' ', u.full_name, u.username)" }, created_at: DATE_COL('x.created_at'),
 };
 
@@ -43,11 +45,22 @@ async function list(req, res, next) {
     const joins = () => db('admin_wallet_transactions as x').join('users as u', 'u.id', 'x.admin_id');
     const countRow = await joins().where(filter).count('x.id as c').first();
     const rows = await joins().where(filter)
-      .select('x.*', 'u.full_name as user_name', 'u.username as user_username')
+      .select('x.*', db.raw(`${TXN_ID} as txn_id`), 'u.full_name as user_name', 'u.username as user_username')
       .modify((qb) => applyGridSortFirst(qb, grid))
       .orderBy('x.id', 'desc').limit(pageSize).offset((page - 1) * pageSize);
     const bal = await db('users').where({ id: req.user.id }).first('wallet_balance');
-    return res.json({ rows, total: Number(countRow.c), page, pageSize, balance: Number(bal ? bal.wallet_balance : 0) });
+    // Statement totals over the WHOLE filter (not just this page): money in (credit) / out (debit), and the admin wallet before the oldest
+    // and after the newest row of the filter.
+    const t = await joins().where(filter).first(
+      db.raw("coalesce(sum(x.amount) filter (where x.txn_type = 'credit'), 0) as credit"),
+      db.raw("coalesce(sum(x.amount) filter (where x.txn_type = 'debit'), 0) as debit"));
+    const totals = { credit: round2(Number(t.credit)), debit: round2(Number(t.debit)) };
+    if (Number(countRow.c) > 0) {
+      const first = await joins().where(filter).orderBy('x.created_at', 'asc').orderBy('x.id', 'asc').first('x.before_balance');
+      const last = await joins().where(filter).orderBy('x.created_at', 'desc').orderBy('x.id', 'desc').first('x.updated_balance');
+      totals.opening = round2(Number(first.before_balance)); totals.closing = round2(Number(last.updated_balance));
+    }
+    return res.json({ rows, total: Number(countRow.c), page, pageSize, balance: Number(bal ? bal.wallet_balance : 0), totals });
   } catch (err) { return next(err); }
 }
 

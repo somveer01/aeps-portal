@@ -10,7 +10,7 @@ const money = (v) => `₹${Number(v || 0).toFixed(2)}`;
 
 // Under the Account History grid: total debit / credit (and opening / closing balance for one user) + Download CSV / PDF.
 //   fetchPage(params) = the report's API call; params = the current filters (no paging); withUser = admin view (adds a User column).
-export default function StatementBar({ totals, fetchPage, params, withUser = false, subtitle = '' }) {
+export default function StatementBar({ totals, fetchPage, params, withUser = false, subtitle = '', title = 'Account Statement', filePrefix = 'account-statement', debitLabel = 'Total debit', creditLabel = 'Total credit' }) {
   const [busy, setBusy] = useState('');
   const run = async (kind) => {
     if (!canDownload()) { toast.info('Download works in the web app.'); return; }
@@ -22,8 +22,8 @@ export default function StatementBar({ totals, fetchPage, params, withUser = fal
       if (!all.rows.length) { if (win) win.close(); toast.info('No transactions to download.'); return; }
       const lines = statementLines(all.rows, { withUser });
       const stamp = todayISO();
-      if (kind === 'csv') saveCsv(`account-statement-${stamp}.csv`, buildCsv(lines, { withUser }));
-      else printStatement(win, { title: 'Account Statement', subtitle: subtitle || `${all.total} transactions`, lines, totals: all.totals || totals, withUser });
+      if (kind === 'csv') saveCsv(`${filePrefix}-${stamp}.csv`, buildCsv(lines, { withUser }));
+      else printStatement(win, { title, subtitle: subtitle || `${all.total} transactions`, lines, totals: all.totals || totals, withUser });
       if (all.truncated) toast.warning(`Only the latest ${all.rows.length} of ${all.total} transactions were downloaded. Narrow the dates for the rest.`);
     } catch (e) { if (win) win.close(); toast.error(e.message || 'Download failed.'); } finally { setBusy(''); }
   };
@@ -33,8 +33,8 @@ export default function StatementBar({ totals, fetchPage, params, withUser = fal
       <View style={s.sums}>
         {totals ? (
           <>
-            <Text style={s.t}>Total debit: <Text style={[s.v, { color: colors.danger }]}>{money(totals.debit)}</Text></Text>
-            <Text style={s.t}>Total credit: <Text style={[s.v, { color: colors.success }]}>{money(totals.credit)}</Text></Text>
+            <Text style={s.t}>{debitLabel}: <Text style={[s.v, { color: colors.danger }]}>{money(totals.debit)}</Text></Text>
+            <Text style={s.t}>{creditLabel}: <Text style={[s.v, { color: colors.success }]}>{money(totals.credit)}</Text></Text>
             {totals.opening !== undefined ? <Text style={s.t}>Opening balance: <Text style={s.v}>{money(totals.opening)}</Text></Text> : null}
             {totals.closing !== undefined ? <Text style={s.t}>Closing balance: <Text style={s.v}>{money(totals.closing)}</Text></Text> : null}
           </>

@@ -24,7 +24,7 @@ export async function fetchAllRows(fetchPage, params) {
 export function statementLines(rows, { withUser = false } = {}) {
   return rows.map((r) => ({
     date: fmtDateTime(r.created_at), txnId: r.txn_id || '', service: r.service_name || '', narration: r.remark || r.service_name || '',
-    debit: r.type === 'debit' ? num(r.amount) : '', credit: r.type === 'credit' ? num(r.amount) : '', balance: num(r.updated_balance),
+    debit: (r.type || r.txn_type) === 'debit' ? num(r.amount) : '', credit: (r.type || r.txn_type) === 'credit' ? num(r.amount) : '', balance: num(r.updated_balance), // wallet history rows say `type`, the admin wallet's say `txn_type`
     user: withUser ? `${r.user_code || ''} ${r.user_name || ''}`.trim() : '',
   }));
 }
