@@ -76,7 +76,7 @@ const EMPTY = {
 
 // network: the distributor / MD panel — same screen, limited to the caller's downline,
 // without the admin-only fields (KYC, service access, parent, employee, merchant, min balance).
-export default function UserManagerScreen({ network = false, onDone, openUser = null, onOpened }) {
+export default function UserManagerScreen({ network = false, onDone, openUser = null, onOpened, onBackToTree = null }) {
   const usersApi = network ? api.network.users : api.managedUsers;
   const [meId, setMeId] = useState(null); const [filterTypes, setFilterTypes] = useState([]); const [fundPin, setFundPin] = useState('');
   const [rows, setRows] = useState([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1);
@@ -89,6 +89,7 @@ export default function UserManagerScreen({ network = false, onDone, openUser = 
   const [userTypes, setUserTypes] = useState([]); const [plans, setPlans] = useState([]);
   const [states, setStates] = useState([]); const [cities, setCities] = useState([]); const [services, setServices] = useState([]); const [modules, setModules] = useState([]);
   const [view, setView] = useState('list'); const [editing, setEditing] = useState(null);
+  const [fromTree, setFromTree] = useState(false); // the form was opened from the Users Hierarchy Tree: Back / Cancel / Save return there
   const [f, setF] = useState(EMPTY);
   const [saving, setSaving] = useState(false); const [formError, setFormError] = useState(null);
   // fund / view / delete
@@ -186,6 +187,7 @@ export default function UserManagerScreen({ network = false, onDone, openUser = 
   const defaultServices = (typeId) => typeDefaults.filter((a) => String(a.userTypeId) === String(typeId)).map((a) => a.serviceId);
   const openAdd = () => { const t = userTypes[0]?.id ?? ''; setEditing(null); setF({ ...EMPTY, userTypeId: t, serviceAccess: defaultServices(t) }); setFormError(null); setView('form'); };
   const openEdit = (r) => {
+    setFromTree(false); // opened from a list row; the Hierarchy Tree effect sets it again right after
     setEditing(r);
     setF({
       userTypeId: r.user_type_id, ...nameParts(r), fatherHusbandName: r.father_husband_name || '', dob: r.dob || '',
@@ -229,7 +231,7 @@ export default function UserManagerScreen({ network = false, onDone, openUser = 
     let live = true;
     usersApi.list({ q: openUser.userCode, pageSize: 20 }).then((res) => {
       const row = (res.rows || []).find((r) => r.id === openUser.id);
-      if (live && row) openEdit(row);
+      if (live && row) { openEdit(row); setFromTree(!!onBackToTree); }
       if (live && onOpened) onOpened();
     }).catch(() => { if (live && onOpened) onOpened(); });
     return () => { live = false; };
@@ -261,10 +263,12 @@ export default function UserManagerScreen({ network = false, onDone, openUser = 
     try {
       if (editing) { body.kycStatus = f.kycStatus; body.ekycStatus = f.ekycStatus; await usersApi.update(editing.id, body); }
       else { body.password = f.password; await usersApi.create(body); }
+      if (fromTree && onBackToTree) { setFromTree(false); onBackToTree(); return; } // saved: back to the tree (it reloads the users)
       setView('list'); await load({ page: editing ? page : 1 });
       if (network) loadFilterTypes();
     } catch (e) { setFormError(e.message); } finally { setSaving(false); }
   };
+  const closeForm = () => { if (fromTree && onBackToTree) { setFromTree(false); onBackToTree(); } else setView('list'); };
   const toggleStatus = async (row) => {
     setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, is_active: !r.is_active } : r)));
     try { await usersApi.update(row.id, { isActive: !row.is_active }); }
@@ -314,7 +318,7 @@ export default function UserManagerScreen({ network = false, onDone, openUser = 
     return (
       <View style={{ gap: 16 }}>
         <FormBar saveTitle={editing ? 'Save' : 'Create User'} onSave={save} saving={saving}
-          onCancel={() => setView('list')} backTitle="← Back" onBack={() => setView('list')} error={formError} />
+          onCancel={closeForm} backTitle={fromTree ? '← Back to tree' : '← Back'} onBack={closeForm} error={formError} />
         <Card>
 
           <Text style={styles.section}>Basic Details</Text>

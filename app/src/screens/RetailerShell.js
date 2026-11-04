@@ -73,7 +73,7 @@ export default function RetailerShell({ user, onLogout }) {
     if (r === '/services/bus') return <BookingScreen {...sv} type="bus" onBack={back} onDone={loadSummary} />;
     if (r === '/fund-request' || r === '/services/fund-request') return <FundRequestScreen mode="mine" onDone={loadSummary} />;
     if (r.startsWith('/services/')) return <SimplePage title={active.title} note="This service will be enabled in a later phase (the API pipeline is ready)." onBack={back} />;
-    if (r === '/network/users') return <UserManagerScreen network onDone={loadSummary} openUser={openUser} onOpened={() => setOpenUser(null)} />;
+    if (r === '/network/users') return <UserManagerScreen network onDone={loadSummary} openUser={openUser} onOpened={() => setOpenUser(null)} onBackToTree={() => go('/network/hierarchy-tree', 'Users Hierarchy Tree')} />;
     if (r === '/network/hierarchy-tree') return <HierarchyTreeScreen network onOpenUser={(u) => { setOpenUser(u); go('/network/users', 'My Users'); }} />;
     if (r === '/network/fund-transfer') return <FundTransferScreen network onDone={loadSummary} />;
     if (r === '/network/fund-transfers') return <FundTransferListScreen network />;

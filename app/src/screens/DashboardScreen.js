@@ -128,7 +128,7 @@ export default function DashboardScreen({ user, onLogout }) {
             ) : active.route === '/hierarchy-tree' ? (
               <HierarchyTreeScreen onOpenUser={(u) => { setOpenUser(u); core.open({ route: '/users-manager', title: 'Users Manager' }); }} />
             ) : active.route === '/users-manager' ? (
-              <UserManagerScreen onDone={refreshBalance} openUser={openUser} onOpened={() => setOpenUser(null)} />
+              <UserManagerScreen onDone={refreshBalance} openUser={openUser} onOpened={() => setOpenUser(null)} onBackToTree={() => core.open({ route: '/hierarchy-tree', title: 'Users Hierarchy Tree' })} />
             ) : active.route === '/account-history' ? (
               <AccountHistoryScreen />
             ) : active.route === '/service-report' ? (
