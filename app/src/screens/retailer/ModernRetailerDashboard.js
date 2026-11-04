@@ -73,12 +73,15 @@ export default function ModernRetailerDashboard({ onOpen }) {
       ) : null}
 
       <View style={styles.row}>
+        {/* Own / network / total only matters with a downline; without one (a Retailer) it repeats the COMMISSION EARNED tile above */}
+        {hasNet ? (
         <View style={[styles.card, styles.commission]}>
           <Text style={styles.panelTitle}>Commission</Text>
           <View style={styles.cLine}><Text style={styles.cKey}>From my own business</Text><Text style={[styles.cVal, { color: '#16a34a' }]}>{money(g && g.commission.own)}</Text></View>
           {hasNet ? <View style={styles.cLine}><Text style={styles.cKey}>From my network</Text><Text style={[styles.cVal, { color: '#16a34a' }]}>{money(g && g.commission.network)}</Text></View> : null}
           <View style={[styles.cLine, { borderBottomWidth: 0, paddingTop: 14 }]}><Text style={[styles.cKey, { fontWeight: '800', color: '#0f172a' }]}>Total earned</Text><Text style={[styles.cVal, { color: colors.primary, fontSize: 20 }]}>{money(g && g.commission.total)}</Text></View>
         </View>
+        ) : null}
         <View style={styles.statusGrid}>
           <StatusTile icon="check" tone="#16a34a" label="SUCCESS" amount={g && g.statusBreakdown.success.amount} count={g ? g.statusBreakdown.success.count : 0} />
           <StatusTile icon="clock" tone="#d97706" label="PENDING" amount={g && g.statusBreakdown.pending.amount} count={g ? g.statusBreakdown.pending.count : 0} />
