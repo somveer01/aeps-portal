@@ -121,3 +121,38 @@ test('buildTree + types: a user under a parent whose type is not above it is mar
   assert.deepEqual([...filterTree(roots, { text: '', typeId: '', status: 'misplaced' }).matches].sort(), [5, 7]);
   assert.equal([...buildTree([u(1, null, 1, 'a'), u(2, 1, 1, 'b')]).byId.values()].some((n) => n.misplaced), false, 'no types given = no marks');
 });
+
+// ── Super Distributor / Distributor: GET /api/network/hierarchy-tree (their own downline only, read only) ──
+test('a Super Distributor sees only the users below them, the direct ones at the top; a Distributor only theirs', async () => {
+  await mkUser('x', typeIds[0], null); // another Super Distributor's network: nobody below, must never show up
+  await mkUser('xd', typeIds[1], userIds.x);
+  const sd = api(BASE, signFor(await db('users').where({ id: userIds.sd }).first()));
+  const r = await sd.get('/api/network/hierarchy-tree');
+  assert.equal(r.s, 200, JSON.stringify(r.b));
+  const byCode = Object.fromEntries(r.b.rows.map((x) => [x.userCode.slice(TAG.length), x]));
+  assert.deepEqual(Object.keys(byCode).sort(), ['d', 'r1', 'r2'], 'my Distributor and its Retailers; not myself, not the other network');
+  assert.equal(byCode.d.parentId, null, 'a direct user is a top-level one');
+  assert.equal(byCode.r1.parentId, userIds.d);
+  assert.equal(r.b.me.id, userIds.sd); assert.equal(r.b.me.userCode, `${TAG}sd`);
+  assert.ok(Array.isArray(r.b.types) && r.b.types.length > 0);
+  assert.ok(!JSON.stringify(r.b).match(/password|token/i), 'no secrets');
+
+  const d = api(BASE, signFor(await db('users').where({ id: userIds.d }).first()));
+  const r2 = await d.get('/api/network/hierarchy-tree');
+  assert.deepEqual(r2.b.rows.map((x) => x.userCode.slice(TAG.length)).sort(), ['r1', 'r2']);
+  assert.ok(r2.b.rows.every((x) => x.parentId === null), 'both Retailers are direct users of the Distributor');
+});
+
+test('the network tree is only for managed users that can have a downline (a Retailer, the admin and a visitor are refused)', async () => {
+  assert.equal((await api(BASE, retailerToken).get('/api/network/hierarchy-tree')).s, 403);
+  assert.equal((await A.get('/api/network/hierarchy-tree')).s, 403);
+  assert.equal((await api(BASE, '').get('/api/network/hierarchy-tree')).s, 401);
+});
+
+test('the Users Hierarchy Tree menu row is in My Network for the network scope only', async () => {
+  const row = await db('menu_items').where({ scope: 'network', route: '/network/hierarchy-tree' }).first();
+  assert.ok(row, 'migration added the row');
+  assert.equal(row.title, 'Users Hierarchy Tree');
+  const parent = await db('menu_items').where({ id: row.parent_id }).first();
+  assert.equal(parent.title, 'My Network');
+});

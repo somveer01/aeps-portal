@@ -277,6 +277,7 @@ router.post('/tickets/:id/reply', requireAdmin, ticket.adminReply);
 // Distributor / MD panel (own downline only).
 router.get('/network/summary', requireManaged, network.requireNetwork, network.summary);
 router.get('/network/meta', requireManaged, network.requireNetwork, network.getMeta);
+router.get('/network/hierarchy-tree', requireManaged, network.requireNetwork, hierarchy.networkTree); // read only: my own downline as a tree
 router.get('/network/users/search', requireManaged, network.requireNetwork, network.searchUsers);
 router.get('/network/users', requireManaged, network.requireNetwork, network.listUsers);
 router.post('/network/users', requireManaged, network.requireNetwork, network.createUser);

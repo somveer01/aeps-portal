@@ -392,6 +392,7 @@ export const api = {
   network: {
     summary: () => request('/api/network/summary', { auth: true }),
     meta: () => request('/api/network/meta', { auth: true }),
+    hierarchyTree: () => request('/api/network/hierarchy-tree', { auth: true }),
     users: {
       list: (params = {}) => request(`/api/network/users?${qs(params)}`, { auth: true }),
       // User picker: slim rows from my own downline. params: q, scope ('direct' | 'downline'), userTypeId, id, userCode, limit.

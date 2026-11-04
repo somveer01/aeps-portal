@@ -28,6 +28,7 @@ import ServiceReportScreen from './ServiceReportScreen';
 import FundRequestScreen from './FundRequestScreen';
 import CommissionPackageScreen from './CommissionPackageScreen';
 import KycScreen from './retailer/KycScreen';
+import HierarchyTreeScreen from './HierarchyTreeScreen';
 
 const money = (v) => (v == null ? '₹0.00' : `₹${Number(v).toFixed(2)}`);
 
@@ -72,6 +73,7 @@ export default function RetailerShell({ user, onLogout }) {
     if (r === '/fund-request' || r === '/services/fund-request') return <FundRequestScreen mode="mine" onDone={loadSummary} />;
     if (r.startsWith('/services/')) return <SimplePage title={active.title} note="This service will be enabled in a later phase (the API pipeline is ready)." onBack={back} />;
     if (r === '/network/users') return <UserManagerScreen network onDone={loadSummary} />;
+    if (r === '/network/hierarchy-tree') return <HierarchyTreeScreen network />;
     if (r === '/network/fund-transfer') return <FundTransferScreen network onDone={loadSummary} />;
     if (r === '/network/fund-transfers') return <FundTransferListScreen network />;
     if (r === '/network/report') return <ServiceReportScreen network />;

@@ -30,10 +30,11 @@ function Tag({ text, tone }) {
 
 // Admin: the whole network as a tree (Admin -> Super Distributor -> Distributor -> Retailer). Click the arrow to open / close the users
 // below; click a user to open the Users Manager edit form for that user. Search / type / status keep the path to every match visible.
-export default function HierarchyTreeScreen({ onOpenUser }) {
+// `network` (Super Distributor / Distributor panel): the same screen, read only, showing just my own downline with me at the root.
+export default function HierarchyTreeScreen({ onOpenUser, network = false }) {
   const { width } = useWindowDimensions();
   const wide = width >= 900; // wide: aligned columns on the right; narrow: the details wrap under the name
-  const [rows, setRows] = useState([]); const [types, setTypes] = useState([]); const [truncated, setTruncated] = useState(false);
+  const [rows, setRows] = useState([]); const [types, setTypes] = useState([]); const [truncated, setTruncated] = useState(false); const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(null);
   const [text, setText] = useState(''); const [typeId, setTypeId] = useState(''); const [status, setStatus] = useState('');
   const [expanded, setExpanded] = useState(new Set());
@@ -53,8 +54,8 @@ export default function HierarchyTreeScreen({ onOpenUser }) {
   const load = async () => {
     setLoading(true); setError(null);
     try {
-      const r = await api.hierarchy.tree();
-      setRows(r.rows || []); setTypes(r.types || []); setTruncated(!!r.truncated);
+      const r = network ? await api.network.hierarchyTree() : await api.hierarchy.tree();
+      setRows(r.rows || []); setTypes(r.types || []); setTruncated(!!r.truncated); setMe(r.me || null);
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
@@ -99,7 +100,9 @@ export default function HierarchyTreeScreen({ onOpenUser }) {
         <View style={st.head}>
           <View style={{ flexShrink: 1, flexBasis: 300, flexGrow: 1, gap: 4 }}>
             <Text style={st.title}>Users Hierarchy Tree</Text>
-            <Text style={st.sub}>Who sits under whom. Tap the arrow to open or close a team. Double-click a user to open the edit form. Use Copy to copy a user ID (it is also the login ID).</Text>
+            <Text style={st.sub}>{network
+              ? 'The users below you, and who sits under whom. Tap the arrow to open or close a team. Use Copy to copy a user ID (it is also the login ID).'
+              : 'Who sits under whom. Tap the arrow to open or close a team. Double-click a user to open the edit form. Use Copy to copy a user ID (it is also the login ID).'}</Text>
           </View>
         </View>
 
@@ -151,16 +154,16 @@ export default function HierarchyTreeScreen({ onOpenUser }) {
               </View>
             ) : null}
 
-            {/* the Admin: the root of the tree */}
+            {/* the root of the tree: the Admin, or (network panel) me */}
             <View style={st.adminRow}>
-              <View style={[st.avatar, { backgroundColor: colors.primary }]}><Text style={[st.avatarText, { color: colors.onPrimary }]}>A</Text></View>
+              <View style={[st.avatar, { backgroundColor: colors.primary }]}><Text style={[st.avatarText, { color: colors.onPrimary }]}>{network ? initials(me && me.name) : 'A'}</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={st.adminName}>Admin</Text>
-                <Text style={st.meta}>{filterOn ? `${visibleRows.length} shown` : `${rows.length} users in the network`}</Text>
+                <Text style={st.adminName}>{network ? ((me && me.name) || 'Me') : 'Admin'}</Text>
+                <Text style={st.meta}>{network && me ? `${me.userCode}${me.userType ? ` · ${me.userType}` : ''} · ` : ''}{filterOn ? `${visibleRows.length} shown` : `${rows.length} users in the network`}</Text>
               </View>
             </View>
 
-            {visibleRows.length === 0 ? <View style={st.empty}><Text style={st.emptyText}>{rows.length ? 'No user matches your search.' : 'No users yet.'}</Text></View> : null}
+            {visibleRows.length === 0 ? <View style={st.empty}><Text style={st.emptyText}>{rows.length ? 'No user matches your search.' : (network ? 'No users below you yet.' : 'No users yet.')}</Text></View> : null}
 
             {visibleRows.map(({ node: n, depth }) => {
               const isOpen = expanded.has(n.id); const hit = filterOn && filtered.matches.has(n.id);
